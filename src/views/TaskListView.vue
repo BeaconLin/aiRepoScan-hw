@@ -321,7 +321,6 @@ onMounted(() => {
 
 <style scoped>
 .task-list-page {
-  max-width: 1400px;
   margin: 0 auto;
   height: calc(100vh - 120px);
   display: flex;
@@ -350,15 +349,12 @@ onMounted(() => {
   align-items: center;
 }
 
-.filter-section {
-  margin-bottom: 16px;
-}
-
 .filter-form {
   margin: 0;
 }
 
 .task-list-section {
+  padding-top: 12px;
   margin-bottom: 16px;
   flex: 1;
   overflow-y: auto;
