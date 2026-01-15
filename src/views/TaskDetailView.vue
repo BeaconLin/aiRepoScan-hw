@@ -286,7 +286,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { 
@@ -302,34 +302,89 @@ import {
 } from 'element-plus'
 import { useTaskStore, TASK_STATUS, TASK_STATUS_MAP } from '../stores/task'
 
+// 类型定义
+interface Task {
+  id: string
+  taskName: string
+  repoUrl: string
+  branch: string
+  scanPaths: string[]
+  assistantVersions: string[]
+  creator: string
+  createTime: string
+  status: string
+  language: string
+  codeLines: number
+}
+
+interface ScanResult {
+  id: string
+  fileName: string
+  rule_name: string
+  line: number
+  code_block: string
+  context: string
+  warn: string
+  markStatus: 'is_issue' | 'not_issue' | 'unmarked'
+}
+
+interface FilterForm {
+  keyword: string
+  ruleName: string
+  markStatus: string
+}
+
+interface AnnotationData {
+  markStatus: 'is_issue' | 'not_issue' | 'unmarked'
+  annotator: string
+  annotationTime: string
+}
+
+interface Annotations {
+  [key: string]: AnnotationData
+}
+
+interface Statistics {
+  totalIssues: number
+  annotated: number
+  unannotated: number
+  typeDistribution: Record<string, number>
+  markedAsIssue: number
+  markedAsNotIssue: number
+  unmarked: number
+}
+
+type MarkStatus = 'is_issue' | 'not_issue' | 'unmarked'
+type TagType = 'success' | 'info' | 'warning' | 'danger'
+
 const router = useRouter()
 const route = useRoute()
 const taskStore = useTaskStore()
 
 // 任务信息
-const task = ref(null)
-const scanResults = ref([])
-const currentPage = ref(1)
-const pageSize = ref(10)
+const task = ref<Task | null>(null)
+const scanResults = ref<ScanResult[]>([])
+const currentPage = ref<number>(1)
+const pageSize = ref<number>(10)
 
 // 筛选表单
-const filterForm = ref({
+const filterForm = ref<FilterForm>({
   keyword: '',
   ruleName: '',
   markStatus: ''
 })
 
 // localStorage 存储键名
-const getAnnotationStorageKey = (taskId) => {
+const getAnnotationStorageKey = (taskId: string): string => {
   return `aiRepoScan_annotations_${taskId}`
 }
 
 // 从 localStorage 加载标记数据
-const loadAnnotationsFromStorage = (taskId) => {
+const loadAnnotationsFromStorage = (taskId: string): Annotations => {
   try {
     const stored = localStorage.getItem(getAnnotationStorageKey(taskId))
     if (stored) {
-      return JSON.parse(stored)
+      return JSON.parse(stored) as Annotations
     }
   } catch (error) {
     console.error('加载标记数据失败:', error)
@@ -338,7 +393,7 @@ const loadAnnotationsFromStorage = (taskId) => {
 }
 
 // 保存标记数据到 localStorage
-const saveAnnotationsToStorage = (taskId, annotations) => {
+const saveAnnotationsToStorage = (taskId: string, annotations: Annotations): void => {
   try {
     localStorage.setItem(getAnnotationStorageKey(taskId), JSON.stringify(annotations))
   } catch (error) {
@@ -347,8 +402,8 @@ const saveAnnotationsToStorage = (taskId, annotations) => {
 }
 
 // 生成mock扫描结果数据
-const generateMockScanResults = (taskId) => {
-  const mockResults = [
+const generateMockScanResults = (taskId: string): ScanResult[] => {
+  const mockResults: ScanResult[] = [
     {
       id: '1',
       fileName: 'UserProfile.vue',
@@ -433,14 +488,14 @@ const generateMockScanResults = (taskId) => {
 }
 
 // 计算属性：获取所有规则名称
-const ruleNames = computed(() => {
+const ruleNames = computed<string[]>(() => {
   if (!scanResults.value.length) return []
   const names = new Set(scanResults.value.map(r => r.rule_name))
   return Array.from(names)
 })
 
 // 计算属性：统计信息
-const statistics = computed(() => {
+const statistics = computed<Statistics>(() => {
   if (!scanResults.value.length) {
     return {
       totalIssues: 0,
@@ -487,7 +542,7 @@ const statistics = computed(() => {
 })
 
 // 计算属性：筛选后的结果
-const filteredResults = computed(() => {
+const filteredResults = computed<ScanResult[]>(() => {
   let results = scanResults.value
 
   // 关键词搜索
@@ -514,14 +569,14 @@ const filteredResults = computed(() => {
 })
 
 // 计算属性：分页后的结果
-const paginatedResults = computed(() => {
+const paginatedResults = computed<ScanResult[]>(() => {
   const start = (currentPage.value - 1) * pageSize.value
   const end = start + pageSize.value
   return filteredResults.value.slice(start, end)
 })
 
 // 获取规则名称标签类型
-const getRuleNameTagType = (ruleName) => {
+const getRuleNameTagType = (ruleName: string): TagType => {
   // 根据规则名称关键词判断类型
   if (ruleName.includes('安全') || ruleName.includes('XSS') || ruleName.includes('注入')) {
     return 'danger'
@@ -535,8 +590,8 @@ const getRuleNameTagType = (ruleName) => {
 }
 
 // 获取标记状态标签类型
-const getMarkStatusTagType = (status) => {
-  const statusMap = {
+const getMarkStatusTagType = (status: MarkStatus): TagType => {
+  const statusMap: Record<MarkStatus, TagType> = {
     'is_issue': 'danger',
     'not_issue': 'success',
     'unmarked': 'info'
@@ -545,8 +600,8 @@ const getMarkStatusTagType = (status) => {
 }
 
 // 获取标记状态标签文本
-const getMarkStatusLabel = (status) => {
-  const labelMap = {
+const getMarkStatusLabel = (status: MarkStatus): string => {
+  const labelMap: Record<MarkStatus, string> = {
     'is_issue': '是问题',
     'not_issue': '不是问题',
     'unmarked': '未标记'
@@ -555,13 +610,13 @@ const getMarkStatusLabel = (status) => {
 }
 
 // 标记处理
-const handleMark = (resultId, markStatus) => {
+const handleMark = (resultId: string, markStatus: MarkStatus): void => {
   const result = scanResults.value.find(r => r.id === resultId)
   if (result) {
     result.markStatus = markStatus
     
     // 保存到 localStorage
-    const taskId = route.params.id
+    const taskId = route.params.id as string
     if (taskId) {
       const annotations = loadAnnotationsFromStorage(taskId)
       if (markStatus === 'unmarked') {
@@ -591,25 +646,25 @@ const handleMark = (resultId, markStatus) => {
 }
 
 // 筛选处理
-const handleFilter = () => {
+const handleFilter = (): void => {
   currentPage.value = 1
 }
 
 // 分页大小改变
-const handleSizeChange = (size) => {
+const handleSizeChange = (size: number): void => {
   pageSize.value = size
   currentPage.value = 1
 }
 
 // 当前页改变
-const handleCurrentChange = (page) => {
+const handleCurrentChange = (page: number): void => {
   currentPage.value = page
 }
 
 // 获取状态提示标题
-const getStatusTipTitle = () => {
+const getStatusTipTitle = (): string => {
   if (!task.value) return ''
-  const statusMap = {
+  const statusMap: Record<string, string> = {
     [TASK_STATUS.NOT_STARTED]: '任务未开始',
     [TASK_STATUS.RUNNING]: '任务扫描中',
     [TASK_STATUS.FAILED]: '任务扫描失败'
@@ -618,9 +673,9 @@ const getStatusTipTitle = () => {
 }
 
 // 获取状态提示描述
-const getStatusTipDescription = () => {
+const getStatusTipDescription = (): string => {
   if (!task.value) return ''
-  const descMap = {
+  const descMap: Record<string, string> = {
     [TASK_STATUS.NOT_STARTED]: '该任务尚未开始扫描，请等待任务启动后查看扫描结果。',
     [TASK_STATUS.RUNNING]: '该任务正在扫描中，请稍候查看扫描结果。',
     [TASK_STATUS.FAILED]: '该任务扫描失败，无法查看扫描结果。'
@@ -629,17 +684,17 @@ const getStatusTipDescription = () => {
 }
 
 // 返回任务列表
-const handleBack = () => {
+const handleBack = (): void => {
   router.push('/tasks')
 }
 
 // 组件挂载时加载数据
 onMounted(() => {
-  const taskId = route.params.id
+  const taskId = route.params.id as string
   if (taskId) {
     const foundTask = taskStore.getTaskById(taskId)
     if (foundTask) {
-      task.value = foundTask
+      task.value = foundTask as Task
       // 如果任务已完成，生成mock扫描结果
       if (foundTask.status === TASK_STATUS.COMPLETED) {
         scanResults.value = generateMockScanResults(taskId)
