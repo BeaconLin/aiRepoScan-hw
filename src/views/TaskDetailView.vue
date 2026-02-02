@@ -230,42 +230,27 @@
               <div v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && scanResults" class="result-list-container">
       <!-- 左侧：扫描结果列表 -->
       <div class="result-list-section">
-        <div class="section-label">扫描结果列表</div>
-        <div class="list-header">
-          <div class="list-filter">
-            <el-input
-              v-model="filterForm.keyword"
-              placeholder="搜索文件名称、规则名称或问题说明"
-              clearable
-              style="width: 300px"
-              @input="handleFilter"
-            />
-            <el-select
-              v-model="filterForm.ruleName"
-              placeholder="按规则名称筛选"
-              clearable
-              style="width: 180px; margin-left: 12px"
-              @change="handleRuleSelectChange"
-            >
-              <el-option
-                v-for="name in ruleNames"
-                :key="name"
-                :label="name"
-                :value="name"
-              />
-            </el-select>
-            <el-select
-              v-model="filterForm.issueResult"
-              placeholder="按标注状态筛选"
-              clearable
-              style="width: 180px; margin-left: 12px"
-              @change="handleFilter"
-            >
-              <el-option label="需要修改" value="0" />
-              <el-option label="无需修改的问题" value="1" />
-              <el-option label="问题误报" value="2" />
-              <el-option label="未标注" value="unmarked" />
-            </el-select>
+        <div class="list-header-with-filter">
+          <div class="section-label">扫描结果列表</div>
+          <!-- 标注结果筛选 -->
+          <div class="annotation-filter">
+            <div class="filter-label">标注结果筛选：</div>
+            <div class="filter-options">
+              <el-select
+                v-model="filterForm.issueResult"
+                @change="handleFilter"
+                placeholder="请选择标注结果"
+                clearable
+                class="annotation-filter-select"
+                style="width: 200px"
+              >
+                <el-option label="全部" value="" />
+                <el-option label="需要修改" value="0" />
+                <el-option label="无需修改的问题" value="1" />
+                <el-option label="问题误报" value="2" />
+                <el-option label="未标注" value="unmarked" />
+              </el-select>
+            </div>
           </div>
         </div>
         <div class="list-content">
@@ -355,6 +340,19 @@
       <!-- 右侧：规则名称树形结构 -->
       <div class="rule-tree-section">
         <div class="section-label">规则名称分布</div>
+        <!-- 搜索框 -->
+        <div class="search-box">
+          <el-input
+            v-model="filterForm.keyword"
+            placeholder="搜索文件名称、规则名称或问题说明"
+            clearable
+            @input="handleFilter"
+          >
+            <template #prefix>
+              <span style="color: #909399">🔍</span>
+            </template>
+          </el-input>
+        </div>
         <div class="tree-container">
           <el-tree
             :data="ruleTreeData"
@@ -1160,6 +1158,7 @@ onMounted(() => {
   padding: 24px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   min-width: 0; /* 允许flex子元素收缩 */
+  margin-right: 344px; /* 规则树宽度320px + 间距24px */
 }
 
 .rule-tree-section {
@@ -1169,11 +1168,13 @@ onMounted(() => {
   border-radius: 8px;
   padding: 24px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  position: sticky;
-  top: 88px; /* header高度64px + 24px间距 */
+  position: fixed;
+  right: 24px; /* 距离右侧24px */
+  top: 220px; /* header高度64px + 24px间距 */
   max-height: calc(100vh - 112px); /* 视口高度减去header和间距 */
   display: flex;
   flex-direction: column;
+  z-index: 100;
 }
 
 .rule-tree-section .section-label {
@@ -1417,6 +1418,14 @@ onMounted(() => {
 }
 
 /* 规则树形结构样式 */
+.search-box {
+  margin-bottom: 16px;
+}
+
+.search-box :deep(.el-input__wrapper) {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
 .tree-container {
   background: #f9fafb;
   border: 1px solid #e5e7eb;
@@ -1554,15 +1563,85 @@ onMounted(() => {
   color: #ef4444;
 }
 
-.list-header {
+.list-header-with-filter {
   display: flex;
-  justify-content: flex-start;
+  justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
   padding: 16px;
   background: #f9fafb;
   border-radius: 6px;
   border: 1px solid #e5e7eb;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.annotation-filter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.filter-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.filter-options {
+  display: flex;
+  align-items: center;
+}
+
+.annotation-filter-select :deep(.el-input__wrapper) {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.annotation-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.filter-radio {
+  margin-right: 0;
+}
+
+.filter-radio :deep(.el-radio__label) {
+  padding-left: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.filter-radio :deep(.el-radio__input.is-checked .el-radio__inner) {
+  background-color: #3b82f6;
+  border-color: #3b82f6;
+}
+
+.filter-radio :deep(.el-radio__input.is-checked + .el-radio__label) {
+  color: #3b82f6;
+  font-weight: 500;
+}
+
+.filter-tag {
+  margin: 0;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.filter-tag:hover {
+  opacity: 0.8;
+  transform: scale(1.05);
+}
+
+.radio-label {
+  font-size: 14px;
+  color: #374151;
+  user-select: none;
 }
 
 .list-filter {
@@ -1747,6 +1826,10 @@ onMounted(() => {
 
 /* 响应式设计 */
 @media (max-width: 1200px) {
+  .result-list-section {
+    margin-right: 0;
+  }
+
   .result-list-container {
     flex-direction: column;
   }
@@ -1754,8 +1837,10 @@ onMounted(() => {
   .rule-tree-section {
     width: 100%;
     position: relative;
+    right: auto;
     top: 0;
     max-height: none;
+    z-index: auto;
   }
 
   .tree-container {
@@ -1830,15 +1915,36 @@ onMounted(() => {
     padding: 16px;
   }
 
-  .list-filter {
+  .list-header-with-filter {
     flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .annotation-filter {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
     gap: 8px;
   }
 
-  .list-filter .el-input,
-  .list-filter .el-select {
+  .filter-options {
+    width: 100%;
+  }
+
+  .annotation-filter-select {
     width: 100% !important;
-    margin-left: 0 !important;
+  }
+
+  .annotation-filter-group {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .search-box {
+    width: 100%;
   }
 }
 </style>
