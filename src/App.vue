@@ -36,11 +36,15 @@
 .layout {
   min-height: 100vh;
   background: #f5f7fb;
-  display: flex;
-  flex-direction: column;
+  position: relative;
 }
 
 .header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -48,6 +52,8 @@
   background: #1f2937;
   color: #f9fafb;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  height: 64px;
+  box-sizing: border-box;
 }
 
 .brand {
@@ -82,15 +88,22 @@
 
 .main-container {
   display: flex;
-  flex: 1;
+  margin-top: 64px;
+  min-height: calc(100vh - 64px);
 }
 
 .sidebar {
+  position: fixed;
+  top: 64px;
+  left: 0;
+  bottom: 0;
   width: 240px;
   background: #ffffff;
   border-right: 1px solid #e5e7eb;
   padding: 24px;
   box-shadow: 2px 0 4px rgba(0,0,0,0.05);
+  overflow-y: auto;
+  z-index: 999;
 }
 
 .sidebar-content {
@@ -135,7 +148,10 @@
 
 .content {
   flex: 1;
+  margin-left: 240px;
   padding: 24px;
   overflow-y: auto;
+  min-height: calc(100vh - 64px);
+  box-sizing: border-box;
 }
 </style>

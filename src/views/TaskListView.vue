@@ -78,15 +78,15 @@
         </div>
         <div v-else class="list-content">
           <div
-            v-for="task in paginatedTasks"
-            :key="task.id"
+            v-for="task in scanTasks"
+            :key="task.taskId"
             class="task-card"
           >
             <div class="card-header">
               <div class="card-title">
                 <span class="task-name">{{ task.taskName }}</span>
-                <el-tag :type="TASK_STATUS_MAP[task.status].type" size="small">
-                  {{ TASK_STATUS_MAP[task.status].label }}
+                <el-tag :type="TASK_STATUS_MAP[task.taskStatus].type" size="small">
+                  {{ TASK_STATUS_MAP[task.taskStatus].label }}
                 </el-tag>
               </div>
             </div>
@@ -122,18 +122,30 @@
               </div>
               <div class="card-item">
                 <span class="item-label">扫描路径：</span>
-                <span class="item-value">{{ task.scanPaths.join(', ') }}</span>
+                <span class="item-value">{{ task.pathList.join(', ') }}</span>
+              </div>
+              <div class="card-item">
+                <span class="item-label">代码语言：</span>
+                <span class="item-value">{{ task.codeLanguage }}</span>
+              </div>
+              <div class="card-item">
+                <span class="item-label">代码量：</span>
+                <span class="item-value">{{ task.lineNum }}万行</span>
+              </div>
+              <div class="card-item">
+                <span class="item-label">产品名称：</span>
+                <span class="item-value">{{ task.productName || '-' }}</span>
               </div>
             </div>
             <div class="card-footer">
-              <el-button type="primary" size="small" @click="handleViewDetail(task.id)">
+              <el-button type="primary" size="small" @click="handleViewDetail(task.taskId)">
                 查看详情
               </el-button>
               <el-button
                 type="danger"
                 size="small"
-                @click="handleDelete(task.id)"
-                :disabled="task.status === TASK_STATUS.RUNNING"
+                @click="handleDelete(task.taskId)"
+                :disabled="task.taskStatus === TASK_STATUS.RUNNING"
               >
                 删除
               </el-button>
@@ -195,9 +207,12 @@ const filterForm = ref({
 const filteredTasks = computed(() => {
   let tasks = taskStore.tasks
 
-  // 根据任务类型过滤
+  // 根据任务类型过滤（兼容旧数据格式）
   if (taskType.value === 'my') {
-    tasks = tasks.filter(task => task.creator === taskStore.currentUser)
+    tasks = tasks.filter(task => {
+      const creator = task.creator || ''
+      return creator === taskStore.currentUser || creator.includes(taskStore.currentUser)
+    })
   }
 
   // 根据任务名称搜索
@@ -208,9 +223,12 @@ const filteredTasks = computed(() => {
     )
   }
 
-  // 根据状态筛选
+  // 根据状态筛选（兼容旧数据格式）
   if (filterForm.value.status) {
-    tasks = tasks.filter(task => task.status === filterForm.value.status)
+    tasks = tasks.filter(task => {
+      const status = task.taskStatus || task.status
+      return status === filterForm.value.status
+    })
   }
 
   // 根据日期范围筛选
@@ -226,7 +244,7 @@ const filteredTasks = computed(() => {
 })
 
 // 分页后的任务列表
-const paginatedTasks = computed(() => {
+const scanTasks = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
   const end = start + pageSize.value
   return filteredTasks.value.slice(start, end)
@@ -285,7 +303,7 @@ const handleDelete = async (taskId) => {
     if (success) {
       ElMessage.success('任务删除成功！')
       // 如果当前页没有数据了，返回上一页
-      if (paginatedTasks.value.length === 0 && currentPage.value > 1) {
+      if (scanTasks.value.length === 0 && currentPage.value > 1) {
         currentPage.value--
       }
     } else {

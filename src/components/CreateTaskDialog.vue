@@ -324,15 +324,19 @@ const handleSubmit = async () => {
     // 提交时获取当前时间
     const currentTime = getCurrentTime()
     
-    // 构建提交数据
+    // 构建提交数据（使用新字段名）
     const submitData = {
       taskName: formData.taskName,
       repoUrl: formData.repoUrl,
       branch: formData.branch,
       assistantVersions: formData.assistantVersions,
-      scanPaths: validScanPaths,
+      pathList: validScanPaths, // 使用pathList替代scanPaths
       creator: formData.creator,
-      createTime: currentTime // 提交时获取的时间
+      createTime: currentTime, // 提交时获取的时间
+      codeLanguage: 'Unknown', // 默认值，实际应该从扫描结果获取
+      lineNum: 0, // 默认值，实际应该从扫描结果获取
+      productName: 'UDM', // 默认值，实际应该从用户信息获取
+      scanResults: [] // 初始为空数组
     }
     
     // TODO: 调用API创建任务
