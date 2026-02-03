@@ -163,49 +163,63 @@
               </div>
 
               <!-- 统计看板区域 - 仅当任务状态为已完成时显示 -->
-              <div v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && scanResults" class="dashboard-section">
+              <div v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && scanResults && scanResults.length > 0" class="dashboard-section">
                 <div class="section-label">任务扫描结果统计看板</div>
                 <div class="dashboard-content">
-                  <!-- 缺陷统计卡片 -->
-                  <div class="stat-card">
-                    <div class="stat-label">缺陷统计</div>
-                    <div class="stat-content">
-                      <div class="stat-item highlight">
-                        <span class="stat-label-text">总缺陷数：</span>
-                        <span class="stat-value-text">{{ statistics.totalIssues }}</span>
+                  <!-- 总缺陷数统计卡片 -->
+                  <div class="stat-summary-card">
+                    <div class="summary-icon">📊</div>
+                    <div class="summary-content">
+                      <div class="summary-label">总缺陷数</div>
+                      <div class="summary-value">{{ statistics.totalIssues }}</div>
+                      <div class="summary-desc">扫描发现的全部缺陷</div>
+                    </div>
+                  </div>
+
+                  <!-- 标注比例环形图 -->
+                  <div class="chart-card">
+                    <div class="chart-title">标注完成度</div>
+                    <div ref="annotationRatioChartRef" class="chart-container"></div>
+                    <div class="chart-legend">
+                      <div v-if="statistics.annotated > 0" class="legend-item">
+                        <span class="legend-dot annotated"></span>
+                        <span class="legend-text">已标注：{{ statistics.annotated }}</span>
                       </div>
-                      <div class="stat-item">
-                        <span class="stat-label-text">已标注：</span>
-                        <span class="stat-value-text">{{ statistics.annotated }}</span>
-                      </div>
-                      <div class="stat-item">
-                        <span class="stat-label-text">未标注：</span>
-                        <span class="stat-value-text">{{ statistics.unannotated }}</span>
+                      <div v-if="statistics.unannotated > 0" class="legend-item">
+                        <span class="legend-dot unannotated"></span>
+                        <span class="legend-text">未标注：{{ statistics.unannotated }}</span>
                       </div>
                     </div>
                   </div>
 
-                  <!-- 缺陷标注状态统计 -->
-                  <div class="stat-card">
-                    <div class="stat-label">缺陷标注状态统计</div>
-                    <div class="stat-content">
-                      <div class="stat-item">
-                        <span class="stat-label-text">需要修改：</span>
-                        <span class="stat-value-text danger">{{ statistics.needModify }}</span>
+                  <!-- 标注状态分布饼图 -->
+                  <div class="chart-card">
+                    <div class="chart-title">标注状态分布</div>
+                    <div ref="annotationStatusChartRef" class="chart-container"></div>
+                    <div class="chart-legend">
+                      <div v-if="statistics.needModify > 0" class="legend-item">
+                        <span class="legend-dot need-modify"></span>
+                        <span class="legend-text">需要修改：{{ statistics.needModify }}</span>
                       </div>
-                      <div class="stat-item">
-                        <span class="stat-label-text">无需修改的问题：</span>
-                        <span class="stat-value-text warning">{{ statistics.noNeedModify }}</span>
+                      <div v-if="statistics.noNeedModify > 0" class="legend-item">
+                        <span class="legend-dot no-need-modify"></span>
+                        <span class="legend-text">无需修改：{{ statistics.noNeedModify }}</span>
                       </div>
-                      <div class="stat-item">
-                        <span class="stat-label-text">问题误报：</span>
-                        <span class="stat-value-text info">{{ statistics.falsePositive }}</span>
+                      <div v-if="statistics.falsePositive > 0" class="legend-item">
+                        <span class="legend-dot false-positive"></span>
+                        <span class="legend-text">问题误报：{{ statistics.falsePositive }}</span>
                       </div>
-                      <div class="stat-item">
-                        <span class="stat-label-text">未标注：</span>
-                        <span class="stat-value-text">{{ statistics.unmarked }}</span>
+                      <div v-if="statistics.unmarked > 0" class="legend-item">
+                        <span class="legend-dot unmarked"></span>
+                        <span class="legend-text">未标注：{{ statistics.unmarked }}</span>
                       </div>
                     </div>
+                  </div>
+
+                  <!-- 规则名称分布柱状图 -->
+                  <div class="chart-card full-width">
+                    <div class="chart-title">规则名称分布（Top 10）</div>
+                    <div ref="ruleDistributionChartRef" class="chart-container-large"></div>
                   </div>
                 </div>
               </div>
@@ -331,6 +345,13 @@
                     <span class="radio-label">问题误报</span>
                   </el-radio>
                 </el-radio-group>
+                <!-- 标注信息显示 -->
+                <div v-if="result.issue_result !== null && result.annotator" class="annotation-info">
+                  <span class="annotation-info-text">
+                    <span class="annotation-user">{{ result.annotator }}</span>
+                    <span class="annotation-time">{{ result.annotationTime }}</span>
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -355,6 +376,7 @@
         </div>
         <div class="tree-container">
           <el-tree
+            ref="ruleTreeRef"
             :data="ruleTreeData"
             :props="treeProps"
             node-key="id"
@@ -368,14 +390,6 @@
               <div class="tree-node-content">
                 <span class="tree-node-label">{{ node.label }}</span>
                 <span class="tree-node-count">({{ data.count }}个)</span>
-                <el-tag
-                  v-if="data.ruleName"
-                  :type="getRuleNameTagType(data.ruleName)"
-                  size="small"
-                  class="tree-node-tag"
-                >
-                  {{ data.ruleName }}
-                </el-tag>
               </div>
             </template>
           </el-tree>
@@ -420,8 +434,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import * as echarts from 'echarts'
 import { 
   ElButton, 
   ElTag, 
@@ -484,6 +499,8 @@ interface ScanResult {
   index: number
   reason: string | null
   issue_result: number | null // 0: 需要修改, 1: 无需修改的问题, 2: 问题误报, null: 未标注
+  annotator?: string // 标注用户
+  annotationTime?: string // 标注时间
   // 兼容旧数据格式
   id?: string
   fileName?: string
@@ -552,7 +569,20 @@ const filterForm = ref<FilterForm>({
 })
 
 // 选中的规则树节点ID
-const selectedRuleNodeId = ref<string>('')
+const selectedRuleNodeId = ref<string | null>(null)
+
+// 规则树组件引用
+const ruleTreeRef = ref()
+
+// 图表容器引用
+const annotationRatioChartRef = ref<HTMLElement | null>(null)
+const annotationStatusChartRef = ref<HTMLElement | null>(null)
+const ruleDistributionChartRef = ref<HTMLElement | null>(null)
+
+// 图表实例
+let annotationRatioChart: echarts.ECharts | null = null
+let annotationStatusChart: echarts.ECharts | null = null
+let ruleDistributionChart: echarts.ECharts | null = null
 
 // 树形结构配置
 const treeProps = {
@@ -622,25 +652,41 @@ const loadTaskData = async (taskId: string): Promise<void> => {
     if (task.value.taskStatus === TASK_STATUS.COMPLETED) {
       if (scanResponse.code === 200 && scanResponse.data) {
         const results = scanResponse.data as any[]
-        // 转换为新格式
-        scanResults.value = results.map((r, idx) => ({
-          warn_uuid: r.warn_uuid || r.id || `warn-${idx}`,
-          file_name: r.file_name || r.fileName || '',
-          rule_name: r.rule_name || '',
-          warn_line: r.warn_line || r.line || 0,
-          warn_code_block: r.warn_code_block || r.code_block || '',
-          code_snippet: r.code_snippet || r.warn_code_block || r.code_block || '',
-          context: r.context || '',
-          warn: r.warn || '',
-          check_function_id: r.check_function_id || '',
-          confidence: r.confidence || '0%',
-          start_line: r.start_line || r.warn_line || r.line || 0,
-          end_line: r.end_line || r.warn_line || r.line || 0,
-          func_uuid: r.func_uuid || '',
-          index: r.index !== undefined ? r.index : idx + 1,
-          reason: r.reason || null,
-          issue_result: r.issue_result !== undefined ? r.issue_result : null
-        })) as ScanResult[]
+        const taskId = route.params.id as string
+        // 从 localStorage 加载标注信息
+        const annotations = taskId ? loadAnnotationsFromStorage(taskId) : {}
+        
+        // 转换为新格式，并合并标注信息
+        scanResults.value = results.map((r, idx) => {
+          const uuid = r.warn_uuid || r.id || `warn-${idx}`
+          const annotation = annotations[uuid] || null
+          
+          return {
+            warn_uuid: uuid,
+            file_name: r.file_name || r.fileName || '',
+            rule_name: r.rule_name || '',
+            warn_line: r.warn_line || r.line || 0,
+            warn_code_block: r.warn_code_block || r.code_block || '',
+            code_snippet: r.code_snippet || r.warn_code_block || r.code_block || '',
+            context: r.context || '',
+            warn: r.warn || '',
+            check_function_id: r.check_function_id || '',
+            confidence: r.confidence || '0%',
+            start_line: r.start_line || r.warn_line || r.line || 0,
+            end_line: r.end_line || r.warn_line || r.line || 0,
+            func_uuid: r.func_uuid || '',
+            index: r.index !== undefined ? r.index : idx + 1,
+            reason: r.reason || annotation?.reason || null,
+            issue_result: r.issue_result !== undefined ? r.issue_result : (annotation?.issue_result ?? null),
+            annotator: annotation?.annotator,
+            annotationTime: annotation?.annotationTime
+          }
+        }) as ScanResult[]
+        
+        // 数据加载完成后，延迟初始化图表（确保 DOM 已渲染）
+        setTimeout(() => {
+          updateAllCharts()
+        }, 300)
       } else {
         throw new Error(scanResponse.message || '获取扫描结果失败')
       }
@@ -848,8 +894,12 @@ const handleRuleNodeClick = (data: RuleTreeNode): void => {
 
 // 清除规则筛选
 const handleClearRuleFilter = (): void => {
-  selectedRuleNodeId.value = ''
+  selectedRuleNodeId.value = null
   filterForm.value.ruleName = ''
+  // 清除树形组件的选中状态
+  if (ruleTreeRef.value) {
+    ruleTreeRef.value.setCurrentKey(null)
+  }
   handleFilter()
 }
 
@@ -875,7 +925,11 @@ const handleRuleSelectChange = (): void => {
       selectedRuleNodeId.value = node.id
     }
   } else {
-    selectedRuleNodeId.value = ''
+    selectedRuleNodeId.value = null
+    // 清除树形组件的选中状态
+    if (ruleTreeRef.value) {
+      ruleTreeRef.value.setCurrentKey(null)
+    }
   }
   handleFilter()
 }
@@ -971,22 +1025,33 @@ const handleMark = (warnUuid: string, issueResult: IssueResult): void => {
         // 取消标注，删除记录
         delete annotations[uuid]
         result.reason = null
+        result.annotator = undefined
+        result.annotationTime = undefined
         ElMessage.success('已取消标注')
       } else {
         // 保存标注
+        const annotationTime = new Date().toLocaleString('zh-CN', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        }).replace(/\//g, '-')
+        
+        const currentUser = taskStore.currentUser.value || '当前用户'
+        
         annotations[uuid] = {
           issue_result: issueResult,
           reason: result.reason || null,
-          annotator: taskStore.currentUser,
-          annotationTime: new Date().toLocaleString('zh-CN', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit'
-          }).replace(/\//g, '-')
+          annotator: currentUser,
+          annotationTime: annotationTime
         }
+        
+        // 更新 result 对象的标注信息
+        result.annotator = currentUser
+        result.annotationTime = annotationTime
+        
         const statusText = getIssueResultLabel(issueResult)
         ElMessage.success(`已标注为：${statusText}`)
       }
@@ -1048,6 +1113,384 @@ const handleRetry = (): void => {
   }
 }
 
+// 初始化标注比例环形图
+const initAnnotationRatioChart = (): void => {
+  if (!annotationRatioChartRef.value) {
+    console.warn('annotationRatioChartRef 未找到')
+    return
+  }
+  
+  if (annotationRatioChart) {
+    annotationRatioChart.dispose()
+  }
+  
+  try {
+    annotationRatioChart = echarts.init(annotationRatioChartRef.value)
+    
+    const annotated = statistics.value.annotated || 0
+    const unannotated = statistics.value.unannotated || 0
+    
+    // 过滤掉值为0的数据项
+    const chartData = []
+    if (annotated > 0) {
+      chartData.push({
+        value: annotated,
+        name: '已标注',
+        itemStyle: { color: '#10b981' }  // 绿色系，表示完成
+      })
+    }
+    if (unannotated > 0) {
+      chartData.push({
+        value: unannotated,
+        name: '未标注',
+        itemStyle: { color: '#6b7280' }  // 深灰色，对比明显
+      })
+    }
+    
+    // 如果数据都为0，显示空状态
+    if (chartData.length === 0) {
+      annotationRatioChart.setOption({
+        graphic: {
+          type: 'text',
+          left: 'center',
+          top: 'center',
+          style: {
+            text: '暂无数据',
+            fontSize: 14,
+            fill: '#9ca3af'
+          }
+        }
+      })
+      return
+    }
+    
+    const option = {
+      tooltip: {
+        trigger: 'item',
+        formatter: '{b}: {c} ({d}%)'
+      },
+      series: [
+        {
+          name: '标注完成度',
+          type: 'pie',
+          radius: ['40%', '70%'],
+          avoidLabelOverlap: false,
+          itemStyle: {
+            borderRadius: 8,
+            borderColor: '#fff',
+            borderWidth: 2
+          },
+          label: {
+            show: true,
+            formatter: '{d}%'
+          },
+          emphasis: {
+            label: {
+              show: true,
+              fontSize: 16,
+              fontWeight: 'bold'
+            }
+          },
+          data: chartData
+        }
+      ]
+    }
+    
+    annotationRatioChart.setOption(option)
+    console.log('标注比例环形图初始化成功')
+  } catch (error) {
+    console.error('初始化标注比例环形图失败:', error)
+  }
+}
+
+// 初始化标注状态分布饼图
+const initAnnotationStatusChart = (): void => {
+  if (!annotationStatusChartRef.value) {
+    console.warn('annotationStatusChartRef 未找到')
+    return
+  }
+  
+  if (annotationStatusChart) {
+    annotationStatusChart.dispose()
+  }
+  
+  try {
+    annotationStatusChart = echarts.init(annotationStatusChartRef.value)
+    
+    const needModify = statistics.value.needModify || 0
+    const noNeedModify = statistics.value.noNeedModify || 0
+    const falsePositive = statistics.value.falsePositive || 0
+    const unmarked = statistics.value.unmarked || 0
+    
+    // 过滤掉值为0的数据项
+    const chartData = []
+    if (needModify > 0) {
+      chartData.push({
+        value: needModify,
+        name: '需要修改',
+        itemStyle: { color: '#ef4444' }  // 鲜明的红色，对比明显
+      })
+    }
+    if (noNeedModify > 0) {
+      chartData.push({
+        value: noNeedModify,
+        name: '无需修改',
+        itemStyle: { color: '#f59e0b' }  // 鲜明的橙色，对比明显
+      })
+    }
+    if (falsePositive > 0) {
+      chartData.push({
+        value: falsePositive,
+        name: '问题误报',
+        itemStyle: { color: '#3b82f6' }  // 鲜明的蓝色，对比明显
+      })
+    }
+    if (unmarked > 0) {
+      chartData.push({
+        value: unmarked,
+        name: '未标注',
+        itemStyle: { color: '#64748b' }  // 深灰蓝色，对比明显
+      })
+    }
+    
+    // 如果数据都为0，显示空状态
+    if (chartData.length === 0) {
+      annotationStatusChart.setOption({
+        graphic: {
+          type: 'text',
+          left: 'center',
+          top: 'center',
+          style: {
+            text: '暂无数据',
+            fontSize: 14,
+            fill: '#9ca3af'
+          }
+        }
+      })
+      return
+    }
+    
+    const option = {
+      tooltip: {
+        trigger: 'item',
+        formatter: '{b}: {c} ({d}%)'
+      },
+      legend: {
+        show: false
+      },
+      series: [
+        {
+          name: '标注状态',
+          type: 'pie',
+          radius: '65%',
+          center: ['50%', '50%'],
+          avoidLabelOverlap: false,
+          itemStyle: {
+            borderRadius: 8,
+            borderColor: '#fff',
+            borderWidth: 2
+          },
+          label: {
+            show: true,
+            formatter: '{b}\n{d}%'
+          },
+          emphasis: {
+            label: {
+              show: true,
+              fontSize: 14,
+              fontWeight: 'bold'
+            }
+          },
+          data: chartData
+        }
+      ]
+    }
+    
+    annotationStatusChart.setOption(option)
+    console.log('标注状态分布饼图初始化成功')
+  } catch (error) {
+    console.error('初始化标注状态分布饼图失败:', error)
+  }
+}
+
+// 初始化规则名称分布柱状图
+const initRuleDistributionChart = (): void => {
+  if (!ruleDistributionChartRef.value) {
+    console.warn('ruleDistributionChartRef 未找到')
+    return
+  }
+  
+  if (ruleDistributionChart) {
+    ruleDistributionChart.dispose()
+  }
+  
+  try {
+    ruleDistributionChart = echarts.init(ruleDistributionChartRef.value)
+    
+    // 获取 Top 10 规则
+    const ruleEntries = Object.entries(statistics.value.typeDistribution)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+    
+    // 如果没有规则数据，显示空状态
+    if (ruleEntries.length === 0) {
+      ruleDistributionChart.setOption({
+        graphic: {
+          type: 'text',
+          left: 'center',
+          top: 'center',
+          style: {
+            text: '暂无数据',
+            fontSize: 14,
+            fill: '#9ca3af'
+          }
+        }
+      })
+      return
+    }
+    
+    const ruleNames = ruleEntries.map(([name]) => {
+      // 如果名称太长，截断并添加省略号
+      return name.length > 20 ? name.substring(0, 20) + '...' : name
+    })
+    const ruleCounts = ruleEntries.map(([, count]) => count)
+    
+    const option = {
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: {
+          type: 'shadow'
+        },
+        formatter: (params: any) => {
+          const param = params[0]
+          const fullName = ruleEntries[param.dataIndex][0]
+          return `${fullName}<br/>数量: ${param.value}`
+        }
+      },
+      grid: {
+        left: '3%',
+        right: '4%',
+        bottom: '3%',
+        top: '10%',
+        containLabel: true
+      },
+      xAxis: {
+        type: 'value',
+        axisLabel: {
+          color: '#6b7280'
+        },
+        axisLine: {
+          lineStyle: {
+            color: '#e5e7eb'
+          }
+        }
+      },
+      yAxis: {
+        type: 'category',
+        data: ruleNames,
+        axisLabel: {
+          color: '#6b7280',
+          fontSize: 12
+        },
+        axisLine: {
+          lineStyle: {
+            color: '#e5e7eb'
+          }
+        }
+      },
+      series: [
+        {
+          name: '缺陷数量',
+          type: 'bar',
+          data: ruleCounts,
+          itemStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+              { offset: 0, color: '#3b82f6' },
+              { offset: 1, color: '#60a5fa' }
+            ]),
+            borderRadius: [0, 4, 4, 0]
+          },
+          label: {
+            show: true,
+            position: 'right',
+            color: '#374151',
+            fontSize: 12
+          }
+        }
+      ]
+    }
+    
+    ruleDistributionChart.setOption(option)
+    console.log('规则名称分布柱状图初始化成功', { count: ruleEntries.length })
+  } catch (error) {
+    console.error('初始化规则名称分布柱状图失败:', error)
+  }
+}
+
+// 窗口大小变化处理函数
+const handleResize = (): void => {
+  annotationRatioChart?.resize()
+  annotationStatusChart?.resize()
+  ruleDistributionChart?.resize()
+}
+
+// 更新所有图表
+const updateAllCharts = async (): Promise<void> => {
+  // 等待 DOM 更新
+  await nextTick()
+  
+  // 再次等待，确保 v-if 条件渲染的 DOM 元素已经创建
+  await new Promise(resolve => setTimeout(resolve, 100))
+  
+  // 检查统计数据
+  if (statistics.value.totalIssues === 0) {
+    console.log('统计数据为空，跳过图表初始化')
+    return
+  }
+  
+  // 检查 DOM 元素是否存在
+  if (!annotationRatioChartRef.value || !annotationStatusChartRef.value || !ruleDistributionChartRef.value) {
+    console.warn('图表容器 DOM 元素未找到，延迟重试')
+    // 如果 DOM 元素还没准备好，延迟重试
+    setTimeout(() => {
+      updateAllCharts()
+    }, 200)
+    return
+  }
+  
+  console.log('开始初始化图表', {
+    totalIssues: statistics.value.totalIssues,
+    annotated: statistics.value.annotated,
+    unannotated: statistics.value.unannotated
+  })
+  
+  try {
+    initAnnotationRatioChart()
+    initAnnotationStatusChart()
+    initRuleDistributionChart()
+    
+    // 监听窗口大小变化，自动调整图表大小（避免重复添加）
+    if (!window.hasOwnProperty('_chartResizeHandlerAdded')) {
+      window.addEventListener('resize', handleResize)
+      ;(window as any)._chartResizeHandlerAdded = true
+    }
+  } catch (error) {
+    console.error('图表初始化失败:', error)
+  }
+}
+
+// 监听统计数据变化，更新图表
+watch(
+  () => [statistics.value, scanResults.value.length],
+  () => {
+    if (task.value?.taskStatus === TASK_STATUS.COMPLETED && scanResults.value.length > 0) {
+      console.log('统计数据变化，更新图表')
+      updateAllCharts()
+    }
+  },
+  { deep: true, immediate: false }
+)
+
 // 组件挂载时加载数据
 onMounted(() => {
   const taskId = route.params.id as string
@@ -1056,6 +1499,27 @@ onMounted(() => {
   } else {
     error.value = '缺少任务ID参数'
     ElMessage.error('缺少任务ID参数')
+  }
+})
+
+// 组件卸载时清理图表实例
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+  if ((window as any)._chartResizeHandlerAdded) {
+    delete (window as any)._chartResizeHandlerAdded
+  }
+  
+  if (annotationRatioChart) {
+    annotationRatioChart.dispose()
+    annotationRatioChart = null
+  }
+  if (annotationStatusChart) {
+    annotationStatusChart.dispose()
+    annotationStatusChart = null
+  }
+  if (ruleDistributionChart) {
+    ruleDistributionChart.dispose()
+    ruleDistributionChart = null
   }
 })
 </script>
@@ -1413,8 +1877,147 @@ onMounted(() => {
 
 .dashboard-content {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+}
+
+.dashboard-content .full-width {
+  grid-column: 1 / -1;
+}
+
+/* 统计摘要卡片 */
+.stat-summary-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  padding: 24px;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
   gap: 20px;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  transition: all 0.3s;
+}
+
+.stat-summary-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+}
+
+.summary-icon {
+  font-size: 48px;
+  line-height: 1;
+}
+
+.summary-content {
+  flex: 1;
+}
+
+.summary-label {
+  font-size: 14px;
+  opacity: 0.9;
+  margin-bottom: 8px;
+}
+
+.summary-value {
+  font-size: 36px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  line-height: 1.2;
+}
+
+.summary-desc {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+/* 图表卡片 */
+.chart-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s;
+}
+
+.chart-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-color: #d1d5db;
+}
+
+.chart-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #f3f4f6;
+}
+
+.chart-container {
+  width: 100%;
+  height: 300px;
+  min-height: 300px;
+}
+
+.chart-container-large {
+  width: 100%;
+  height: 400px;
+  min-height: 400px;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #f3f4f6;
+  justify-content: center;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legend-dot.annotated {
+  background-color: #10b981;  /* 绿色，与标注完成度图表一致 */
+}
+
+.legend-dot.unannotated {
+  background-color: #6b7280;  /* 深灰色，与标注完成度图表一致 */
+}
+
+.legend-dot.need-modify {
+  background-color: #ef4444;  /* 鲜明的红色，与标注状态分布图表一致 */
+}
+
+.legend-dot.no-need-modify {
+  background-color: #f59e0b;  /* 鲜明的橙色，与标注状态分布图表一致 */
+}
+
+.legend-dot.false-positive {
+  background-color: #3b82f6;  /* 鲜明的蓝色，与标注状态分布图表一致 */
+}
+
+.legend-dot.unmarked {
+  background-color: #64748b;  /* 深灰蓝色，与标注状态分布图表一致 */
+}
+
+.legend-text {
+  color: #374151;
+  font-weight: 500;
 }
 
 /* 规则树形结构样式 */
@@ -1479,10 +2082,6 @@ onMounted(() => {
   border-radius: 12px;
   border: 1px solid #e5e7eb;
   white-space: nowrap;
-}
-
-.tree-node-tag {
-  margin-left: auto;
 }
 
 .tree-action {
@@ -1688,6 +2287,7 @@ onMounted(() => {
   align-items: center;
   gap: 16px;
   width: 100%;
+  flex-wrap: wrap;
 }
 
 .annotation-label {
@@ -1695,6 +2295,42 @@ onMounted(() => {
   font-weight: 500;
   color: #374151;
   white-space: nowrap;
+}
+
+.annotation-info {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+
+.annotation-info-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #9ca3af;
+  padding: 2px 6px;
+  background: #f9fafb;
+  border-radius: 3px;
+  white-space: nowrap;
+  border: 1px solid #e5e7eb;
+}
+
+.annotation-user {
+  color: #6b7280;
+  font-weight: 400;
+}
+
+.annotation-time {
+  color: #9ca3af;
+  font-size: 10px;
+}
+
+.annotation-info-text::before {
+  content: '👤';
+  margin-right: 2px;
+  font-size: 10px;
+  opacity: 0.6;
 }
 
 .annotation-radio-group {
@@ -1900,6 +2536,11 @@ onMounted(() => {
     gap: 12px;
   }
 
+  .annotation-info {
+    margin-left: 0;
+    width: 100%;
+  }
+
   .annotation-radio-group {
     width: 100%;
     flex-direction: column;
@@ -1945,6 +2586,46 @@ onMounted(() => {
 
   .search-box {
     width: 100%;
+  }
+
+  /* 图表响应式样式 */
+  .dashboard-content {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-summary-card {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .summary-icon {
+    font-size: 40px;
+  }
+
+  .summary-value {
+    font-size: 32px;
+  }
+
+  .chart-container {
+    height: 250px;
+    min-height: 250px;
+  }
+
+  .chart-container-large {
+    height: 300px;
+    min-height: 300px;
+  }
+
+  .chart-legend {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .dashboard-content {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   }
 }
 </style>
