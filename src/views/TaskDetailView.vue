@@ -272,7 +272,7 @@
             <el-empty description="暂无扫描结果" />
           </div>
           <div
-            v-for="result in paginatedResults"
+            v-for="result in scanResultsList"
             :key="result.id"
             class="result-item"
           >
@@ -332,7 +332,7 @@
                 <div class="annotation-label">缺陷标注：</div>
                 <el-radio-group
                   :model-value="result.issue_result"
-                  @change="(value) => handleMark(result.warn_uuid || result.id, value)"
+                  @change="(value) => saveAnnotationHandler(result, value)"
                   class="annotation-radio-group"
                 >
                   <el-radio :label="0" class="annotation-radio">
@@ -455,7 +455,7 @@ import {
   ElTabPane
 } from 'element-plus'
 import { useTaskStore, TASK_STATUS, TASK_STATUS_MAP } from '../stores/task'
-import { fetchTaskDetail, fetchScanResults } from '../api/task'
+import { queryTaskDetail, fetchScanResults, saveAnnotation } from '../api/task'
 
 // 类型定义
 interface Task {
@@ -514,15 +514,6 @@ interface FilterForm {
   issueResult: string // '0' | '1' | '2' | 'unmarked' | '' (空字符串表示未选择)
 }
 
-interface AnnotationData {
-  issue_result: number // 0: 需要修改, 1: 无需修改的问题, 2: 问题误报
-  annotator: string
-  annotationTime: string
-}
-
-interface Annotations {
-  [key: string]: AnnotationData
-}
 
 interface Statistics {
   totalIssues: number
@@ -590,32 +581,6 @@ const treeProps = {
   label: 'label'
 }
 
-// localStorage 存储键名
-const getAnnotationStorageKey = (taskId: string): string => {
-  return `aiRepoScan_annotations_${taskId}`
-}
-
-// 从 localStorage 加载标记数据
-const loadAnnotationsFromStorage = (taskId: string): Annotations => {
-  try {
-    const stored = localStorage.getItem(getAnnotationStorageKey(taskId))
-    if (stored) {
-      return JSON.parse(stored) as Annotations
-    }
-  } catch (error) {
-    console.error('加载标记数据失败:', error)
-  }
-  return {}
-}
-
-// 保存标记数据到 localStorage
-const saveAnnotationsToStorage = (taskId: string, annotations: Annotations): void => {
-  try {
-    localStorage.setItem(getAnnotationStorageKey(taskId), JSON.stringify(annotations))
-  } catch (error) {
-    console.error('保存标记数据失败:', error)
-  }
-}
 
 // 加载任务详情和扫描结果
 const loadTaskData = async (taskId: string): Promise<void> => {
@@ -623,43 +588,30 @@ const loadTaskData = async (taskId: string): Promise<void> => {
   error.value = ''
   
   try {
-    // 并行获取任务详情和扫描结果
-    const [taskResponse, scanResponse] = await Promise.all([
-      fetchTaskDetail(taskId),
-      fetchScanResults(taskId)
-    ])
+    // 获取任务详情（已包含扫描结果）
+    const taskResponse = await queryTaskDetail(taskId)
     
     // 设置任务详情（兼容旧数据格式）
     if (taskResponse.code === 200 && taskResponse.data) {
-      const taskData = taskResponse.data as any
+      const resTask = taskResponse.data as any
+      
       // 转换为新格式
       task.value = {
-        ...taskData,
-        taskId: taskData.taskId || taskData.id,
-        taskStatus: taskData.taskStatus || taskData.status,
-        pathList: taskData.pathList || taskData.scanPaths || [],
-        codeLanguage: taskData.codeLanguage || taskData.language || 'Unknown',
-        lineNum: taskData.lineNum || (taskData.codeLines ? taskData.codeLines / 10000 : 0),
-        productName: taskData.productName || taskData.product_name || '-',
-        s3Path: taskData.s3Path || `s3://ai-repo-scan/results/${taskData.taskId || taskData.id}`,
-        scanResults: taskData.scanResults || []
+        ...resTask,
+        taskId: resTask.taskId || resTask.id,
+        taskStatus: resTask.taskStatus || resTask.status,
+        pathList: resTask.pathList || resTask.scanPaths || [],
+        codeLanguage: resTask.codeLanguage || resTask.language || 'Unknown',
+        lineNum: resTask.lineNum || (resTask.codeLines ? resTask.codeLines / 10000 : 0),
+        productName: resTask.productName || resTask.product_name || '-',
+        s3Path: resTask.s3Path || `s3://ai-repo-scan/results/${resTask.taskId || resTask.id}`,
+        scanResults: resTask.scanResults || []
       } as Task
-    } else {
-      throw new Error(taskResponse.message || '获取任务详情失败')
-    }
-    
-    // 如果任务已完成，设置扫描结果（兼容旧数据格式）
-    if (task.value.taskStatus === TASK_STATUS.COMPLETED) {
-      if (scanResponse.code === 200 && scanResponse.data) {
-        const results = scanResponse.data as any[]
-        const taskId = route.params.id as string
-        // 从 localStorage 加载标注信息
-        const annotations = taskId ? loadAnnotationsFromStorage(taskId) : {}
-        
-        // 转换为新格式，并合并标注信息
-        scanResults.value = results.map((r, idx) => {
+      
+      // 如果任务已完成，设置扫描结果
+      if (task.value.taskStatus === TASK_STATUS.COMPLETED && resTask.scanResults) {
+        scanResults.value = resTask.scanResults.map((r: any, idx: number) => {
           const uuid = r.warn_uuid || r.id || `warn-${idx}`
-          const annotation = annotations[uuid] || null
           
           return {
             warn_uuid: uuid,
@@ -676,10 +628,10 @@ const loadTaskData = async (taskId: string): Promise<void> => {
             end_line: r.end_line || r.warn_line || r.line || 0,
             func_uuid: r.func_uuid || '',
             index: r.index !== undefined ? r.index : idx + 1,
-            reason: r.reason || annotation?.reason || null,
-            issue_result: r.issue_result !== undefined ? r.issue_result : (annotation?.issue_result ?? null),
-            annotator: annotation?.annotator,
-            annotationTime: annotation?.annotationTime
+            reason: r.reason || null,
+            issue_result: r.issue_result !== undefined ? r.issue_result : null,
+            annotator: r.annotator,
+            annotationTime: r.annotationTime
           }
         }) as ScanResult[]
         
@@ -687,9 +639,9 @@ const loadTaskData = async (taskId: string): Promise<void> => {
         setTimeout(() => {
           updateAllCharts()
         }, 300)
-      } else {
-        throw new Error(scanResponse.message || '获取扫描结果失败')
       }
+    } else {
+      throw new Error(taskResponse.message || '获取任务详情失败')
     }
   } catch (err) {
     error.value = err instanceof Error ? err.message : '加载数据失败'
@@ -970,7 +922,7 @@ const filteredResults = computed<ScanResult[]>(() => {
 })
 
 // 计算属性：分页后的结果
-const paginatedResults = computed<ScanResult[]>(() => {
+const scanResultsList = computed<ScanResult[]>(() => {
   const start = (currentPage.value - 1) * pageSize.value
   const end = start + pageSize.value
   return filteredResults.value.slice(start, end)
@@ -1011,52 +963,54 @@ const getIssueResultLabel = (issueResult: number): string => {
 }
 
 // 标注处理
-const handleMark = (warnUuid: string, issueResult: IssueResult): void => {
-  const result = scanResults.value.find(r => (r.warn_uuid || r.id) === warnUuid)
-  if (result) {
-    result.issue_result = issueResult
-    
-    // 保存到 localStorage
-    const taskId = route.params.id as string
-    if (taskId) {
-      const annotations = loadAnnotationsFromStorage(taskId)
-      const uuid = result.warn_uuid || result.id || warnUuid
-      if (issueResult === null) {
-        // 取消标注，删除记录
-        delete annotations[uuid]
-        result.reason = null
-        result.annotator = undefined
-        result.annotationTime = undefined
-        ElMessage.success('已取消标注')
-      } else {
-        // 保存标注
-        const annotationTime = new Date().toLocaleString('zh-CN', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit'
-        }).replace(/\//g, '-')
-        
-        const currentUser = taskStore.currentUser.value || '当前用户'
-        
-        annotations[uuid] = {
-          issue_result: issueResult,
-          reason: result.reason || null,
-          annotator: currentUser,
-          annotationTime: annotationTime
-        }
-        
-        // 更新 result 对象的标注信息
-        result.annotator = currentUser
-        result.annotationTime = annotationTime
-        
-        const statusText = getIssueResultLabel(issueResult)
-        ElMessage.success(`已标注为：${statusText}`)
-      }
-      saveAnnotationsToStorage(taskId, annotations)
+const saveAnnotationHandler = async (result: ScanResult, value: IssueResult): Promise<void> => {
+  const taskId = route.params.id as string
+  if (!taskId) {
+    ElMessage.error('缺少任务ID')
+    return
+  }
+
+  const uuid = result.warn_uuid || result.id
+  if (!uuid) {
+    ElMessage.error('缺少警告UUID')
+    return
+  }
+
+  try {
+    if (value === null) {
+      // 取消标注
+      await saveAnnotation(taskId, uuid, null, '', '')
+      result.issue_result = null
+      result.reason = null
+      result.annotator = undefined
+      result.annotationTime = undefined
+      ElMessage.success('已取消标注')
+    } else {
+      // 保存标注
+      const annotationTime = new Date().toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      }).replace(/\//g, '-')
+      
+      const currentUser = taskStore.currentUser.value || '当前用户'
+      
+      await saveAnnotation(taskId, uuid, value, currentUser, annotationTime)
+      
+      // 更新 result 对象的标注信息
+      result.issue_result = value
+      result.annotator = currentUser
+      result.annotationTime = annotationTime
+      
+      const statusText = getIssueResultLabel(value)
+      ElMessage.success(`已标注为：${statusText}`)
     }
+  } catch (error) {
+    console.error('保存标注失败:', error)
+    ElMessage.error('保存标注失败')
   }
 }
 

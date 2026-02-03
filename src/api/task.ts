@@ -1,7 +1,68 @@
 import { TASK_STATUS } from '../stores/task'
 
+// 标注结果类型：0-需要修改, 1-无需修改的问题, 2-问题误报
+type IssueResult = 0 | 1 | 2 | null
+
+// 任务状态类型
+type TaskStatus = typeof TASK_STATUS[keyof typeof TASK_STATUS]
+
+// 标注数据接口
+interface AnnotationData {
+    issue_result: IssueResult
+    annotator: string
+    annotationTime: string
+    reason?: string | null
+}
+
+// 扫描结果接口
+interface ScanResult {
+    warn_uuid: string
+    file_name: string
+    rule_name: string
+    warn_line: number
+    warn_code_block: string
+    code_snippet: string
+    context: string
+    warn: string
+    check_function_id: string
+    confidence: string
+    start_line: number
+    end_line: number
+    func_uuid: string
+    index: number
+    reason: string | null
+    issue_result: IssueResult
+    annotator?: string
+    annotationTime?: string
+}
+
+// 任务详情接口
+interface TaskDetail {
+    taskId: string
+    taskName: string
+    repoUrl: string
+    branch: string
+    pathList: string[]
+    assistantVersions: string[]
+    creator: string
+    createTime: string
+    taskStatus: TaskStatus
+    codeLanguage: string
+    lineNum: number
+    productName: string
+    s3Path: string
+    scanResults: ScanResult[]
+}
+
+// API 响应接口
+interface ApiResponse<T> {
+    code: number
+    message: string
+    data: T
+}
+
 // Mock 任务详情数据（基于 defaultTasks）
-const mockTaskDetails = {
+const mockTaskDetails: Record<string, TaskDetail> = {
     'T00112233-4455-6677-8899-aabbccddeeff': {
         taskId: 'T00112233-4455-6677-8899-aabbccddeeff',
         taskName: '前端代码扫描任务',
@@ -52,8 +113,51 @@ const mockTaskDetails = {
     }
 }
 
+// 存储标注数据（按任务ID和warn_uuid存储）
+const annotationsData: Record<string, Record<string, AnnotationData>> = {
+    'T00112233-4455-6677-8899-aabbccddeeff': {
+        // 需要修改 (0)
+        'w00112233-4455-6677-8899-aabbccddeeff': {
+            issue_result: 0,
+            annotator: 'a00559876',
+            annotationTime: '2024-01-15 14:30:25'
+        },
+        // 无需修改的问题 (1)
+        'w11223344-5566-7788-99aa-bbccddeeff00': {
+            issue_result: 1,
+            annotator: 'a00559877',
+            annotationTime: '2024-01-15 15:20:10'
+        },
+        // 问题误报 (2)
+        'w22334455-6677-8899-aabb-ccddeeff0011': {
+            issue_result: 2,
+            annotator: 'a00559876',
+            annotationTime: '2024-01-15 16:10:45'
+        },
+        // 需要修改 (0)
+        'w33445566-7788-99aa-bbcc-ccddeeff0011': {
+            issue_result: 0,
+            annotator: 'a00559878',
+            annotationTime: '2024-01-15 17:05:30'
+        },
+        // 无需修改的问题 (1)
+        'w44556677-8899-aabb-bbcc-ccddeeff0011': {
+            issue_result: 1,
+            annotator: 'a00559876',
+            annotationTime: '2024-01-15 18:15:20'
+        },
+        // w55667788-99aa-aabb-bbcc-ccddeeff0011 保持未标注状态
+        // 问题误报 (2)
+        'w66778899-aabb-bbcc-ccdd-ccddeeff0011': {
+            issue_result: 2,
+            annotator: 'a00559877',
+            annotationTime: '2024-01-15 19:30:15'
+        }
+    }
+}
+
 // Mock 扫描结果数据
-const mockScanResults = {
+const mockScanResults: Record<string, Omit<ScanResult, 'issue_result' | 'annotator' | 'annotationTime' | 'reason'>[]> = {
     'T00112233-4455-6677-8899-aabbccddeeff': [{
             warn_uuid: 'w00112233-4455-6677-8899-aabbccddeeff',
             file_name: 'UserProfile.vue',
@@ -68,9 +172,7 @@ const mockScanResults = {
             start_line: 40,
             end_line: 50,
             func_uuid: 'func-uuid-001',
-            index: 1,
-            reason: null,
-            issue_result: null
+            index: 1
         },
         {
             warn_uuid: 'w11223344-5566-7788-99aa-bbccddeeff00',
@@ -86,9 +188,7 @@ const mockScanResults = {
             start_line: 125,
             end_line: 132,
             func_uuid: 'func-uuid-002',
-            index: 2,
-            reason: null,
-            issue_result: null
+            index: 2
         },
         {
             warn_uuid: 'w22334455-6677-8899-aabb-ccddeeff0011',
@@ -104,9 +204,7 @@ const mockScanResults = {
             start_line: 65,
             end_line: 70,
             func_uuid: 'func-uuid-003',
-            index: 3,
-            reason: null,
-            issue_result: null
+            index: 3
         },
         {
             warn_uuid: 'w33445566-7788-99aa-bbcc-ccddeeff0011',
@@ -122,9 +220,7 @@ const mockScanResults = {
             start_line: 200,
             end_line: 206,
             func_uuid: 'func-uuid-004',
-            index: 4,
-            reason: null,
-            issue_result: null
+            index: 4
         },
         {
             warn_uuid: 'w44556677-8899-aabb-bbcc-ccddeeff0011',
@@ -140,9 +236,7 @@ const mockScanResults = {
             start_line: 87,
             end_line: 91,
             func_uuid: 'func-uuid-005',
-            index: 5,
-            reason: null,
-            issue_result: null
+            index: 5
         },
         {
             warn_uuid: 'w55667788-99aa-aabb-bbcc-ccddeeff0011',
@@ -158,9 +252,7 @@ const mockScanResults = {
             start_line: 154,
             end_line: 159,
             func_uuid: 'func-uuid-006',
-            index: 6,
-            reason: null,
-            issue_result: null
+            index: 6
         },
         {
             warn_uuid: 'w66778899-aabb-bbcc-ccdd-ccddeeff0011',
@@ -176,107 +268,74 @@ const mockScanResults = {
             start_line: 34,
             end_line: 234,
             func_uuid: 'func-uuid-007',
-            index: 7,
-            reason: null,
-            issue_result: null
+            index: 7
         }
     ],
     'T11223344-5566-7788-99aa-bbccddeeff00': [],
     'T22334455-6677-8899-aabb-ccddeeff0011': []
 }
-
-// localStorage 存储键名
-const getAnnotationStorageKey = (taskId) => {
-    return `aiRepoScan_annotations_${taskId}`
-}
-
-// 从 localStorage 加载标记数据
-const loadAnnotationsFromStorage = (taskId) => {
-    try {
-        const stored = localStorage.getItem(getAnnotationStorageKey(taskId))
-        if (stored) {
-            return JSON.parse(stored)
-        }
-    } catch (error) {
-        console.error('加载标记数据失败:', error)
-    }
-    return {}
+// 获取任务的标注数据
+const getAnnotationsForTask = (taskId: string): Record<string, AnnotationData> => {
+    return annotationsData[taskId] || {}
 }
 
 /**
- * 从 localStorage 获取任务详情（用于支持新创建的任务）
+ * 通过 taskId 获取任务详情
  * @param {string} taskId - 任务ID
- * @returns {Object|null} 任务详情对象
+ * @returns {Promise<Object>} 任务详情对象（包含任务信息和扫描结果）
  */
-const getTaskFromStorage = (taskId) => {
-    try {
-        const stored = localStorage.getItem('aiRepoScan_tasks')
-        if (stored) {
-            const tasks = JSON.parse(stored)
-                // 兼容旧数据格式，支持通过id或taskId查找
-            const task = tasks.find(task => (task.taskId || task.id) === taskId) || null
-            if (task) {
-                // 转换为新格式
-                return {
-                    ...task,
-                    taskId: task.taskId || task.id,
-                    taskStatus: task.taskStatus || task.status,
-                    pathList: task.pathList || task.scanPaths || [],
-                    codeLanguage: task.codeLanguage || task.language || 'Unknown',
-                    lineNum: task.lineNum || (task.codeLines ? task.codeLines / 10000 : 0),
-                    productName: task.productName || task.product_name || '-',
-                    s3Path: task.s3Path || `s3://ai-repo-scan/results/${task.taskId || task.id}`,
-                    scanResults: task.scanResults || []
-                }
-            }
-            return null
-        }
-    } catch (error) {
-        console.error('从 localStorage 加载任务失败:', error)
-    }
-    return null
-}
-
-/**
- * 模拟通过 taskId 获取任务详情
- * @param {string} taskId - 任务ID
- * @returns {Promise<Object>} 任务详情对象
- */
-export const fetchTaskDetail = async(taskId) => {
-    // 模拟网络延迟
-    await new Promise(resolve => setTimeout(resolve, 300))
-
-    // 首先从 mock 数据中查找
-    let taskDetail = mockTaskDetails[taskId]
-
-    // 如果 mock 数据中没有，尝试从 localStorage 中获取（支持新创建的任务）
-    if (!taskDetail) {
-        taskDetail = getTaskFromStorage(taskId)
-            // 如果从 localStorage 获取到任务，补充默认的元信息字段
-        if (taskDetail) {
-            taskDetail = {
-                ...taskDetail,
-                // 兼容旧数据格式，转换为新格式
-                taskId: taskDetail.taskId || taskDetail.id,
-                taskStatus: taskDetail.taskStatus || taskDetail.status,
-                pathList: taskDetail.pathList || taskDetail.scanPaths || [],
-                codeLanguage: taskDetail.codeLanguage || taskDetail.language || 'Unknown',
-                lineNum: taskDetail.lineNum || (taskDetail.codeLines ? taskDetail.codeLines / 10000 : 0),
-                productName: taskDetail.productName || taskDetail.product_name || '-',
-                s3Path: taskDetail.s3Path || `s3://ai-repo-scan/results/${taskDetail.taskId || taskDetail.id}`,
-                scanResults: taskDetail.scanResults || []
-            }
-        }
-    }
+export const queryTaskDetail = async (taskId: string): Promise<ApiResponse<TaskDetail>> => {
+    // 直接从 mock 数据中获取任务信息
+    const taskDetail = mockTaskDetails[taskId]
 
     if (!taskDetail) {
         throw new Error(`未找到任务ID为 ${taskId} 的任务详情`)
     }
 
+    // 获取扫描结果（如果任务已完成）
+    let scanResults: ScanResult[] = []
+    if (taskDetail.taskStatus === TASK_STATUS.COMPLETED) {
+        const results = mockScanResults[taskId] || []
+
+        // 从内存中加载已标注的数据
+        const annotations = getAnnotationsForTask(taskId)
+        scanResults = results.map((result, idx) => {
+            const warnUuid = result.warn_uuid || `warn-${idx}`
+            const annotation = annotations[warnUuid]
+
+            return {
+                warn_uuid: warnUuid,
+                file_name: result.file_name || '',
+                rule_name: result.rule_name || '',
+                warn_line: result.warn_line || 0,
+                warn_code_block: result.warn_code_block || '',
+                code_snippet: result.code_snippet || result.warn_code_block || '',
+                context: result.context || '',
+                warn: result.warn || '',
+                check_function_id: result.check_function_id || '',
+                confidence: result.confidence || '0%',
+                start_line: result.start_line || result.warn_line || 0,
+                end_line: result.end_line || result.warn_line || 0,
+                func_uuid: result.func_uuid || '',
+                index: result.index !== undefined ? result.index : idx + 1,
+                reason: annotation?.reason || null,
+                issue_result: annotation ? annotation.issue_result : null,
+                annotator: annotation?.annotator,
+                annotationTime: annotation?.annotationTime
+            }
+        })
+    }
+
+    // 组装返回数据
+    const resTask: TaskDetail = {
+        ...taskDetail,
+        scanResults: scanResults
+    }
+
     return {
         code: 200,
         message: '获取成功',
-        data: {...taskDetail }
+        data: resTask
     }
 }
 
@@ -285,29 +344,77 @@ export const fetchTaskDetail = async(taskId) => {
  * @param {string} taskId - 任务ID
  * @returns {Promise<Array>} 扫描结果数组
  */
-export const fetchScanResults = async(taskId) => {
+export const fetchScanResults = async (taskId: string): Promise<ApiResponse<ScanResult[]>> => {
     // 模拟网络延迟
     await new Promise(resolve => setTimeout(resolve, 500))
 
     const results = mockScanResults[taskId] || []
 
-    // 从 localStorage 加载已标注的数据
-    const annotations = loadAnnotationsFromStorage(taskId)
-    const resultsWithAnnotations = results.map(result => {
-        const warnUuid = result.warn_uuid || result.id
+    // 从内存中加载已标注的数据
+    const annotations = getAnnotationsForTask(taskId)
+    const resultsWithAnnotations: ScanResult[] = results.map(result => {
+        const warnUuid = result.warn_uuid
         if (annotations[warnUuid]) {
             return {
                 ...result,
                 issue_result: annotations[warnUuid].issue_result,
-                reason: annotations[warnUuid].reason || null
-            }
+                reason: annotations[warnUuid].reason || null,
+                annotator: annotations[warnUuid].annotator,
+                annotationTime: annotations[warnUuid].annotationTime
+            } as ScanResult
         }
-        return result
+        return {
+            ...result,
+            reason: null,
+            issue_result: null,
+            annotator: undefined,
+            annotationTime: undefined
+        } as ScanResult
     })
 
     return {
         code: 200,
         message: '获取成功',
         data: resultsWithAnnotations
+    }
+}
+
+/**
+ * 保存标注数据
+ * @param {string} taskId - 任务ID
+ * @param {string} warnUuid - 警告UUID
+ * @param {number|null} issueResult - 标注结果 (0: 需要修改, 1: 无需修改的问题, 2: 问题误报, null: 取消标注)
+ * @param {string} annotator - 标注人
+ * @param {string} annotationTime - 标注时间
+ * @returns {Promise<Object>} 保存结果
+ */
+export const saveAnnotation = async (
+    taskId: string,
+    warnUuid: string,
+    issueResult: IssueResult,
+    annotator: string,
+    annotationTime: string
+): Promise<ApiResponse<null>> => {
+    // 初始化任务标注数据
+    if (!annotationsData[taskId]) {
+        annotationsData[taskId] = {}
+    }
+
+    if (issueResult === null) {
+        // 取消标注，删除记录
+        delete annotationsData[taskId][warnUuid]
+    } else {
+        // 保存标注
+        annotationsData[taskId][warnUuid] = {
+            issue_result: issueResult,
+            annotator: annotator,
+            annotationTime: annotationTime
+        }
+    }
+
+    return {
+        code: 200,
+        message: '保存成功',
+        data: null
     }
 }
