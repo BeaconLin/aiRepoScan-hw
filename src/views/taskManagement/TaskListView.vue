@@ -44,7 +44,7 @@
               <el-option
                 v-for="(status, key) in TASK_STATUS_MAP"
                 :key="key"
-                :label="status.label"
+                :label="key"
                 :value="key"
               />
             </el-select>
@@ -85,8 +85,8 @@
             <div class="card-header">
               <div class="card-title">
                 <span class="task-name">{{ task.taskName }}</span>
-                <el-tag :type="TASK_STATUS_MAP[task.taskStatus].type" size="small">
-                  {{ TASK_STATUS_MAP[task.taskStatus].label }}
+                <el-tag :type="TASK_STATUS_MAP[task.taskStatus]" size="small">
+                  {{ task.taskStatus }}
                 </el-tag>
               </div>
             </div>
@@ -185,7 +185,8 @@ import {
   ElRadioButton
 } from 'element-plus'
 import CreateTaskDialog from '../components/CreateTaskDialog.vue'
-import { useTaskStore, TASK_STATUS_MAP, TASK_STATUS } from '../stores/task'
+import { useTaskStore } from '../../stores/task.js'
+import { TASK_STATUS_MAP, TASK_STATUS } from '../../constants/scanTaskConst'
 
 const router = useRouter()
 const taskStore = useTaskStore()

@@ -310,7 +310,9 @@ const handleClose = () => {
 
 // 提交表单
 const handleSubmit = async () => {
-  if (!formRef.value) return
+  if (!formRef.value) {
+    return
+  }
 
   try {
     // 验证表单

@@ -26,8 +26,8 @@
           <el-button @click="handleBack">← 返回任务列表</el-button>
           <h1 v-if="task">{{ task.taskName }}</h1>
           <h1 v-else>任务详情</h1>
-          <el-tag v-if="task" :type="TASK_STATUS_MAP[task.taskStatus].type" size="large" class="status-tag">
-            {{ TASK_STATUS_MAP[task.taskStatus].label }}
+          <el-tag v-if="task" :type="TASK_STATUS_MAP[task.taskStatus]" size="large" class="status-tag">
+            {{ task.taskStatus }}
           </el-tag>
         </div>
       </div>
@@ -312,15 +312,27 @@
               </div>
               <div class="result-field full-width">
                 <span class="field-label">问题代码块：</span>
-                <pre class="code-snippet">{{ result.warn_code_block || result.code_block || result.code_snippet }}</pre>
+                <CodeBlock 
+                  :code="result.warn_code_block || result.code_block || result.code_snippet || ''" 
+                  :language="getCodeLanguage()" 
+                  style="max-height: 200px; overflow-y: auto;"
+                />
               </div>
               <div class="result-field full-width">
                 <span class="field-label">切片代码块：</span>
-                <pre class="code-snippet">{{ result.code_snippet || result.warn_code_block || result.code_block }}</pre>
+                <CodeBlock 
+                  :code="result.code_snippet || result.warn_code_block || result.code_block || ''" 
+                  :language="getCodeLanguage()" 
+                  style="max-height: 200px; overflow-y: auto;"
+                />
               </div>
               <div class="result-field full-width">
                 <span class="field-label">上下文代码：</span>
-                <pre class="code-snippet context-code">{{ result.context }}</pre>
+                <CodeBlock 
+                  :code="result.context || ''" 
+                  :language="getCodeLanguage()" 
+                  style="max-height: 200px; overflow-y: auto;"
+                />
               </div>
               <div v-if="result.reason" class="result-field full-width">
                 <span class="field-label">原因解释：</span>
@@ -331,7 +343,7 @@
               <div class="annotation-section">
                 <div class="annotation-label">缺陷标注：</div>
                 <el-radio-group
-                  :model-value="result.issue_result"
+                  :model-value="result.issue_result ?? undefined"
                   @change="(value) => saveAnnotationHandler(result, value)"
                   class="annotation-radio-group"
                 >
@@ -454,8 +466,11 @@ import {
   ElTabs,
   ElTabPane
 } from 'element-plus'
-import { useTaskStore, TASK_STATUS, TASK_STATUS_MAP } from '../stores/task'
-import { queryTaskDetail, fetchScanResults, saveAnnotation } from '../api/task'
+import { useTaskStore } from '../../stores/task.js'
+import { TASK_STATUS, TASK_STATUS_MAP } from '../../constants/scanTaskConst'
+import { userProfileStore } from '../../stores/userProfile'
+import { queryTaskDetail, fetchScanResults, saveAnnotation } from '../../api/task'
+import CodeBlock from './components/CodeBlock.vue'
 
 // 类型定义
 interface Task {
@@ -540,6 +555,7 @@ type TagType = 'success' | 'info' | 'warning' | 'danger'
 const router = useRouter()
 const route = useRoute()
 const taskStore = useTaskStore()
+const userInfo = userProfileStore().userInfo
 
 // 任务信息
 const task = ref<Task | null>(null)
@@ -608,32 +624,9 @@ const loadTaskData = async (taskId: string): Promise<void> => {
         scanResults: resTask.scanResults || []
       } as Task
       
-      // 如果任务已完成，设置扫描结果
+      // 如果任务已完成，直接使用 queryTaskDetail 返回的扫描结果
       if (task.value.taskStatus === TASK_STATUS.COMPLETED && resTask.scanResults) {
-        scanResults.value = resTask.scanResults.map((r: any, idx: number) => {
-          const uuid = r.warn_uuid || r.id || `warn-${idx}`
-          
-          return {
-            warn_uuid: uuid,
-            file_name: r.file_name || r.fileName || '',
-            rule_name: r.rule_name || '',
-            warn_line: r.warn_line || r.line || 0,
-            warn_code_block: r.warn_code_block || r.code_block || '',
-            code_snippet: r.code_snippet || r.warn_code_block || r.code_block || '',
-            context: r.context || '',
-            warn: r.warn || '',
-            check_function_id: r.check_function_id || '',
-            confidence: r.confidence || '0%',
-            start_line: r.start_line || r.warn_line || r.line || 0,
-            end_line: r.end_line || r.warn_line || r.line || 0,
-            func_uuid: r.func_uuid || '',
-            index: r.index !== undefined ? r.index : idx + 1,
-            reason: r.reason || null,
-            issue_result: r.issue_result !== undefined ? r.issue_result : null,
-            annotator: r.annotator,
-            annotationTime: r.annotationTime
-          }
-        }) as ScanResult[]
+        scanResults.value = resTask.scanResults as ScanResult[]
         
         // 数据加载完成后，延迟初始化图表（确保 DOM 已渲染）
         setTimeout(() => {
@@ -654,7 +647,9 @@ const loadTaskData = async (taskId: string): Promise<void> => {
 
 // 计算属性：获取所有规则名称
 const ruleNames = computed<string[]>(() => {
-  if (!scanResults.value.length) return []
+  if (!scanResults.value.length) {
+    return []
+  }
   const names = new Set(scanResults.value.map(r => r.rule_name))
   return Array.from(names)
 })
@@ -826,7 +821,9 @@ const buildRuleTree = (typeDistribution: Record<string, number>): RuleTreeNode[]
 
 // 计算属性：规则名称树形数据
 const ruleTreeData = computed<RuleTreeNode[]>(() => {
-  if (!scanResults.value.length) return []
+  if (!scanResults.value.length) {
+    return []
+  }
   return buildRuleTree(statistics.value.typeDistribution)
 })
 
@@ -867,7 +864,9 @@ const handleRuleSelectChange = (): void => {
         }
         if (node.children) {
           const found = findNodeByRuleName(node.children)
-          if (found) return found
+          if (found) {
+            return found
+          }
         }
       }
       return null
@@ -995,8 +994,8 @@ const saveAnnotationHandler = async (result: ScanResult, value: IssueResult): Pr
         minute: '2-digit',
         second: '2-digit'
       }).replace(/\//g, '-')
-      
-      const currentUser = taskStore.currentUser.value || '当前用户'
+    
+      const currentUser = userInfo?.w3Id || userInfo?.nameCn || taskStore.currentUser.value || '当前用户'
       
       await saveAnnotation(taskId, uuid, value, currentUser, annotationTime)
       
@@ -1032,8 +1031,13 @@ const handleCurrentChange = (page: number): void => {
 
 // 获取状态提示标题
 const getStatusTipTitle = (): string => {
-  if (!task.value) return ''
+  if (!task.value) {
+    return ''
+  }
   const status = task.value.taskStatus || task.value.status
+  if (!status) {
+    return '任务状态异常'
+  }
   const statusMap: Record<string, string> = {
     [TASK_STATUS.NOT_STARTED]: '任务未开始',
     [TASK_STATUS.RUNNING]: '任务扫描中',
@@ -1044,14 +1048,50 @@ const getStatusTipTitle = (): string => {
 
 // 获取状态提示描述
 const getStatusTipDescription = (): string => {
-  if (!task.value) return ''
+  if (!task.value) {
+    return ''
+  }
   const status = task.value.taskStatus || task.value.status
+  if (!status) {
+    return '无法查看扫描结果。'
+  }
   const descMap: Record<string, string> = {
     [TASK_STATUS.NOT_STARTED]: '该任务尚未开始扫描，请等待任务启动后查看扫描结果。',
     [TASK_STATUS.RUNNING]: '该任务正在扫描中，请稍候查看扫描结果。',
     [TASK_STATUS.FAILED]: '该任务扫描失败，无法查看扫描结果。'
   }
   return descMap[status] || '无法查看扫描结果。'
+}
+
+// 获取代码语言类型（映射到 highlight.js 支持的语言）
+const getCodeLanguage = (): string => {
+  if (!task.value || !task.value.codeLanguage) {
+    return 'cpp' // 默认使用 cpp
+  }
+  
+  const languageMap: Record<string, string> = {
+    'C++': 'cpp',
+    'C': 'c',
+    'Java': 'java',
+    'Python': 'python',
+    'JavaScript': 'javascript',
+    'TypeScript': 'typescript',
+    'Go': 'go',
+    'Rust': 'rust',
+    'PHP': 'php',
+    'Ruby': 'ruby',
+    'C#': 'csharp',
+    'cpp': 'cpp',
+    'c': 'c',
+    'java': 'java',
+    'python': 'python',
+    'javascript': 'javascript',
+    'typescript': 'typescript',
+    'go': 'go',
+  }
+  
+  const normalizedLang = task.value.codeLanguage.trim()
+  return languageMap[normalizedLang] || 'cpp' // 如果找不到映射，默认使用 cpp
 }
 
 // 返回任务列表

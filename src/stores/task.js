@@ -1,21 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
-
-// 任务状态枚举
-export const TASK_STATUS = {
-    NOT_STARTED: 'not_started', // 未开始
-    RUNNING: 'running', // 进行中
-    COMPLETED: 'completed', // 已完成
-    FAILED: 'failed' // 失败
-}
-
-// 任务状态标签映射
-export const TASK_STATUS_MAP = {
-    [TASK_STATUS.NOT_STARTED]: { label: '未开始', type: 'info' },
-    [TASK_STATUS.RUNNING]: { label: '进行中', type: 'warning' },
-    [TASK_STATUS.COMPLETED]: { label: '已完成', type: 'success' },
-    [TASK_STATUS.FAILED]: { label: '失败', type: 'danger' }
-}
+import { TASK_STATUS } from '../constants/scanTaskConst'
 
 // localStorage 存储键名
 const STORAGE_KEY = 'aiRepoScan_tasks'
@@ -23,54 +8,21 @@ const USER_STORAGE_KEY = 'aiRepoScan_currentUser'
 
 // 默认任务数据
 const defaultTasks = [{
-        taskId: 'T00112233-4455-6677-8899-aabbccddeeff',
-        taskName: '前端代码扫描任务',
-        repoUrl: 'https://github.com/example/frontend.git',
-        branch: 'main',
-        pathList: ['src', 'main'],
-        assistantVersions: ['v2.0.0', 'v2.1.0'],
-        creator: 'a00559876',
-        createTime: '2024-01-15 10:30:00',
-        taskStatus: TASK_STATUS.COMPLETED,
-        codeLanguage: 'JavaScript',
-        lineNum: 1.5,
-        productName: 'UDM',
-        s3Path: 's3://ai-repo-scan/results/T00112233-4455-6677-8899-aabbccddeeff',
-        scanResults: []
-    },
-    {
-        taskId: 'T11223344-5566-7788-99aa-bbccddeeff00',
-        taskName: '后端API扫描任务',
-        repoUrl: 'https://github.com/example/backend.git',
-        branch: 'develop',
-        pathList: ['app', 'config'],
-        assistantVersions: ['v1.1.0'],
-        creator: 'a00559877',
-        createTime: '2024-01-14 14:20:00',
-        taskStatus: TASK_STATUS.RUNNING,
-        codeLanguage: 'Python',
-        lineNum: 2.5,
-        productName: 'UDM',
-        s3Path: 's3://ai-repo-scan/results/T11223344-5566-7788-99aa-bbccddeeff00',
-        scanResults: []
-    },
-    {
-        taskId: 'T22334455-6677-8899-aabb-ccddeeff0011',
-        taskName: '移动端代码扫描',
-        repoUrl: 'https://github.com/example/mobile.git',
-        branch: 'master',
-        pathList: ['ios', 'android'],
-        assistantVersions: ['v2.0.0'],
-        creator: 'a00559876',
-        createTime: '2024-01-13 09:15:00',
-        taskStatus: TASK_STATUS.NOT_STARTED,
-        codeLanguage: 'Swift',
-        lineNum: 0.8,
-        productName: '移动应用',
-        s3Path: 's3://ai-repo-scan/results/T22334455-6677-8899-aabb-ccddeeff0011',
-        scanResults: []
-    },
-]
+    taskId: 'T00112233-4455-6677-8899-aabbccddeeff',
+    taskName: '前端代码扫描任务',
+    repoUrl: 'https://github.com/example/frontend.git',
+    branch: 'main',
+    pathList: ['src', 'main'],
+    assistantVersions: ['v2.0.0', 'v2.1.0'],
+    creator: 'a00559876',
+    createTime: '2024-01-15 10:30:00',
+    taskStatus: '已完成',
+    codeLanguage: 'C++',
+    lineNum: 1.5,
+    productName: 'UDM',
+    s3Path: 's3://ai-repo-scan/results/T00112233-4455-6677-8899-aabbccddeeff',
+    scanResults: []
+}, ]
 
 // 从 localStorage 加载数据
 const loadTasksFromStorage = () => {
@@ -150,7 +102,7 @@ export const useTaskStore = defineStore('task', () => {
         const newTask = {
             taskId: generateTaskId(),
             ...taskData,
-            taskStatus: TASK_STATUS.NOT_STARTED,
+            taskStatus: '未开始',
             codeLanguage: taskData.codeLanguage || 'Unknown',
             lineNum: taskData.lineNum || 0,
             scanResults: [],

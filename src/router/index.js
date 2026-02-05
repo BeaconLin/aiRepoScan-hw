@@ -1,21 +1,20 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 const OverviewView = () =>
-    import ('../views/OverviewView.vue')
+    import ('../views/taskManagement/OverviewView.vue')
 const TaskListView = () =>
-    import ('../views/TaskListView.vue')
+    import ('../views/taskManagement/TaskListView.vue')
 const CreateTaskView = () =>
-    import ('../views/CreateTaskView.vue')
+    import ('../views/taskManagement/CreateTaskView.vue')
 const TaskDetailView = () =>
-    import ('../views/TaskDetailView.vue')
+    import ('../views/taskManagement/TaskDetailView.vue')
 const AnnotationView = () =>
-    import ('../views/AnnotationView.vue')
+    import ('../views/taskManagement/AnnotationView.vue')
 
 const router = createRouter({
     history: createWebHistory(
         import.meta.env.BASE_URL),
-    routes: [
-        {
+    routes: [{
             path: '/',
             redirect: '/overview',
         },

@@ -1,4 +1,5 @@
-import { TASK_STATUS } from '../stores/task'
+import { log } from 'echarts/types/src/util/log.js'
+import { TASK_STATUS } from '../constants/scanTaskConst'
 
 // 标注结果类型：0-需要修改, 1-无需修改的问题, 2-问题误报
 type IssueResult = 0 | 1 | 2 | null
@@ -72,7 +73,7 @@ const mockTaskDetails: Record<string, TaskDetail> = {
         assistantVersions: ['v2.0.0', 'v2.1.0'],
         creator: 'a00559876',
         createTime: '2024-01-15 10:30:00',
-        taskStatus: TASK_STATUS.COMPLETED,
+        taskStatus: '已完成',
         codeLanguage: 'JavaScript',
         lineNum: 1.5,
         productName: 'UDM',
@@ -88,7 +89,7 @@ const mockTaskDetails: Record<string, TaskDetail> = {
         assistantVersions: ['v1.1.0'],
         creator: 'a00559877',
         createTime: '2024-01-14 14:20:00',
-        taskStatus: TASK_STATUS.RUNNING,
+        taskStatus: '进行中',
         codeLanguage: 'Python',
         lineNum: 2.5,
         productName: 'UDM',
@@ -104,7 +105,7 @@ const mockTaskDetails: Record<string, TaskDetail> = {
         assistantVersions: ['v2.0.0'],
         creator: 'a00559876',
         createTime: '2024-01-13 09:15:00',
-        taskStatus: TASK_STATUS.NOT_STARTED,
+        taskStatus: '未开始',
         codeLanguage: 'Swift',
         lineNum: 0.8,
         productName: '移动应用',
@@ -288,6 +289,7 @@ export const queryTaskDetail = async (taskId: string): Promise<ApiResponse<TaskD
     // 直接从 mock 数据中获取任务信息
     const taskDetail = mockTaskDetails[taskId]
 
+    console.log('taskDetail:', taskDetail)
     if (!taskDetail) {
         throw new Error(`未找到任务ID为 ${taskId} 的任务详情`)
     }
@@ -299,29 +301,31 @@ export const queryTaskDetail = async (taskId: string): Promise<ApiResponse<TaskD
 
         // 从内存中加载已标注的数据
         const annotations = getAnnotationsForTask(taskId)
-        scanResults = results.map((result, idx) => {
-            const warnUuid = result.warn_uuid || `warn-${idx}`
-            const annotation = annotations[warnUuid]
-
+        
+        // 处理扫描结果数据，兼容旧数据格式
+        scanResults = results.map((r: any, idx: number) => {
+            const uuid = r.warn_uuid || r.id || `warn-${idx}`
+            const annotation = annotations[uuid]
+            
             return {
-                warn_uuid: warnUuid,
-                file_name: result.file_name || '',
-                rule_name: result.rule_name || '',
-                warn_line: result.warn_line || 0,
-                warn_code_block: result.warn_code_block || '',
-                code_snippet: result.code_snippet || result.warn_code_block || '',
-                context: result.context || '',
-                warn: result.warn || '',
-                check_function_id: result.check_function_id || '',
-                confidence: result.confidence || '0%',
-                start_line: result.start_line || result.warn_line || 0,
-                end_line: result.end_line || result.warn_line || 0,
-                func_uuid: result.func_uuid || '',
-                index: result.index !== undefined ? result.index : idx + 1,
-                reason: annotation?.reason || null,
-                issue_result: annotation ? annotation.issue_result : null,
-                annotator: annotation?.annotator,
-                annotationTime: annotation?.annotationTime
+                warn_uuid: uuid,
+                file_name: r.file_name || r.fileName || '',
+                rule_name: r.rule_name || '',
+                warn_line: r.warn_line || r.line || 0,
+                warn_code_block: r.warn_code_block || r.code_block || '',
+                code_snippet: r.code_snippet || r.warn_code_block || r.code_block || '',
+                context: r.context || '',
+                warn: r.warn || '',
+                check_function_id: r.check_function_id || '',
+                confidence: r.confidence || '0%',
+                start_line: r.start_line || r.warn_line || r.line || 0,
+                end_line: r.end_line || r.warn_line || r.line || 0,
+                func_uuid: r.func_uuid || '',
+                index: r.index !== undefined ? r.index : idx + 1,
+                reason: annotation?.reason || r.reason || null,
+                issue_result: annotation ? annotation.issue_result : (r.issue_result !== undefined ? r.issue_result : null),
+                annotator: annotation?.annotator || r.annotator,
+                annotationTime: annotation?.annotationTime || r.annotationTime
             }
         })
     }
