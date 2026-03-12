@@ -39,39 +39,13 @@
       </el-form-item>
 
       <el-form-item label="扫描路径" prop="scanPaths">
-        <div class="scan-paths-container">
-          <div
-            v-for="(path, index) in formData.scanPaths"
-            :key="index"
-            class="path-item"
-          >
-            <el-input
-              v-model="formData.scanPaths[index]"
-              :placeholder="`请输入扫描路径 ${index + 1}`"
-              clearable
-            >
-              <template #append>
-                <el-button
-                  :disabled="formData.scanPaths.length <= 1"
-                  @click="removePath(index)"
-                  type="danger"
-                >
-                  删除
-                </el-button>
-              </template>
-            </el-input>
-          </div>
-          <el-button
-            type="primary"
-            @click="addPath"
-            style="width: 100%"
-            plain
-          >
-            + 添加扫描路径
-          </el-button>
-          <div class="form-hint">
-            提示：可添加多个扫描路径，每个路径占一行
-          </div>
+        <el-input
+          v-model="formData.scanPaths"
+          placeholder="请输入扫描路径，多个路径使用英文逗号分隔，例如：src,view,utils"
+          clearable
+        />
+        <div class="form-hint">
+          提示：多个路径使用英文逗号进行拼接，例如：src,view,utils
         </div>
       </el-form-item>
 
@@ -193,25 +167,11 @@ const selectedFile = ref(null)
 // 扫描助手版本选项（示例数据，实际应该从接口获取）
 const assistantVersions = ref([
   { 
-    label: 'v1.0.0', 
+    label: '内存安全扫描', 
     value: 'v1.0.0',
     description: '基础版本，支持常见代码规范检查和安全漏洞扫描'
   },
-  { 
-    label: 'v1.1.0', 
-    value: 'v1.1.0',
-    description: '增强版本，新增性能优化建议和代码质量分析'
-  },
-  { 
-    label: 'v2.0.0', 
-    value: 'v2.0.0',
-    description: '最新版本，支持AI智能分析，提供更精准的问题定位和建议'
-  },
-  { 
-    label: 'v2.1.0', 
-    value: 'v2.1.0',
-    description: '专业版本，支持多语言深度分析和架构设计建议'
-  }
+
 ])
 
 // 表单数据
@@ -220,9 +180,9 @@ const formData = reactive({
   repoUrl: '',
   branch: '',
   assistantVersions: [], // 改为数组，支持多选
-  scanPaths: [''],
+  scanPaths: '',
   creator: '', // 从用户信息获取
-  productName: 'UDM', // 默认值
+  productName: '', // 默认值
   deptName: '', // 可选
   pduName: '', // 可选
   createTime: '' // 实际应该自动填充当前时间
@@ -260,14 +220,19 @@ const rules = {
     }
   ],
   scanPaths: [
+    { required: true, message: '请输入扫描路径', trigger: 'blur' },
     {
       validator: (rule, value, callback) => {
-        if (!value || value.length === 0) {
-          callback(new Error('至少需要添加一个扫描路径'))
-        } else if (value.some(path => !path || path.trim() === '')) {
-          callback(new Error('扫描路径不能为空'))
+        if (!value || value.trim() === '') {
+          callback(new Error('请输入扫描路径'))
         } else {
-          callback()
+          // 按逗号分割并过滤空值
+          const paths = value.split(',').map(path => path.trim()).filter(path => path !== '')
+          if (paths.length === 0) {
+            callback(new Error('至少需要输入一个有效的扫描路径'))
+          } else {
+            callback()
+          }
         }
       },
       trigger: 'blur'
@@ -337,8 +302,8 @@ const initForm = () => {
   formData.repoUrl = ''
   formData.branch = ''
   formData.assistantVersions = []
-  formData.scanPaths = ['']
-  formData.productName = 'UDM'
+  formData.scanPaths = ''
+  formData.productName = ''
   formData.deptName = ''
   formData.pduName = ''
   
@@ -366,17 +331,6 @@ onMounted(() => {
   formData.creator = userInfo.w3Id || ''
 })
 
-// 添加扫描路径
-const addPath = () => {
-  formData.scanPaths.push('')
-}
-
-// 删除扫描路径
-const removePath = (index) => {
-  if (formData.scanPaths.length > 1) {
-    formData.scanPaths.splice(index, 1)
-  }
-}
 
 // 重置表单
 const handleReset = () => {
@@ -406,8 +360,11 @@ const handleSubmit = async () => {
     
     submitting.value = true
     
-    // 过滤空的扫描路径
-    const validScanPaths = formData.scanPaths.filter(path => path && path.trim() !== '')
+    // 处理扫描路径：按逗号分割并过滤空值
+    const validScanPaths = formData.scanPaths
+      .split(',')
+      .map(path => path.trim())
+      .filter(path => path !== '')
     
     // 提交时获取当前时间
     const currentTime = getCurrentTime()
@@ -523,14 +480,6 @@ const handleSubmit = async () => {
 
 .dialog-body-scroll::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
-}
-
-.scan-paths-container {
-  width: 100%;
-}
-
-.path-item {
-  margin-bottom: 12px;
 }
 
 .assistant-cards-container {
