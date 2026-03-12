@@ -105,6 +105,51 @@
           placeholder="自动填充当前登录用户"
         />
       </el-form-item>
+
+      <el-form-item label="产品名称" prop="productName">
+        <el-input
+          v-model="formData.productName"
+          placeholder="请输入产品名称"
+          clearable
+        />
+      </el-form-item>
+
+      <el-form-item label="部门名称">
+        <el-input
+          v-model="formData.deptName"
+          placeholder="请输入部门名称（可选）"
+          clearable
+        />
+      </el-form-item>
+
+      <el-form-item label="PDU名称">
+        <el-input
+          v-model="formData.pduName"
+          placeholder="请输入PDU名称（可选）"
+          clearable
+        />
+      </el-form-item>
+
+      <el-form-item label="扫描结果文件">
+        <el-upload
+          ref="uploadRef"
+          :auto-upload="false"
+          :limit="1"
+          :on-change="handleFileChange"
+          :on-remove="handleFileRemove"
+          :file-list="fileList"
+          accept=".json"
+        >
+          <template #trigger>
+            <el-button type="primary">选择文件</el-button>
+          </template>
+          <template #tip>
+            <div class="el-upload__tip">
+              支持上传JSON格式的扫描结果文件（可选），可在创建任务后单独上传
+            </div>
+          </template>
+        </el-upload>
+      </el-form-item>
       </el-form>
     </div>
 
@@ -121,8 +166,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { userProfileStore } from '../stores/userProfile'
+import taskManagementService from '../api/taskManagementService'
 
 const props = defineProps({
   modelValue: {
@@ -135,7 +182,13 @@ const emit = defineEmits(['update:modelValue', 'success'])
 
 const dialogVisible = ref(false)
 const formRef = ref(null)
+const uploadRef = ref(null)
 const submitting = ref(false)
+const userStore = userProfileStore()
+
+// 文件上传相关
+const fileList = ref([])
+const selectedFile = ref(null)
 
 // 扫描助手版本选项（示例数据，实际应该从接口获取）
 const assistantVersions = ref([
@@ -168,7 +221,10 @@ const formData = reactive({
   branch: '',
   assistantVersions: [], // 改为数组，支持多选
   scanPaths: [''],
-  creator: '当前用户', // 实际应该从用户信息获取
+  creator: '', // 从用户信息获取
+  productName: 'UDM', // 默认值
+  deptName: '', // 可选
+  pduName: '', // 可选
   createTime: '' // 实际应该自动填充当前时间
 })
 
@@ -216,6 +272,9 @@ const rules = {
       },
       trigger: 'blur'
     }
+  ],
+  productName: [
+    { required: true, message: '请输入产品名称', trigger: 'blur' }
   ]
 }
 
@@ -261,6 +320,16 @@ const getCurrentTime = () => {
   })
 }
 
+// 文件变化处理
+const handleFileChange = (file) => {
+  selectedFile.value = file.raw
+}
+
+// 文件移除处理
+const handleFileRemove = () => {
+  selectedFile.value = null
+}
+
 // 初始化表单
 const initForm = () => {
   // 重置表单
@@ -269,16 +338,33 @@ const initForm = () => {
   formData.branch = ''
   formData.assistantVersions = []
   formData.scanPaths = ['']
+  formData.productName = 'UDM'
+  formData.deptName = ''
+  formData.pduName = ''
   
-  // 自动填充创建人（创建时间在提交时获取）
-  formData.creator = '当前用户' // 实际应该从用户信息获取
+  // 从用户信息获取创建人
+  const userInfo = userStore.getUserInfo()
+  formData.creator = userInfo.w3Id || ''
   formData.createTime = '' // 提交时再获取
+  
+  // 重置文件上传
+  fileList.value = []
+  selectedFile.value = null
+  if (uploadRef.value) {
+    uploadRef.value.clearFiles()
+  }
   
   // 清除验证状态
   if (formRef.value) {
     formRef.value.clearValidate()
   }
 }
+
+// 初始化用户信息
+onMounted(() => {
+  const userInfo = userStore.getUserInfo()
+  formData.creator = userInfo.w3Id || ''
+})
 
 // 添加扫描路径
 const addPath = () => {
@@ -326,28 +412,75 @@ const handleSubmit = async () => {
     // 提交时获取当前时间
     const currentTime = getCurrentTime()
     
-    // 构建提交数据（使用新字段名）
-    const submitData = {
+    // 获取用户信息
+    const userInfo = userStore.getUserInfo()
+    
+    // 构建创建任务的请求数据（根据接口文档格式）
+    const createTaskData = {
       taskName: formData.taskName,
+      productName: formData.productName,
       repoUrl: formData.repoUrl,
       branch: formData.branch,
-      assistantVersions: formData.assistantVersions,
-      pathList: validScanPaths, // 使用pathList替代scanPaths
-      creator: formData.creator,
-      createTime: currentTime, // 提交时获取的时间
+      pathList: validScanPaths.join(','), // 接口要求是逗号分隔的字符串
+      creator: formData.creator || userInfo.w3Id,
+      assistantVersions: formData.assistantVersions.join(','), // 接口要求是字符串，多个版本用逗号分隔
       codeLanguage: 'Unknown', // 默认值，实际应该从扫描结果获取
       lineNum: 0, // 默认值，实际应该从扫描结果获取
-      productName: 'UDM', // 默认值，实际应该从用户信息获取
-      scanResults: [] // 初始为空数组
+      deptName: formData.deptName || undefined,
+      pduName: formData.pduName || undefined
     }
     
-    // TODO: 调用API创建任务
-    console.log('提交数据:', submitData)
+    // 调用创建任务接口（接口已定义，这里模拟调用）
+    console.log('创建任务请求数据:', createTaskData)
+    // const createResponse = await taskManagementService.createTask(createTaskData)
     
     // 模拟API调用
     await new Promise(resolve => setTimeout(resolve, 1000))
     
-    ElMessage.success('任务创建成功！')
+    // 模拟返回的任务ID（实际应该从接口响应中获取）
+    const mockTaskId = `task_${Date.now()}`
+    
+    // 如果选择了文件，则上传扫描结果文件
+    if (selectedFile.value) {
+      try {
+        console.log('开始上传扫描结果文件:', selectedFile.value.name)
+        // const uploadResponse = await taskManagementService.uploadScanResultFile(
+        //   mockTaskId,
+        //   selectedFile.value,
+        //   userInfo.w3Id
+        // )
+        
+        // 模拟上传
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        console.log('文件上传成功')
+        ElMessage.success('任务创建成功，扫描结果文件已上传！')
+      } catch (uploadError) {
+        console.error('文件上传失败:', uploadError)
+        ElMessage.warning('任务创建成功，但文件上传失败，您可以在任务详情中重新上传')
+      }
+    } else {
+      ElMessage.success('任务创建成功！')
+    }
+    
+    // 构建返回给父组件的数据（用于更新任务列表）
+    const submitData = {
+      taskId: mockTaskId,
+      taskName: formData.taskName,
+      repoUrl: formData.repoUrl,
+      branch: formData.branch,
+      assistantVersions: formData.assistantVersions,
+      pathList: validScanPaths,
+      creator: formData.creator || userInfo.w3Id,
+      createTime: currentTime,
+      codeLanguage: 'Unknown',
+      lineNum: 0,
+      productName: formData.productName,
+      deptName: formData.deptName,
+      pduName: formData.pduName,
+      taskStatus: '未开始',
+      scanResults: [],
+      s3Path: selectedFile.value ? `AIRepoScan/${mockTaskId}/scan_result.json` : null
+    }
     
     // 触发成功事件
     emit('success', submitData)
@@ -356,7 +489,11 @@ const handleSubmit = async () => {
     handleClose()
   } catch (error) {
     console.error('表单验证失败:', error)
-    ElMessage.error('请检查表单输入是否正确')
+    if (error && error.message) {
+      ElMessage.error(error.message)
+    } else {
+      ElMessage.error('请检查表单输入是否正确')
+    }
   } finally {
     submitting.value = false
   }

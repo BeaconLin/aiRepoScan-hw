@@ -4,8 +4,8 @@ const OverviewView = () =>
     import ('../views/taskManagement/OverviewView.vue')
 const TaskListView = () =>
     import ('../views/taskManagement/TaskListView.vue')
-const CreateTaskView = () =>
-    import ('../views/taskManagement/CreateTaskView.vue')
+    // const CreateTaskView = () =>
+    //     import ('../views/taskManagement/CreateTaskView.vue')
 const TaskDetailView = () =>
     import ('../views/taskManagement/TaskDetailView.vue')
 const AnnotationView = () =>
@@ -28,11 +28,11 @@ const router = createRouter({
             name: 'tasks',
             component: TaskListView,
         },
-        {
-            path: '/create',
-            name: 'create',
-            component: CreateTaskView,
-        },
+        // {
+        //     path: '/create',
+        //     name: 'create',
+        //     component: CreateTaskView,
+        // },
         {
             path: '/task/:id',
             name: 'taskDetail',

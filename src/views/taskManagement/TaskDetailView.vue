@@ -171,7 +171,7 @@
                     <div class="summary-icon">📊</div>
                     <div class="summary-content">
                       <div class="summary-label">总缺陷数</div>
-                      <div class="summary-value">{{ statistics.totalIssues }}</div>
+                      <div class="summary-value">{{ annotationStatistics?.totalWarnCount || statistics.totalIssues }}</div>
                       <div class="summary-desc">扫描发现的全部缺陷</div>
                     </div>
                   </div>
@@ -242,31 +242,31 @@
             <div class="view-content">
               <!-- 扫描结果列表和规则树区域 - 仅当任务状态为已完成时显示 -->
               <div v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && scanResults" class="result-list-container">
-      <!-- 左侧：扫描结果列表 -->
-      <div class="result-list-section">
-        <div class="list-header-with-filter">
-          <div class="section-label">扫描结果列表</div>
-          <!-- 标注结果筛选 -->
-          <div class="annotation-filter">
-            <div class="filter-label">标注结果筛选：</div>
-            <div class="filter-options">
-              <el-select
-                v-model="filterForm.issueResult"
-                @change="handleFilter"
-                placeholder="请选择标注结果"
-                clearable
-                class="annotation-filter-select"
-                style="width: 200px"
-              >
-                <el-option label="全部" value="" />
-                <el-option label="需要修改" value="0" />
-                <el-option label="无需修改的问题" value="1" />
-                <el-option label="问题误报" value="2" />
-                <el-option label="未标注" value="unmarked" />
-              </el-select>
+              <!-- 左侧：扫描结果列表 -->
+              <div class="result-list-section">
+                <div class="list-header-with-filter">
+                  <div class="section-label">扫描结果列表</div>
+                  <!-- 标注结果筛选 -->
+                   <div class="annotation-filter">
+                    <div class="filter-label">标注结果筛选：</div>
+                    <div class="filter-options">
+                      <el-select
+                        v-model="filterForm.issueResult"
+                        @change="handleFilter"
+                        placeholder="请选择标注结果"
+                        clearable
+                        class="annotation-filter-select"
+                        style="width: 200px"
+                      >
+                        <el-option label="全部" value="" />
+                        <el-option label="需要修改" value="0" />
+                        <el-option label="无需修改的问题" value="1" />
+                        <el-option label="问题误报" value="2" />
+                        <el-option label="未标注" value="unmarked" />
+                      </el-select>
+                    </div>
+              </div>
             </div>
-          </div>
-        </div>
         <div class="list-content">
           <div v-if="filteredResults.length === 0" class="empty-results">
             <el-empty description="暂无扫描结果" />
@@ -342,26 +342,40 @@
             <div class="result-actions">
               <div class="annotation-section">
                 <div class="annotation-label">缺陷标注：</div>
-                <el-radio-group
-                  :model-value="result.issue_result ?? undefined"
-                  @change="(value) => saveAnnotationHandler(result, value)"
-                  class="annotation-radio-group"
-                >
-                  <el-radio :label="0" class="annotation-radio">
-                    <span class="radio-label">需要修改</span>
-                  </el-radio>
-                  <el-radio :label="1" class="annotation-radio">
-                    <span class="radio-label">无需修改的问题</span>
-                  </el-radio>
-                  <el-radio :label="2" class="annotation-radio">
-                    <span class="radio-label">问题误报</span>
-                  </el-radio>
-                </el-radio-group>
-                <!-- 标注信息显示 -->
-                <div v-if="result.issue_result !== null && result.annotator" class="annotation-info">
+                  <el-radio-group 
+                    :model-value="(getAnnotationIssueResult(result) ?? undefined) as number | undefined"
+                    @update:model-value="(val: string | number | boolean | undefined) => setAnnotationIssueResult(result, typeof val === 'number' ? val : null)"
+                  >
+                    <el-radio :key="0" :value="0" class="option-item">
+                      需要修改
+                    </el-radio>
+                    <el-radio :key="1" :value="1" class="option-item">
+                      无需修改的问题
+                    </el-radio>
+                    <el-radio :key="2" :value="2" class="option-item">
+                      问题误报
+                    </el-radio>
+                  </el-radio-group>
+                  <!-- 原因说明输入框 -->
+                  <div class="reason-section">
+                    <el-input
+                        :model-value="(getAnnotationReason(result) || '') as string"
+                        @update:model-value="(val: string | null | undefined) => setAnnotationReason(result, val || '')"
+                        type="textarea"
+                        :rows="2"
+                        placeholder="请填写选择当前选项的原因（可选）"
+                        resize="none"
+                    />
+                  <el-button @click="submitAnnotation(result)">提交</el-button>
+                </div>
+                <!-- 标注信息显示 - 固定在右侧 -->
+                <div v-if="result.annotation && result.annotation.annotationStatus" class="annotation-info">
                   <span class="annotation-info-text">
-                    <span class="annotation-user">{{ result.annotator }}</span>
-                    <span class="annotation-time">{{ result.annotationTime }}</span>
+                    <span class="annotation-user">{{ result.annotation.userId }}</span>
+                    <span
+                        class="annotation-time">{{
+                        result.annotation.createTime || result.annotation.updateTime
+                      }}</span>
                   </span>
                 </div>
               </div>
@@ -410,7 +424,7 @@
           </div>
         </div>
       </div>
-    </div>
+              </div>
 
                 <!-- 分页区域 - 仅当任务状态为已完成时显示 -->
                 <div
@@ -438,9 +452,9 @@
                     show-icon
                   />
                 </div>
-              </div>
-            </el-tab-pane>
-          </el-tabs>
+            </div>
+          </el-tab-pane>
+        </el-tabs>
     </template>
   </div>
 </template>
@@ -469,7 +483,7 @@ import {
 import { useTaskStore } from '../../stores/task.js'
 import { TASK_STATUS, TASK_STATUS_MAP } from '../../constants/scanTaskConst'
 import { userProfileStore } from '../../stores/userProfile'
-import { queryTaskDetail, fetchScanResults, saveAnnotation } from '../../api/task'
+import { queryTaskDetail, fetchScanResults, saveAnnotation as saveAnnotationApi, getAnnotationStatistics } from '../../api/task'
 import CodeBlock from './components/CodeBlock.vue'
 
 // 类型定义
@@ -497,6 +511,21 @@ interface Task {
   product_name?: string
 }
 
+// 标注信息接口
+interface Annotation {
+  id?: number // 标注记录id
+  warnUuid: string // 告警uuid
+  userId: string // 标注用户id，短工号
+  issueResult: number | null // 标注结果（0:需要修改，1:无需修改，2:问题误报，null:未标注）
+  reason: string | null // 标注原因说明
+  annotationStatus?: number // 标注状态（1:已标注）
+  createTime?: string // 标注创建时间
+  updateTime?: string // 标注更新时间
+  userName?: string | null // 用户姓名
+  userDepartment?: string | null // 用户部门
+  taskId?: string | null // 任务id
+}
+
 interface ScanResult {
   warn_uuid: string
   file_name: string
@@ -514,8 +543,9 @@ interface ScanResult {
   index: number
   reason: string | null
   issue_result: number | null // 0: 需要修改, 1: 无需修改的问题, 2: 问题误报, null: 未标注
-  annotator?: string // 标注用户
-  annotationTime?: string // 标注时间
+  annotator?: string // 标注用户（兼容旧字段）
+  annotationTime?: string // 标注时间（兼容旧字段）
+  annotation: Annotation | null // 标注信息，可能为null
   // 兼容旧数据格式
   id?: string
   fileName?: string
@@ -541,6 +571,22 @@ interface Statistics {
   unmarked: number // 未标注
 }
 
+// 标注统计信息接口（来自API）
+interface AnnotationStatistics {
+  taskId: string
+  taskName: string
+  totalWarnCount: number
+  annotatedCount: number
+  unannotatedCount: number
+  annotationCompletionRate: number
+  statusDistribution: Array<{
+    statusCode: number
+    statusDescription: string
+    warnCount: number
+    percentage: number
+  }>
+}
+
 interface RuleTreeNode {
   id: string
   label: string
@@ -564,6 +610,7 @@ const currentPage = ref<number>(1)
 const pageSize = ref<number>(10)
 const loading = ref<boolean>(false)
 const error = ref<string>('')
+const annotationStatistics = ref<AnnotationStatistics | null>(null)
 
 // 当前激活的视图
 const activeView = ref<string>('info')
@@ -626,12 +673,57 @@ const loadTaskData = async (taskId: string): Promise<void> => {
       
       // 如果任务已完成，直接使用 queryTaskDetail 返回的扫描结果
       if (task.value.taskStatus === TASK_STATUS.COMPLETED && resTask.scanResults) {
-        scanResults.value = resTask.scanResults as ScanResult[]
+        // 处理扫描结果，确保annotation字段正确映射
+        scanResults.value = (resTask.scanResults as any[]).map((item: any) => {
+          const result: ScanResult = {
+            ...item,
+            warn_uuid: item.warn_uuid || item.warnUuid || item.id,
+            file_name: item.file_name || item.fileName,
+            warn_line: item.warn_line || item.warnLine || item.line,
+            warn_code_block: item.warn_code_block || item.warnCodeBlock || item.code_block || item.codeBlock,
+            issue_result: item.issue_result ?? item.issueResult ?? null,
+            reason: item.reason ?? null,
+            // 处理annotation字段：如果存在annotation对象，直接使用；否则根据issue_result等字段创建
+            annotation: item.annotation ? {
+              id: item.annotation.id,
+              warnUuid: item.annotation.warnUuid || item.annotation.warn_uuid || item.warn_uuid,
+              userId: item.annotation.userId || item.annotation.user_id || item.annotator || '',
+              issueResult: item.annotation.issueResult ?? item.annotation.issue_result ?? item.issue_result ?? null,
+              reason: item.annotation.reason ?? item.reason ?? null,
+              annotationStatus: item.annotation.annotationStatus ?? item.annotation.annotation_status ?? (item.issue_result !== null && item.issue_result !== undefined ? 1 : undefined),
+              createTime: item.annotation.createTime || item.annotation.create_time || item.annotationTime,
+              updateTime: item.annotation.updateTime || item.annotation.update_time || item.annotationTime,
+              userName: item.annotation.userName || item.annotation.user_name || null,
+              userDepartment: item.annotation.userDepartment || item.annotation.user_department || null,
+              taskId: item.annotation.taskId || item.annotation.task_id || null
+            } : (item.issue_result !== null && item.issue_result !== undefined ? {
+              warnUuid: item.warn_uuid || item.warnUuid || item.id || '',
+              userId: item.annotator || item.annotation?.userId || '',
+              issueResult: item.issue_result ?? item.issueResult ?? null,
+              reason: item.reason ?? null,
+              annotationStatus: 1,
+              createTime: item.annotationTime || item.annotation?.createTime,
+              updateTime: item.annotationTime || item.annotation?.updateTime
+            } : null)
+          }
+          return result
+        }) as ScanResult[]
         
         // 数据加载完成后，延迟初始化图表（确保 DOM 已渲染）
         setTimeout(() => {
           updateAllCharts()
         }, 300)
+        
+        // 获取标注统计信息
+        try {
+          const statisticsResponse = await getAnnotationStatistics(taskId)
+          if (statisticsResponse.code === 200 && statisticsResponse.data) {
+            annotationStatistics.value = statisticsResponse.data
+          }
+        } catch (err) {
+          console.warn('获取标注统计信息失败:', err)
+          // 不阻塞主流程，使用本地计算的统计数据
+        }
       }
     } else {
       throw new Error(taskResponse.message || '获取任务详情失败')
@@ -961,7 +1053,61 @@ const getIssueResultLabel = (issueResult: number): string => {
   return labelMap[issueResult] || '未知'
 }
 
-// 标注处理
+// 获取或初始化annotation对象
+const getOrInitAnnotation = (result: ScanResult): Annotation => {
+  if (!result.annotation) {
+    result.annotation = {
+      warnUuid: result.warn_uuid || result.id || '',
+      userId: userInfo?.w3Id || '',
+      issueResult: result.issue_result ?? null,
+      reason: result.reason ?? null
+    }
+  }
+  return result.annotation
+}
+
+// 获取annotation的issueResult（用于v-model）
+const getAnnotationIssueResult = (result: ScanResult): number | null => {
+  const annotation = getOrInitAnnotation(result)
+  return annotation.issueResult
+}
+
+// 设置annotation的issueResult
+const setAnnotationIssueResult = (result: ScanResult, value: number | null): void => {
+  const annotation = getOrInitAnnotation(result)
+  annotation.issueResult = value
+  // 同步到issue_result字段（兼容旧字段）
+  result.issue_result = value
+}
+
+// 获取annotation的reason（用于v-model）
+const getAnnotationReason = (result: ScanResult): string => {
+  const annotation = getOrInitAnnotation(result)
+  return annotation.reason || ''
+}
+
+// 设置annotation的reason
+const setAnnotationReason = (result: ScanResult, value: string): void => {
+  const annotation = getOrInitAnnotation(result)
+  annotation.reason = value || null
+  // 同步到reason字段（兼容旧字段）
+  result.reason = value || null
+}
+
+// 标注处理（提交标注）
+const submitAnnotation = async (result: ScanResult): Promise<void> => {
+  const annotation = getOrInitAnnotation(result)
+  const issueResult = annotation.issueResult
+  
+  if (issueResult === null) {
+    ElMessage.warning('请先选择标注结果')
+    return
+  }
+  
+  await saveAnnotationHandler(result, issueResult)
+}
+
+// 标注处理（内部函数）
 const saveAnnotationHandler = async (result: ScanResult, value: IssueResult): Promise<void> => {
   const taskId = route.params.id as string
   if (!taskId) {
@@ -976,33 +1122,52 @@ const saveAnnotationHandler = async (result: ScanResult, value: IssueResult): Pr
   }
 
   try {
+    const currentUser = userInfo?.w3Id || userInfo?.nameCn || taskStore.currentUser.value || '当前用户'
+    const annotationTime = new Date().toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    }).replace(/\//g, '-')
+    
     if (value === null) {
       // 取消标注
-      await saveAnnotation(taskId, uuid, null, '', '')
+      await saveAnnotationApi(taskId, uuid, null, '', '')
+      
+      // 更新 result 对象的标注信息
       result.issue_result = null
       result.reason = null
       result.annotator = undefined
       result.annotationTime = undefined
+      
+      // 清除annotation对象
+      if (result.annotation) {
+        result.annotation.issueResult = null
+        result.annotation.reason = null
+        result.annotation.annotationStatus = undefined
+      }
+      
       ElMessage.success('已取消标注')
     } else {
       // 保存标注
-      const annotationTime = new Date().toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      }).replace(/\//g, '-')
-    
-      const currentUser = userInfo?.w3Id || userInfo?.nameCn || taskStore.currentUser.value || '当前用户'
-      
-      await saveAnnotation(taskId, uuid, value, currentUser, annotationTime)
+      await saveAnnotationApi(taskId, uuid, value, currentUser, annotationTime)
       
       // 更新 result 对象的标注信息
       result.issue_result = value
+      result.reason = result.annotation?.reason || null
       result.annotator = currentUser
       result.annotationTime = annotationTime
+      
+      // 更新或创建annotation对象
+      const annotation = getOrInitAnnotation(result)
+      annotation.issueResult = value
+      annotation.userId = currentUser
+      annotation.reason = annotation.reason || null
+      annotation.annotationStatus = 1
+      annotation.createTime = annotation.createTime || annotationTime
+      annotation.updateTime = annotationTime
       
       const statusText = getIssueResultLabel(value)
       ElMessage.success(`已标注为：${statusText}`)
@@ -1121,8 +1286,9 @@ const initAnnotationRatioChart = (): void => {
   try {
     annotationRatioChart = echarts.init(annotationRatioChartRef.value)
     
-    const annotated = statistics.value.annotated || 0
-    const unannotated = statistics.value.unannotated || 0
+    // 优先使用接口返回的统计数据
+    const annotated = annotationStatistics.value?.annotatedCount || statistics.value.annotated || 0
+    const unannotated = annotationStatistics.value?.unannotatedCount || statistics.value.unannotated || 0
     
     // 过滤掉值为0的数据项
     const chartData = []
@@ -1211,10 +1377,13 @@ const initAnnotationStatusChart = (): void => {
   try {
     annotationStatusChart = echarts.init(annotationStatusChartRef.value)
     
+    // 接口的 statusDistribution 只包含"已标注"的汇总信息
+    // 各个标注结果（需要修改、无需修改、问题误报）需要从本地数据计算
+    // 未标注数优先使用接口返回的数据
     const needModify = statistics.value.needModify || 0
     const noNeedModify = statistics.value.noNeedModify || 0
     const falsePositive = statistics.value.falsePositive || 0
-    const unmarked = statistics.value.unmarked || 0
+    const unmarked = annotationStatistics.value?.unannotatedCount || statistics.value.unmarked || 0
     
     // 过滤掉值为0的数据项
     const chartData = []
@@ -1475,7 +1644,7 @@ const updateAllCharts = async (): Promise<void> => {
 
 // 监听统计数据变化，更新图表
 watch(
-  () => [statistics.value, scanResults.value.length],
+  () => [statistics.value, scanResults.value.length, annotationStatistics.value],
   () => {
     if (task.value?.taskStatus === TASK_STATUS.COMPLETED && scanResults.value.length > 0) {
       console.log('统计数据变化，更新图表')
@@ -1533,14 +1702,6 @@ onUnmounted(() => {
 /* 视图切换标签页样式 */
 .view-tabs {
   margin-bottom: 24px;
-}
-
-.view-tabs :deep(.el-tabs__header) {
-  margin-bottom: 24px;
-  background: #ffffff;
-  padding: 0 24px;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .view-tabs :deep(.el-tabs__item) {
@@ -1606,7 +1767,7 @@ onUnmounted(() => {
   display: flex;
   gap: 24px;
   margin-bottom: 24px;
-  align-items: flex-start;
+  flex-direction: column;
 }
 
 .result-list-section {
@@ -1890,6 +2051,11 @@ onUnmounted(() => {
   gap: 20px;
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
   transition: all 0.3s;
+}
+
+.stat-summary-card.completion-rate-card {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
 
 .stat-summary-card:hover {
@@ -2282,6 +2448,7 @@ onUnmounted(() => {
   gap: 16px;
   width: 100%;
   flex-wrap: wrap;
+  position: relative;
 }
 
 .annotation-label {
@@ -2295,6 +2462,8 @@ onUnmounted(() => {
   margin-left: auto;
   display: flex;
   align-items: center;
+  flex-shrink: 0;
+  order: 999;
 }
 
 .annotation-info-text {
@@ -2454,6 +2623,14 @@ onUnmounted(() => {
   text-align: center;
 }
 
+.reason-section {
+  display: flex;
+
+  gap: 8px;
+  width: 600px;
+  margin-top: 8px;
+}
+
 /* 响应式设计 */
 @media (max-width: 1200px) {
   .result-list-section {
@@ -2531,8 +2708,9 @@ onUnmounted(() => {
   }
 
   .annotation-info {
-    margin-left: 0;
-    width: 100%;
+    margin-left: auto;
+    width: auto;
+    align-self: flex-end;
   }
 
   .annotation-radio-group {

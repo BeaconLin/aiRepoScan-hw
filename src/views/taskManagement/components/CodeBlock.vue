@@ -21,6 +21,13 @@ import cpp from 'highlight.js/lib/languages/cpp'
 import c from 'highlight.js/lib/languages/c'
 import java from 'highlight.js/lib/languages/java'
 import go from 'highlight.js/lib/languages/go'
+import javascript from 'highlight.js/lib/languages/javascript'
+import typescript from 'highlight.js/lib/languages/typescript'
+import python from 'highlight.js/lib/languages/python'
+import rust from 'highlight.js/lib/languages/rust'
+import php from 'highlight.js/lib/languages/php'
+import ruby from 'highlight.js/lib/languages/ruby'
+import csharp from 'highlight.js/lib/languages/csharp'
 import 'highlight.js/styles/atom-one-dark.css'
 
 // 定义 Props 接口
@@ -34,6 +41,13 @@ hljs.registerLanguage('cpp', cpp)
 hljs.registerLanguage('c', c)
 hljs.registerLanguage('java', java)
 hljs.registerLanguage('go', go)
+hljs.registerLanguage('javascript', javascript)
+hljs.registerLanguage('typescript', typescript)
+hljs.registerLanguage('python', python)
+hljs.registerLanguage('rust', rust)
+hljs.registerLanguage('php', php)
+hljs.registerLanguage('ruby', ruby)
+hljs.registerLanguage('csharp', csharp)
 
 const props = withDefaults(defineProps<Props>(), {
   language: 'cpp'

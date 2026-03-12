@@ -15,6 +15,21 @@ interface AnnotationData {
     reason?: string | null
 }
 
+// 标注信息接口
+interface Annotation {
+    id: number
+    warnUuid: string
+    userId: string
+    issueResult: number // 0: 需要修改, 1: 无需修改, 2: 问题误报
+    reason: string | null
+    annotationStatus: number
+    createTime: string
+    updateTime: string
+    userName: string | null
+    userDepartment: string | null
+    taskId: string | null
+}
+
 // 扫描结果接口
 interface ScanResult {
     warn_uuid: string
@@ -25,16 +40,17 @@ interface ScanResult {
     code_snippet: string
     context: string
     warn: string
-    check_function_id: string
+    check_function_id: string | null
     confidence: string
     start_line: number
     end_line: number
     func_uuid: string
-    index: number
+    index: number | null
     reason: string | null
     issue_result: IssueResult
     annotator?: string
     annotationTime?: string
+    annotation?: Annotation | null
 }
 
 // 任务详情接口
@@ -60,6 +76,22 @@ interface ApiResponse<T> {
     code: number
     message: string
     data: T
+}
+
+// 标注统计信息接口
+interface AnnotationStatistics {
+    taskId: string
+    taskName: string
+    totalWarnCount: number
+    annotatedCount: number
+    unannotatedCount: number
+    annotationCompletionRate: number
+    statusDistribution: Array<{
+        statusCode: number
+        statusDescription: string
+        warnCount: number
+        percentage: number
+    }>
 }
 
 // Mock 任务详情数据（基于 defaultTasks）
@@ -158,7 +190,7 @@ const annotationsData: Record<string, Record<string, AnnotationData>> = {
 }
 
 // Mock 扫描结果数据
-const mockScanResults: Record<string, Omit<ScanResult, 'issue_result' | 'annotator' | 'annotationTime' | 'reason'>[]> = {
+const mockScanResults: Record<string, (Omit<ScanResult, 'issue_result' | 'annotator' | 'annotationTime' | 'reason'> & { annotation?: Annotation | null })[]> = {
     'T00112233-4455-6677-8899-aabbccddeeff': [{
             warn_uuid: 'w00112233-4455-6677-8899-aabbccddeeff',
             file_name: 'UserProfile.vue',
@@ -270,6 +302,35 @@ const mockScanResults: Record<string, Omit<ScanResult, 'issue_result' | 'annotat
             end_line: 234,
             func_uuid: 'func-uuid-007',
             index: 7
+        },
+        {
+            warn_uuid: 'w5427cb40-aa79-4f99-aabd-f77da06222a9',
+            file_name: 'sdc/domain/libcompiler/adr_compile.c',
+            rule_name: '内存安全',
+            warn_line: 51,
+            warn_code_block: ';',
+            code_snippet: '',
+            context: '',
+            warn: '内存分配后没有检查分配的大小是否足够后续操作，可能导致缓冲区溢出。应确保分配的内存大小足够容纳所有操作。',
+            check_function_id: null,
+            confidence: '0',
+            start_line: 43,
+            end_line: 72,
+            func_uuid: '5f10f739-1927-4a93-bf6b-cbec62c0061e',
+            index: 8,
+            annotation: {
+                id: 16,
+                warnUuid: 'w5427cb40-aa79-4f99-aabd-f77da06222a9',
+                userId: 't00598420',
+                issueResult: 1,
+                reason: null,
+                annotationStatus: 1,
+                createTime: '2026-03-10 10:01:41',
+                updateTime: '2026-03-10 10:01:41',
+                userName: null,
+                userDepartment: null,
+                taskId: null
+            }
         }
     ],
     'T11223344-5566-7788-99aa-bbccddeeff00': [],
@@ -316,7 +377,7 @@ export const queryTaskDetail = async (taskId: string): Promise<ApiResponse<TaskD
                 code_snippet: r.code_snippet || r.warn_code_block || r.code_block || '',
                 context: r.context || '',
                 warn: r.warn || '',
-                check_function_id: r.check_function_id || '',
+                check_function_id: r.check_function_id !== undefined ? r.check_function_id : null,
                 confidence: r.confidence || '0%',
                 start_line: r.start_line || r.warn_line || r.line || 0,
                 end_line: r.end_line || r.warn_line || r.line || 0,
@@ -325,7 +386,8 @@ export const queryTaskDetail = async (taskId: string): Promise<ApiResponse<TaskD
                 reason: annotation?.reason || r.reason || null,
                 issue_result: annotation ? annotation.issue_result : (r.issue_result !== undefined ? r.issue_result : null),
                 annotator: annotation?.annotator || r.annotator,
-                annotationTime: annotation?.annotationTime || r.annotationTime
+                annotationTime: annotation?.annotationTime || r.annotationTime,
+                annotation: r.annotation || null // 保留原始annotation字段
             }
         })
     }
@@ -420,5 +482,103 @@ export const saveAnnotation = async (
         code: 200,
         message: '保存成功',
         data: null
+    }
+}
+
+/**
+ * 获取任务的标注完成度和状态分布统计信息
+ * @param {string} taskId - 任务ID
+ * @returns {Promise<ApiResponse<AnnotationStatistics>>} 标注统计信息
+ */
+export const getAnnotationStatistics = async (taskId: string): Promise<ApiResponse<AnnotationStatistics>> => {
+    // 模拟网络延迟
+    await new Promise(resolve => setTimeout(resolve, 300))
+
+    // 获取任务详情
+    const taskDetail = mockTaskDetails[taskId]
+    if (!taskDetail) {
+        throw new Error(`未找到任务ID为 ${taskId} 的任务详情`)
+    }
+
+    // 获取扫描结果
+    const results = mockScanResults[taskId] || []
+    const totalWarnCount = results.length
+
+    // 获取标注数据
+    const annotations = getAnnotationsForTask(taskId)
+    const annotatedWarnUuids = Object.keys(annotations)
+    const annotatedCount = annotatedWarnUuids.length
+    const unannotatedCount = totalWarnCount - annotatedCount
+
+    // 计算标注完成率
+    const annotationCompletionRate = totalWarnCount > 0 
+        ? Number(((annotatedCount / totalWarnCount) * 100).toFixed(2))
+        : 0
+
+    // 统计状态分布
+    const statusCountMap: Record<number, number> = {
+        0: 0, // 需要修改
+        1: 0, // 无需修改的问题
+        2: 0  // 问题误报
+    }
+
+    annotatedWarnUuids.forEach(uuid => {
+        const annotation = annotations[uuid]
+        if (annotation && annotation.issue_result !== null && annotation.issue_result !== undefined) {
+            statusCountMap[annotation.issue_result] = (statusCountMap[annotation.issue_result] || 0) + 1
+        }
+    })
+
+    // 构建状态分布数组
+    const statusDistribution = []
+    const statusDescriptions: Record<number, string> = {
+        0: '需要修改',
+        1: '无需修改的问题',
+        2: '问题误报'
+    }
+
+    // 统计已标注的总数（用于计算百分比）
+    const totalAnnotated = annotatedCount
+
+    // 添加已标注状态（汇总所有标注结果）
+    if (totalAnnotated > 0) {
+        statusDistribution.push({
+            statusCode: 1, // 1 表示已标注
+            statusDescription: '已标注',
+            warnCount: totalAnnotated,
+            percentage: 100.0
+        })
+    }
+
+    // 添加各个标注结果的状态分布
+    Object.entries(statusCountMap).forEach(([code, count]) => {
+        if (count > 0) {
+            const statusCode = parseInt(code, 10)
+            const percentage = totalAnnotated > 0 
+                ? Number(((count / totalAnnotated) * 100).toFixed(2))
+                : 0
+            statusDistribution.push({
+                statusCode: statusCode,
+                statusDescription: statusDescriptions[statusCode] || '未知状态',
+                warnCount: count,
+                percentage: percentage
+            })
+        }
+    })
+
+    const statistics: AnnotationStatistics = {
+        taskId: taskDetail.taskId,
+        taskName: taskDetail.taskName,
+        totalWarnCount: totalWarnCount,
+        annotatedCount: annotatedCount,
+        unannotatedCount: unannotatedCount,
+        annotationCompletionRate: annotationCompletionRate,
+        statusDistribution: statusDistribution
+    }
+
+    return {
+        code: 200,
+        message: '获取成功',
+        data: statistics
     }
 }

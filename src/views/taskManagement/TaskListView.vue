@@ -184,7 +184,7 @@ import {
   ElRadioGroup,
   ElRadioButton
 } from 'element-plus'
-import CreateTaskDialog from '../components/CreateTaskDialog.vue'
+import CreateTaskDialog from '../../components/CreateTaskDialog.vue'
 import { useTaskStore } from '../../stores/task.js'
 import { TASK_STATUS_MAP, TASK_STATUS } from '../../constants/scanTaskConst'
 
