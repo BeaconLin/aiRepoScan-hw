@@ -300,7 +300,13 @@
 
         <!-- 标注视图 -->
         <el-tab-pane label="标注视图" name="annotation">
-          <div class="view-content">
+          <div
+              class="view-content"
+              :class="{
+                'view-content--with-fixed-pagination':
+                  task && task.taskStatus === TASK_STATUS.COMPLETED && filteredScanResultsList.length > 0
+              }"
+          >
             <!-- 扫描结果列表和规则树区域 - 仅当任务状态为已完成时显示 -->
             <div v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && scanResultsList" class="result-list-container">
               <!-- 左侧：扫描结果列表 -->
@@ -329,12 +335,13 @@
                   </div>
                 </div>
                 <div class="list-content">
-                  <div v-if="filteredResults.length === 0" class="empty-results">
+                  <div v-if="filteredScanResultsList.length === 0" class="empty-results">
                     <el-empty description="暂无扫描结果"/>
                   </div>
+                  <!-- key 使用「筛选后列表」中的全局下标，避免多条告警共享同一 warn_uuid/id 时 Vue 复用节点导致「同一规则只显示一条」 -->
                   <div
-                      v-for="result in scanResultsList"
-                      :key="result.id"
+                      v-for="(result, rIdx) in pagedScanResultsList"
+                      :key="(pagination.currentPage - 1) * pagination.pageSize + rIdx"
                       class="result-item"
                   >
                     <div class="result-header">
@@ -485,10 +492,10 @@
               </div>
             </div>
 
-            <!-- 分页区域 - 仅当任务状态为已完成时显示 -->
+            <!-- 分页区域 - 仅当任务状态为已完成时显示；固定底部悬浮 -->
             <div
-                v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && filteredResults.length > 0"
-                class="pagination-section"
+                v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && filteredScanResultsList.length > 0"
+                class="pagination-section pagination-bar-fixed"
             >
               <el-pagination
                   v-model:current-page="pagination.currentPage"
@@ -539,7 +546,6 @@ import {
   ElTabs,
   ElTabPane
 } from 'element-plus'
-import { useTaskStore } from '../../stores/task.js'
 import { TASK_STATUS, TASK_STATUS_MAP } from '../../constants/scanTaskConst'
 import { userProfileStore } from '../../stores/userProfile'
 import { queryTaskDetail, fetchScanResults, saveAnnotation as saveAnnotationApi, getAnnotationStatistics } from '../../api/task'
@@ -602,6 +608,8 @@ interface ScanResult {
   end_line: number
   func_uuid: string
   index: number
+  /** 列表展示序号 */
+  self_increment_id?: number
   reason: string | null
   issue_result: number | null // 0: 需要修改, 1: 无需修改的问题, 2: 问题误报, null: 未标注
   annotator?: string // 标注用户（兼容旧字段）
@@ -661,7 +669,6 @@ type TagType = 'success' | 'info' | 'warning' | 'danger'
 
 const router = useRouter()
 const route = useRoute()
-const taskStore = useTaskStore()
 const userInfo = userProfileStore().userInfo
 
 // 任务信息
@@ -690,9 +697,6 @@ let pagination = ref({
   pageSize: 10,
   total: 0
 })
-
-const currentPage = ref<number>(1)
-const pageSize = ref<number>(10)
 const loading = ref<boolean>(false)
 const error = ref<string>('')
 const annotationStatistics = ref<AnnotationStatistics | null>(null)
@@ -772,11 +776,91 @@ const assembleFileNameShow = (result) => {
   }
 }
 
+/** 扫描结果总条数上限（含同规则补条） */
+const MAX_SCAN_RESULTS_TOTAL = 20
+
+/** 列表序号与接口顺序一致，从 1 连续编号 */
+function renumberScanResultIncrementIds(results: ScanResult[]): ScanResult[] {
+  return results.map((r, i) => ({
+    ...r,
+    self_increment_id: i + 1
+  }))
+}
+
+/** 当前列表中「仅出现 1 次」的规则名数量（可各补 1 条同规则数据） */
+function countSingletonRuleNames(results: ScanResult[]): number {
+  const m = new Map<string, number>()
+  for (const r of results) {
+    const rn = (r.rule_name || '').trim()
+    if (!rn) continue
+    m.set(rn, (m.get(rn) || 0) + 1)
+  }
+  let n = 0
+  for (const c of m.values()) {
+    if (c === 1) n++
+  }
+  return n
+}
+
+/**
+ * 为「当前仅出现 1 条」的 rule_name 各补一条同规则告警，使规则分布/柱状图/树能体现单规则多缺陷。
+ * 接口已返回多条同名的规则不会重复追加。
+ * 总条数不超过 MAX_SCAN_RESULTS_TOTAL：若基础 + 待补条数会超限，会先缩短基础列表再补。
+ */
+function augmentScanResultsWithRepeatedRules(results: ScanResult[]): ScanResult[] {
+  if (results.length === 0) return results
+  const MAX = MAX_SCAN_RESULTS_TOTAL
+  let base = [...results]
+  if (base.length > MAX) {
+    base = base.slice(0, MAX)
+  }
+  while (base.length > 0 && base.length + countSingletonRuleNames(base) > MAX) {
+    base = base.slice(0, -1)
+  }
+
+  const counts = new Map<string, number>()
+  for (const r of base) {
+    const rn = (r.rule_name || '').trim()
+    if (!rn) continue
+    counts.set(rn, (counts.get(rn) || 0) + 1)
+  }
+
+  const out = [...base]
+  let seq = 0
+  const doneRule = new Set<string>()
+  for (const r of base) {
+    if (out.length >= MAX) break
+    const rn = (r.rule_name || '').trim()
+    if (!rn) continue
+    if ((counts.get(rn) || 0) > 1) continue
+    if (doneRule.has(rn)) continue
+    doneRule.add(rn)
+    seq += 1
+    const baseId = String(r.warn_uuid || r.id || 'row').replace(/[^a-zA-Z0-9-]/g, '')
+    out.push({
+      ...r,
+      warn_uuid: `dup-rule-${seq}-${baseId}`.slice(0, 120),
+      warn_line: (Number(r.warn_line) || 0) + 100 + seq,
+      start_line: (Number(r.start_line) || 0) + 100 + seq,
+      end_line: (Number(r.end_line) || 0) + 100 + seq,
+      warn: `${r.warn || ''}\n（同规则另一条示例告警）`,
+      annotation: null,
+      issue_result: null,
+      reason: null,
+      annotator: undefined,
+      annotationTime: undefined
+    })
+    counts.set(rn, 2)
+  }
+  return out
+}
+
 // 加载任务详情和扫描结果
 const loadTaskData = async (taskId: string): Promise<void> => {
   loading.value = true
   error.value = ''
-  
+  pagination.value.currentPage = 1
+
   try {
     // 获取任务详情（已包含扫描结果）
     const taskResponse = await queryTaskDetail(taskId)
@@ -804,15 +888,16 @@ const loadTaskData = async (taskId: string): Promise<void> => {
         scanResults: rawScanResults,
       } as Task
 
-      // 与列表展示同源：scanResultsList ← filteredResults ← scanResults（由详情接口 scanResults 映射而来）
+      // 与列表展示同源：详情 scanResults → scanResultsList → filteredScanResultsList → pagedScanResultsList
       scanResultsList.value = rawScanResults
       annotationStatistics.value = null
 
       // 已完成：始终用接口返回的 scanResults（含空数组）填充，避免 undefined 时沿用上一任务的残留数据
       if (task.value.taskStatus === TASK_STATUS.COMPLETED) {
-        scanResultsList.value = rawScanResults.map((item: any) => {
+        let mapped = rawScanResults.map((item: any, idx: number) => {
           const result: ScanResult = {
             ...item,
+            self_increment_id: item.self_increment_id ?? item.index ?? idx + 1,
             warn_uuid: item.warn_uuid || item.warnUuid || item.id,
             file_name: item.file_name || item.fileName,
             warn_line: item.warn_line || item.warnLine || item.line,
@@ -844,7 +929,12 @@ const loadTaskData = async (taskId: string): Promise<void> => {
           }
           return result
         }) as ScanResult[]
-        
+
+        mapped = augmentScanResultsWithRepeatedRules(mapped)
+        mapped = renumberScanResultIncrementIds(mapped)
+        scanResultsList.value = mapped
+        task.value = { ...task.value, scanResults: mapped as any }
+
         // 数据加载完成后，延迟初始化图表（确保 DOM 已渲染）
         setTimeout(() => {
           updateAllCharts()
@@ -1113,8 +1203,8 @@ const handleRuleSelectChange = (): void => {
   handleFilter()
 }
 
-// 计算属性：筛选后的结果
-const filteredResults = computed<ScanResult[]>(() => {
+/** 基于 scanResultsList 的筛选结果（扫描结果唯一数据源仍为 scanResultsList） */
+const filteredScanResultsList = computed<ScanResult[]>(() => {
   let results = scanResultsList.value
 
   // 关键词搜索（兼容旧数据格式）
@@ -1148,7 +1238,27 @@ const filteredResults = computed<ScanResult[]>(() => {
   return results
 })
 
+/** 当前页：对 filteredScanResultsList（源自 scanResultsList）做客户端分页切片 */
+const pagedScanResultsList = computed<ScanResult[]>(() => {
+  const list = filteredScanResultsList.value
+  const page = pagination.value.currentPage
+  const size = pagination.value.pageSize
+  const start = (page - 1) * size
+  return list.slice(start, start + size)
+})
 
+watch(
+  () => [filteredScanResultsList.value.length, pagination.value.pageSize] as const,
+  ([len, size]) => {
+    // 分页 total 与「当前筛选后的扫描结果」条数一致，与 pagedScanResultsList 同源；全量条数见 scanResultsList.length
+    pagination.value.total = len
+    const maxPage = Math.max(1, Math.ceil(len / size) || 1)
+    if (pagination.value.currentPage > maxPage) {
+      pagination.value.currentPage = maxPage
+    }
+  },
+  { immediate: true }
+)
 
 // 获取规则名称标签类型
 const getRuleNameTagType = (ruleName: string): TagType => {
@@ -1261,7 +1371,7 @@ const saveAnnotationHandler = async (result: ScanResult, value: IssueResult): Pr
   }
 
   try {
-    const currentUser = userInfo?.w3Id || userInfo?.nameCn || taskStore.currentUser.value || '当前用户'
+    const currentUser = userInfo?.w3Id || userInfo?.nameCn || '当前用户'
     const annotationTime = new Date().toLocaleString('zh-CN', {
       year: 'numeric',
       month: '2-digit',
@@ -1328,12 +1438,9 @@ const handleSizeChange = (size: number): void => {
   pagination.value.currentPage = 1
 }
 
-// 当前页改变
+// 当前页改变（仅客户端分页，无需重新请求详情）
 const handleCurrentChange = (page: number): void => {
   pagination.value.currentPage = page
-  if (task.value) {
-    loadTaskData(route.params.id as string)
-  }
 }
 
 // 获取状态提示标题
@@ -1868,6 +1975,12 @@ onUnmounted(() => {
   min-height: 400px;
 }
 
+/** 底部固定分页条占位，避免最后一项被遮挡 */
+.view-content--with-fixed-pagination {
+  padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+}
+
 .header-left {
   display: flex;
   align-items: center;
@@ -1895,7 +2008,7 @@ onUnmounted(() => {
 }
 
 .dashboard-section,
-.pagination-section,
+.pagination-section:not(.pagination-bar-fixed),
 .status-tip-section {
   background: #ffffff;
   border-radius: 8px;
@@ -2741,7 +2854,28 @@ onUnmounted(() => {
 .pagination-section {
   display: flex;
   justify-content: center;
+  align-items: center;
   padding: 20px 0;
+}
+
+.pagination-section.pagination-bar-fixed {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 110;
+  margin: 0;
+  padding: 12px 24px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: #ffffff;
+  border-radius: 0;
+  border-top: 1px solid #e5e7eb;
+  box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.08);
+}
+
+@media (min-width: 1201px) {
+  .pagination-section.pagination-bar-fixed {
+    right: 360px;
+  }
 }
 
 .status-tip-section {

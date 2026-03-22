@@ -1,5 +1,7 @@
-import { log } from 'echarts/types/src/util/log.js'
 import { TASK_STATUS } from '../constants/scanTaskConst'
+
+/** 与历史 task store 一致，用于任务列表持久化 */
+const TASKS_STORAGE_KEY = 'aiRepoScan_tasks'
 
 // 标注结果类型：0-需要修改, 1-无需修改的问题, 2-问题误报
 type IssueResult = 0 | 1 | 2 | null
@@ -72,10 +74,63 @@ interface TaskDetail {
 }
 
 // API 响应接口
-interface ApiResponse<T> {
+export interface ApiResponse<T> {
     code: number
     message: string
     data: T
+}
+
+/** 列表项（不含扫描结果明细） */
+export type TaskListItem = Omit<TaskDetail, 'scanResults'>
+
+/** 创建任务入参（与创建表单 / 接口字段对齐） */
+export interface CreateTaskPayload {
+    taskName: string
+    productName: string
+    repoUrl: string
+    branch: string
+    pathList?: string
+    creator: string
+    /** 逗号分隔的助手版本，如 "v1.0.0,v2.0.0" */
+    assistantVersions: string
+    codeLanguage?: string
+    lineNum?: number
+    deptName?: string
+    pduName?: string
+}
+
+const generateTaskId = (): string => {
+    const timestamp = Date.now().toString(16)
+    const random = Math.random().toString(16).substring(2, 10)
+    return `T${timestamp}-${random.substring(0, 4)}-${random.substring(4, 8)}-${random.substring(8, 12)}-${random.substring(12, 20)}`
+}
+
+const normalizeStoredTask = (raw: Record<string, unknown>): TaskDetail => {
+    const pl = raw.pathList
+    const pathList = Array.isArray(pl) ? pl.join(',') : String(pl ?? '')
+    let av = raw.assistantVersions
+    if (typeof av === 'string') {
+        av = av.split(',').map((s: string) => s.trim()).filter(Boolean)
+    }
+    if (!Array.isArray(av)) {
+        av = []
+    }
+    return {
+        taskId: String(raw.taskId ?? ''),
+        taskName: String(raw.taskName ?? ''),
+        repoUrl: String(raw.repoUrl ?? ''),
+        branch: String(raw.branch ?? ''),
+        pathList,
+        assistantVersions: av as string[],
+        creator: String(raw.creator ?? ''),
+        createTime: String(raw.createTime ?? ''),
+        taskStatus: (raw.taskStatus || TASK_STATUS.NOT_STARTED) as TaskStatus,
+        codeLanguage: String(raw.codeLanguage ?? 'Unknown'),
+        lineNum: Number(raw.lineNum) || 0,
+        productName: String(raw.productName ?? ''),
+        s3Path: String(raw.s3Path ?? ''),
+        scanResults: []
+    }
 }
 
 // 标注统计信息接口
@@ -99,7 +154,7 @@ const mockTaskDetails: Record<string, TaskDetail> = {
     'T00112233-4455-6677-8899-aabbccddeeff': {
         taskId: 'T00112233-4455-6677-8899-aabbccddeeff',
         taskName: '前端代码扫描任务',
-        repoUrl: 'https://github.com/example/frontend.git',
+        repoUrl: 'https://codehub-y.huawei.com/ServiceComponent/ComDB_ADF/files?ref=master',
         branch: 'main',
         pathList: 'src,main',
         assistantVersions: ['v2.0.0', 'v2.1.0'],
@@ -108,8 +163,8 @@ const mockTaskDetails: Record<string, TaskDetail> = {
         taskStatus: '已完成',
         codeLanguage: 'JavaScript',
         lineNum: 1.5,
-        productName: 'UDM',
-        s3Path: 's3://ai-repo-scan/results/T00112233-4455-6677-8899-aabbccddeeff',
+        productName: 'ServiceComponent',
+        s3Path: 'RepoScan/测试任务/aiMemorySafeCheckResult.json',
         scanResults: []
     },
     'T11223344-5566-7788-99aa-bbccddeeff00': {
@@ -117,7 +172,7 @@ const mockTaskDetails: Record<string, TaskDetail> = {
         taskName: '后端API扫描任务',
         repoUrl: 'https://github.com/example/backend.git',
         branch: 'develop',
-        pathList: ['app', 'config'],
+        pathList: 'app,config',
         assistantVersions: ['v1.1.0'],
         creator: 'a00559877',
         createTime: '2024-01-14 14:20:00',
@@ -336,9 +391,205 @@ const mockScanResults: Record<string, (Omit<ScanResult, 'issue_result' | 'annota
     'T11223344-5566-7788-99aa-bbccddeeff00': [],
     'T22334455-6677-8899-aabb-ccddeeff0011': []
 }
+
+const persistTasksToStorage = (): void => {
+    try {
+        const arr = Object.values(mockTaskDetails)
+        localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(arr))
+    } catch (e) {
+        console.error('保存任务列表失败:', e)
+    }
+}
+
+/** 从 localStorage 恢复任务；若有数据则覆盖内置 mock，保持与旧版 store 行为一致 */
+const hydrateTasksFromStorage = (): void => {
+    try {
+        const stored = localStorage.getItem(TASKS_STORAGE_KEY)
+        if (!stored) return
+        const parsed = JSON.parse(stored) as unknown
+        if (!Array.isArray(parsed) || parsed.length === 0) return
+
+        for (const k of Object.keys(mockTaskDetails)) {
+            delete mockTaskDetails[k]
+        }
+        for (const k of Object.keys(mockScanResults)) {
+            delete mockScanResults[k]
+        }
+
+        for (const item of parsed) {
+            if (!item || typeof item !== 'object' || !('taskId' in item)) continue
+            const raw = item as Record<string, unknown>
+            const id = String(raw.taskId)
+            const detail = normalizeStoredTask(raw)
+            mockTaskDetails[id] = detail
+            const sr = raw.scanResults
+            if (Array.isArray(sr) && sr.length > 0) {
+                mockScanResults[id] = sr as ScanResult[]
+            } else {
+                mockScanResults[id] = []
+            }
+        }
+    } catch (e) {
+        console.error('加载任务列表失败:', e)
+    }
+}
+
+hydrateTasksFromStorage()
+
+/** 演示任务「前端代码扫描」补充更多扫描结果行，便于详情页分页调试（本地 mock 且存在该任务时生效） */
+;(function appendExtraMockScanResultsForDemoTask(): void {
+    const tid = 'T00112233-4455-6677-8899-aabbccddeeff'
+    const list = mockScanResults[tid] as unknown[] | undefined
+    if (!list) return
+    /** 与详情页展示上限一致，避免 mock 条数过多 */
+    const targetMax = 20
+    if (list.length >= targetMax) return
+    const rules = [
+        'SQL注入风险',
+        '硬编码密钥',
+        '弱随机数',
+        '资源未释放',
+        '并发竞态',
+        '日志敏感信息',
+        '明文传输',
+        'CORS配置不当',
+        '未校验重定向',
+        '依赖版本过旧',
+        '敏感数据落盘',
+        'HTTPS未启用',
+        '证书校验关闭',
+        '过于宽松的正则'
+    ]
+    const files = [
+        'api/auth.ts',
+        'utils/crypto.js',
+        'config/db.js',
+        'server/handler.go',
+        'workers/sync.ts',
+        'src/views/Login.vue'
+    ]
+    const need = targetMax - list.length
+    for (let i = 0; i < need; i++) {
+        const idx = list.length + 1
+        list.push({
+            warn_uuid: `w-extra-${String(idx).padStart(2, '0')}-aaaa-bbbb-cccc-${String(100000 + idx).padStart(12, '0')}`,
+            file_name: files[(idx - 1) % files.length],
+            rule_name: rules[(idx - 1) % rules.length],
+            warn_line: 20 + i * 3,
+            warn_code_block: '// TODO: review',
+            code_snippet: '// example',
+            context: 'function example() {\n  // ...\n}',
+            warn: `Mock 扫描问题 #${idx}：用于分页演示，请检查相关代码路径与配置。`,
+            check_function_id: `func-extra-${idx}`,
+            confidence: `${60 + (i % 35)}%`,
+            start_line: 18 + i * 3,
+            end_line: 24 + i * 3,
+            func_uuid: `func-extra-uuid-${idx}`,
+            index: idx
+        })
+    }
+})()
+
 // 获取任务的标注数据
 const getAnnotationsForTask = (taskId: string): Record<string, AnnotationData> => {
     return annotationsData[taskId] || {}
+}
+
+/**
+ * 任务列表（不含 scanResults）
+ */
+export const queryTaskList = async (): Promise<ApiResponse<TaskListItem[]>> => {
+    const list: TaskListItem[] = Object.values(mockTaskDetails).map(
+        ({ scanResults: _sr, ...rest }) => rest
+    )
+    list.sort((a, b) => b.createTime.localeCompare(a.createTime))
+    return {
+        code: 200,
+        message: '获取成功',
+        data: list
+    }
+}
+
+/**
+ * 创建任务（Mock：写入内存并持久化到 localStorage）
+ */
+export const createTask = async (payload: CreateTaskPayload): Promise<ApiResponse<TaskDetail>> => {
+    const taskId = generateTaskId()
+    const now = new Date().toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    }).replace(/\//g, '-')
+
+    const avParts = payload.assistantVersions
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    const assistantVersions = avParts.length > 0 ? avParts : ['v1.0.0']
+
+    const task: TaskDetail = {
+        taskId,
+        taskName: payload.taskName,
+        repoUrl: payload.repoUrl,
+        branch: payload.branch,
+        pathList: payload.pathList ?? '',
+        assistantVersions,
+        creator: payload.creator,
+        createTime: now,
+        taskStatus: TASK_STATUS.NOT_STARTED,
+        codeLanguage: payload.codeLanguage || 'Unknown',
+        lineNum: payload.lineNum ?? 0,
+        productName: payload.productName,
+        s3Path: `s3://ai-repo-scan/results/${taskId}`,
+        scanResults: []
+    }
+    mockTaskDetails[taskId] = task
+    mockScanResults[taskId] = []
+    persistTasksToStorage()
+    return {
+        code: 200,
+        message: '创建成功',
+        data: task
+    }
+}
+
+/**
+ * 删除任务
+ */
+export const deleteTask = async (taskId: string): Promise<ApiResponse<boolean>> => {
+    if (!mockTaskDetails[taskId]) {
+        return { code: 404, message: '未找到任务', data: false }
+    }
+    delete mockTaskDetails[taskId]
+    delete mockScanResults[taskId]
+    delete annotationsData[taskId]
+    persistTasksToStorage()
+    return { code: 200, message: '删除成功', data: true }
+}
+
+/**
+ * 上传扫描结果文件（Mock，供创建任务流程使用）
+ */
+export const uploadScanResultFile = async (
+    taskId: string,
+    file: File,
+    _userId: string
+): Promise<ApiResponse<string>> => {
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    const path = `s3://ai-repo-scan/uploads/${taskId}/${file.name}`
+    const t = mockTaskDetails[taskId]
+    if (t) {
+        t.s3Path = path
+        persistTasksToStorage()
+    }
+    return {
+        code: 200,
+        message: '上传成功',
+        data: path
+    }
 }
 
 /**
@@ -350,7 +601,6 @@ export const queryTaskDetail = async (taskId: string): Promise<ApiResponse<TaskD
     // 直接从 mock 数据中获取任务信息
     const taskDetail = mockTaskDetails[taskId]
 
-    console.log('taskDetail:', taskDetail)
     if (!taskDetail) {
         throw new Error(`未找到任务ID为 ${taskId} 的任务详情`)
     }

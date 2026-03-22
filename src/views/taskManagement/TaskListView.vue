@@ -85,7 +85,10 @@
             <div class="card-header">
               <div class="card-title">
                 <span class="task-name">{{ task.taskName }}</span>
-                <el-tag :type="TASK_STATUS_MAP[task.taskStatus] || ''" size="small">
+                <el-tag
+                  :type="(TASK_STATUS_MAP[task.taskStatus] || 'info') as 'info' | 'success' | 'warning' | 'danger'"
+                  size="small"
+                >
                   {{ task.taskStatus }}
                 </el-tag>
               </div>
@@ -133,7 +136,7 @@
                   v-if="canDeleteTask(task.creator)"
                   type="danger"
                   size="small"
-                  @click="handleDelete(task.taskId, task.creator)"
+                  @click="handleDelete(task.taskId)"
                   :disabled="task.taskStatus === TASK_STATUS.RUNNING"
               >
                 删除
@@ -174,7 +177,7 @@ import {
   ElRadioButton
 } from 'element-plus'
 import CreateTaskDialog from '../../components/CreateTaskDialog.vue'
-import { useTaskStore } from '../../stores/task.js'
+import { queryTaskList, deleteTask as deleteTaskApi, type TaskListItem } from '../../api/task'
 import { TASK_STATUS_MAP, TASK_STATUS } from '../../constants/scanTaskConst'
 import { userProfileStore } from '@/stores/userProfile'
 const profileStore = userProfileStore()
@@ -187,7 +190,23 @@ function formatPathListDisplay(v) {
 }
 
 const router = useRouter()
-const taskStore = useTaskStore()
+
+/** 任务列表：直接由 task.ts API 拉取 */
+const tasks = ref<TaskListItem[]>([])
+
+const loadTasks = async () => {
+  const res = await queryTaskList()
+  if (res.code === 200) {
+    tasks.value = res.data
+  }
+}
+
+/** 与删除权限、创建人字段对齐的当前用户标识（替代原 task store 的 currentUser） */
+const currentUserIdentifier = computed(() => {
+  const w3Id = profileStore.userInfo?.w3Id
+  const nameCn = profileStore.userInfo?.nameCn
+  return `${nameCn || ''} ${w3Id || ''}`.trim()
+})
 
 const createDialogVisible = ref(false)
 const loading = ref(false)
@@ -203,43 +222,41 @@ const filterForm = ref({
 })
 
 // 计算属性：根据任务类型和筛选条件过滤任务
-const filteredTasks = computed(() => {
-  let tasks = taskStore.tasks
+const filteredTasks = computed((): TaskListItem[] => {
+  let list: TaskListItem[] = [...tasks.value]
 
-  // 根据任务类型过滤（兼容旧数据格式）
   if (taskType.value === 'my') {
-    tasks = tasks.filter(task => {
+    const id = currentUserIdentifier.value
+    list = list.filter((task) => {
       const creator = task.creator || ''
-      return creator === taskStore.currentUser || creator.includes(taskStore.currentUser)
+      return id && (creator === id || creator.includes(id))
     })
   }
 
-  // 根据任务名称搜索
   if (filterForm.value.taskName) {
     const keyword = filterForm.value.taskName.toLowerCase()
-    tasks = tasks.filter(task => 
-      task.taskName.toLowerCase().includes(keyword)
+    list = list.filter((task) =>
+      String(task.taskName ?? '').toLowerCase().includes(keyword)
     )
   }
 
-  // 根据状态筛选（兼容旧数据格式）
   if (filterForm.value.status) {
-    tasks = tasks.filter(task => {
-      const status = task.taskStatus || task.status
+    list = list.filter((task) => {
+      const row = task as TaskListItem & { status?: string }
+      const status = row.taskStatus || row.status
       return status === filterForm.value.status
     })
   }
 
-  // 根据日期范围筛选
   if (filterForm.value.dateRange && filterForm.value.dateRange.length === 2) {
     const [startDate, endDate] = filterForm.value.dateRange
-    tasks = tasks.filter(task => {
-      const taskDate = task.createTime.split(' ')[0]
+    list = list.filter((task) => {
+      const taskDate = String(task.createTime ?? '').split(' ')[0]
       return taskDate >= startDate && taskDate <= endDate
     })
   }
 
-  return tasks
+  return list
 })
 
 // 分页后的任务列表
@@ -254,15 +271,19 @@ const openCreateDialog = () => {
   createDialogVisible.value = true
 }
 
-// 创建任务成功回调
-const handleCreateSuccess = (taskData) => {
-  taskStore.addTask(taskData)
-  ElMessage.success('任务创建成功！')
-  // 如果当前在"我的任务"视图，切换到全部任务以显示新创建的任务
-  if (taskType.value === 'my') {
-    taskType.value = 'all'
+// 创建任务成功回调（任务已由 CreateTaskDialog 调用 task.ts 创建，此处仅刷新列表）
+const handleCreateSuccess = async () => {
+  loading.value = true
+  try {
+    await loadTasks()
+    ElMessage.success('任务创建成功！')
+    if (taskType.value === 'my') {
+      taskType.value = 'all'
+    }
+    currentPage.value = 1
+  } finally {
+    loading.value = false
   }
-  currentPage.value = 1
 }
 
 // 筛选处理
@@ -314,7 +335,9 @@ const handleDelete = async (taskId) => {
       }
     )
     
-    const success = taskStore.deleteTask(taskId)
+    const res = await deleteTaskApi(taskId)
+    const success = res.code === 200 && !!res.data
+    if (success) await loadTasks()
     if (success) {
       ElMessage.success('任务删除成功！')
       // 如果当前页没有数据了，返回上一页
@@ -345,10 +368,13 @@ watch(taskType, () => {
   currentPage.value = 1
 })
 
-// 组件挂载时加载数据
-onMounted(() => {
-  // 这里可以调用API加载任务列表
-  // 目前使用模拟数据，所以不需要额外加载
+onMounted(async () => {
+  loading.value = true
+  try {
+    await loadTasks()
+  } finally {
+    loading.value = false
+  }
 })
 </script>
 
