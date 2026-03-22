@@ -16,7 +16,7 @@ const DEFAULT_USER_INFO = {
     nameCn: '田园'
 }
 
-export const userProfileStore = defineStore('userProfile', () => {
+export const useProfileStore = defineStore('userProfile', () => {
     // 当前用户信息（使用固定默认值）
     const userInfo = ref({ ...DEFAULT_USER_INFO })
 

@@ -546,8 +546,8 @@ import {
   ElTabs,
   ElTabPane
 } from 'element-plus'
-import { TASK_STATUS, TASK_STATUS_MAP } from '../../constants/scanTaskConst'
-import { userProfileStore } from '../../stores/userProfile'
+import { TASK_STATUS, TASK_STATUS_MAP } from '@/constants/scanTaskConst'
+import { useProfileStore } from '@/stores/userProfile'
 import {
   queryTaskDetail,
   fetchScanResults,
@@ -555,8 +555,8 @@ import {
   getAnnotationStatistics,
   formatTaskCreatorDisplay,
   resolveTaskCreatorNameCn,
-} from '../../api/task'
-import CodeBlock from './components/CodeBlock.vue'
+} from '@/api/task'
+import CodeBlock from '@/views/taskManagement/components/CodeBlock.vue'
 
 // 类型定义
 interface Task {
@@ -676,7 +676,7 @@ type TagType = 'success' | 'info' | 'warning' | 'danger'
 
 const router = useRouter()
 const route = useRoute()
-const userInfo = userProfileStore().userInfo
+const userInfo = useProfileStore().userInfo
 
 // 任务信息
 const task = ref<Task | null>(null)
