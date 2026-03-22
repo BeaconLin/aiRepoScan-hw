@@ -47,8 +47,8 @@ const taskManagementService = {
   //   })
   // },
 
-  // 保存标注
-  // saveAnnotationApi: (reqBody: any): any => {
+  // 保存标注（reqBody 类型见 @/api/task 的 SaveAnnotationReqBody）
+  // saveAnnotationApi: (reqBody: SaveAnnotationReqBody): any => {
   //   return service.post(`${REPO_SCAN_URL}/api/annotations`, reqBody)
   // },
 

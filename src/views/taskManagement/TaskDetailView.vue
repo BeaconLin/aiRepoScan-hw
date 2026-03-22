@@ -553,7 +553,7 @@ import { useProfileStore } from '@/stores/userProfile'
  * // import taskManagementService from '@/api/taskManagementService'
  * // const taskResponse = await taskManagementService.queryTaskDetail(taskId, pageNum, pageSize)
  * // const statisticsResponse = await taskManagementService.getAnnotationStatistics(taskId)
- * // await taskManagementService.saveAnnotationApi(reqBody)
+ * // await taskManagementService.saveAnnotationApi({ taskId, warnUuid, issueResult, annotator, annotationTime, reason })
  */
 import {
   queryTaskDetail,
@@ -1410,8 +1410,13 @@ const saveAnnotationHandler = async (result: ScanResult, value: IssueResult): Pr
     }).replace(/\//g, '-')
     
     if (value === null) {
-      // 接后端时：await taskManagementService.saveAnnotationApi(reqBody)
-      await saveAnnotationApi(taskId, uuid, null, '', '')
+      await saveAnnotationApi({
+        taskId,
+        warnUuid: uuid,
+        issueResult: null,
+        annotator: '',
+        annotationTime: ''
+      })
       
       // 更新 result 对象的标注信息
       result.issue_result = null
@@ -1428,8 +1433,14 @@ const saveAnnotationHandler = async (result: ScanResult, value: IssueResult): Pr
       
       ElMessage.success('已取消标注')
     } else {
-      // 接后端时：await taskManagementService.saveAnnotationApi(reqBody)
-      await saveAnnotationApi(taskId, uuid, value, currentUser, annotationTime)
+      await saveAnnotationApi({
+        taskId,
+        warnUuid: uuid,
+        issueResult: value,
+        annotator: currentUser,
+        annotationTime,
+        reason: result.annotation?.reason ?? result.reason ?? null
+      })
       
       // 更新 result 对象的标注信息
       result.issue_result = value

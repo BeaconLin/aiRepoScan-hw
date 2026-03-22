@@ -864,21 +864,27 @@ export const fetchScanResults = async (taskId: string): Promise<ApiResponse<Scan
 }
 
 /**
+ * 保存标注请求体（与 `taskManagementService.saveAnnotationApi(reqBody)` POST body 一致）
+ */
+export interface SaveAnnotationReqBody {
+    taskId: string
+    warnUuid: string
+    issueResult: IssueResult
+    annotator: string
+    annotationTime: string
+    reason?: string | null
+}
+
+/**
  * 保存标注数据
- * @param {string} taskId - 任务ID
- * @param {string} warnUuid - 警告UUID
- * @param {number|null} issueResult - 标注结果 (0: 需要修改, 1: 无需修改的问题, 2: 问题误报, null: 取消标注)
- * @param {string} annotator - 标注人
- * @param {string} annotationTime - 标注时间
+ * @param reqBody - 标注请求体
  * @returns {Promise<Object>} 保存结果
  */
 export const saveAnnotationApi = async (
-    taskId: string,
-    warnUuid: string,
-    issueResult: IssueResult,
-    annotator: string,
-    annotationTime: string
+    reqBody: SaveAnnotationReqBody
 ): Promise<ApiResponse<null>> => {
+    const { taskId, warnUuid, issueResult, annotator, annotationTime } = reqBody
+
     // 初始化任务标注数据
     if (!annotationsData[taskId]) {
         annotationsData[taskId] = {}
@@ -892,7 +898,8 @@ export const saveAnnotationApi = async (
         annotationsData[taskId][warnUuid] = {
             issue_result: issueResult,
             annotator: annotator,
-            annotationTime: annotationTime
+            annotationTime: annotationTime,
+            ...(reqBody.reason !== undefined ? { reason: reqBody.reason } : {})
         }
     }
 
