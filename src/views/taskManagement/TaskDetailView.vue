@@ -548,19 +548,15 @@ import {
 } from 'element-plus'
 import { TASK_STATUS, TASK_STATUS_MAP } from '@/constants/scanTaskConst'
 import { useProfileStore } from '@/stores/userProfile'
-/**
- * 以下为 `@/api/task` 的本地 mock。接真实接口时改为使用 `taskManagementService`（见 `@/api/taskManagementService.ts`，解开注释并实现），用法示例：
- * // import taskManagementService from '@/api/taskManagementService'
- * // const taskResponse = await taskManagementService.queryTaskDetail(taskId, pageNum, pageSize)
- * // const statisticsResponse = await taskManagementService.getAnnotationStatistics(taskId)
- * // await taskManagementService.saveAnnotationApi({ taskId, warnUuid, issueResult, annotator, annotationTime, reason })
- */
+
 import {
-  queryTaskDetail,
+  getTaskDetail,
   saveAnnotationApi,
   getAnnotationStatistics,
+  type SaveAnnotationReqBody,
 } from '@/api/task'
 import CodeBlock from '@/views/taskManagement/components/CodeBlock.vue'
+import taskManagementService from '@/api/services/taskManagementService'
 
 /**
  * 仅采用接口/存储中的 nameCn；若无则留空，创建人由 formatTaskCreatorDisplay 只展示 creator。
@@ -888,8 +884,13 @@ const loadTaskData = async (taskId: string): Promise<void> => {
   pagination.value.currentPage = 1
 
   try {
-    // 获取任务详情（已包含扫描结果）。实际接口见 taskManagementService.getTaskDetail：GET `/api/tasks/{taskId}`，query：pageNum、pageSize。
-    const taskResponse = await queryTaskDetail(taskId)
+    // 获取任务详情（已包含扫描结果）。
+    // taskManagementService.getTaskDetail(taskId,pagination.value.currentPage,pagination.value.pageSize)
+    const taskResponse = await getTaskDetail(
+      taskId,
+      pagination.value.currentPage,
+      pagination.value.pageSize
+    )
     
     // 设置任务详情（兼容旧数据格式）
     if (taskResponse.code === 200 && taskResponse.data) {
@@ -1410,13 +1411,15 @@ const saveAnnotationHandler = async (result: ScanResult, value: IssueResult): Pr
     }).replace(/\//g, '-')
     
     if (value === null) {
-      await saveAnnotationApi({
+      const reqBody: SaveAnnotationReqBody = {
         taskId,
         warnUuid: uuid,
         issueResult: null,
         annotator: '',
         annotationTime: ''
-      })
+      }
+      // await taskManagementService.saveAnnotationApi(reqBody)
+      await saveAnnotationApi(reqBody)
       
       // 更新 result 对象的标注信息
       result.issue_result = null
@@ -1433,14 +1436,15 @@ const saveAnnotationHandler = async (result: ScanResult, value: IssueResult): Pr
       
       ElMessage.success('已取消标注')
     } else {
-      await saveAnnotationApi({
+      const reqBody: SaveAnnotationReqBody = {
         taskId,
         warnUuid: uuid,
         issueResult: value,
         annotator: currentUser,
         annotationTime,
         reason: result.annotation?.reason ?? result.reason ?? null
-      })
+      }
+      await saveAnnotationApi(reqBody)
       
       // 更新 result 对象的标注信息
       result.issue_result = value

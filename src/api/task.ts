@@ -761,11 +761,17 @@ export const uploadScanResultFile = async (
 }
 
 /**
- * 通过 taskId 获取任务详情
- * @param {string} taskId - 任务ID
+ * 通过 taskId 获取任务详情（与 `taskManagementService.getTaskDetail(taskId, pageNum, pageSize)` 入参一致）
+ * @param taskId - 任务ID
+ * @param pageNum - 页码（真实接口 query；本地 mock 暂不用于截取 scanResults，见下方说明）
+ * @param pageSize - 每页条数（真实接口 query；本地 mock 暂不用于截取）
  * @returns {Promise<Object>} 任务详情对象（包含任务信息和扫描结果）
  */
-export const queryTaskDetail = async (taskId: string): Promise<ApiResponse<TaskDetail>> => {
+export const getTaskDetail = async (
+    taskId: string,
+    _pageNum: number,
+    _pageSize: number
+): Promise<ApiResponse<TaskDetail>> => {
     // 直接从 mock 数据中获取任务信息
     const taskDetail = mockTaskDetails[taskId]
 

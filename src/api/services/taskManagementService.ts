@@ -12,8 +12,8 @@ const taskManagementService = {
   //   pageSize
   // }),
 
-  // 查询任务详情（与 src/api/task.ts 中 queryTaskDetail 对应，便于替换调用）
-  // queryTaskDetail: (taskId: string, pageNum: number, pageSize: number): any => service.get(`${REPO_SCAN_URL}/api/tasks/${taskId}`, {
+  // 查询任务详情（与 src/api/task.ts 中 getTaskDetail 对应，便于替换调用）
+  // getTaskDetail: (taskId: string, pageNum: number, pageSize: number): any => service.get(`${REPO_SCAN_URL}/api/tasks/${taskId}`, {
   //   pageNum,
   //   pageSize
   // }),
