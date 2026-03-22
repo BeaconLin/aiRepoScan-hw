@@ -41,11 +41,11 @@
       <el-form-item label="扫描路径" prop="scanPaths">
         <el-input
           v-model="formData.scanPaths"
-          placeholder="请输入扫描路径，多个路径使用英文逗号分隔，例如：src,view,utils"
+          placeholder="可选，多个路径使用英文逗号分隔，例如：src,view,utils"
           clearable
         />
         <div class="form-hint">
-          提示：多个路径使用英文逗号进行拼接，例如：src,view,utils
+          可选；填写时多个路径用英文逗号拼接，例如：src,view,utils；不填则不传 pathList
         </div>
       </el-form-item>
 
@@ -70,6 +70,31 @@
         <div class="form-hint">
           提示：可选择多个扫描助手版本
         </div>
+      </el-form-item>
+
+      <el-form-item label="代码语言" prop="codeLanguage">
+        <el-select
+          v-model="formData.codeLanguage"
+          placeholder="请选择主要代码语言（对应接口 codeLanguage）"
+          clearable
+          style="width: 100%"
+        >
+          <el-option label="Java" value="Java" />
+          <el-option label="C++" value="C++" />
+          <el-option label="JavaScript" value="JavaScript" />
+          <el-option label="TypeScript" value="TypeScript" />
+          <el-option label="Python" value="Python" />
+          <el-option label="Go" value="Go" />
+          <el-option label="未知 / 混合" value="Unknown" />
+        </el-select>
+      </el-form-item>
+
+      <el-form-item label="代码量(万行)" prop="lineNum">
+        <el-input
+          v-model="formData.lineNum"
+          placeholder="请填写数字（可选）"
+          clearable
+        />
       </el-form-item>
 
       <el-form-item label="创建人">
@@ -179,12 +204,19 @@ const formData = reactive({
   taskName: '',
   repoUrl: '',
   branch: '',
-  assistantVersions: [], // 改为数组，支持多选
+  assistantVersions:
+    assistantVersions.value.length > 0
+      ? [assistantVersions.value[0].value]
+      : [],
   scanPaths: '',
   creator: '', // 从用户信息获取
   productName: '', // 默认值
   deptName: '', // 可选
   pduName: '', // 可选
+  /** 接口字段 codeLanguage */
+  codeLanguage: 'Java',
+  /** 接口字段 lineNum（万行），空字符串表示不提交 */
+  lineNum: '',
   createTime: '' // 实际应该自动填充当前时间
 })
 
@@ -220,27 +252,46 @@ const rules = {
     }
   ],
   scanPaths: [
-    { required: true, message: '请输入扫描路径', trigger: 'blur' },
     {
       validator: (rule, value, callback) => {
-        if (!value || value.trim() === '') {
-          callback(new Error('请输入扫描路径'))
+        if (!value || String(value).trim() === '') {
+          callback()
+          return
+        }
+        const paths = String(value)
+          .split(',')
+          .map((path) => path.trim())
+          .filter((path) => path !== '')
+        if (paths.length === 0) {
+          callback(new Error('请至少输入一个有效的扫描路径，或留空'))
         } else {
-          // 按逗号分割并过滤空值
-          const paths = value.split(',').map(path => path.trim()).filter(path => path !== '')
-          if (paths.length === 0) {
-            callback(new Error('至少需要输入一个有效的扫描路径'))
-          } else {
-            callback()
-          }
+          callback()
         }
       },
-      trigger: 'blur'
-    }
+      trigger: 'blur',
+    },
   ],
   productName: [
     { required: true, message: '请输入产品名称', trigger: 'blur' }
-  ]
+  ],
+  lineNum: [
+    {
+      validator: (rule, value, callback) => {
+        const raw = String(value ?? '').trim()
+        if (raw === '') {
+          callback()
+          return
+        }
+        const n = Number(raw)
+        if (!Number.isFinite(n)) {
+          callback(new Error('请输入有效数字'))
+          return
+        }
+        callback()
+      },
+      trigger: 'blur',
+    },
+  ],
 }
 
 // 监听 modelValue 变化
@@ -273,18 +324,6 @@ const toggleAssistant = (value) => {
   }
 }
 
-// 获取当前时间格式化字符串
-const getCurrentTime = () => {
-  return new Date().toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  })
-}
-
 // 文件变化处理
 const handleFileChange = (file) => {
   selectedFile.value = file.raw
@@ -301,12 +340,17 @@ const initForm = () => {
   formData.taskName = ''
   formData.repoUrl = ''
   formData.branch = ''
-  formData.assistantVersions = []
+  formData.assistantVersions =
+    assistantVersions.value.length > 0
+      ? [assistantVersions.value[0].value]
+      : []
   formData.scanPaths = ''
   formData.productName = ''
   formData.deptName = ''
   formData.pduName = ''
-  
+  formData.codeLanguage = 'Java'
+  formData.lineNum = ''
+
   // 从用户信息获取创建人
   const userInfo = userStore.getUserInfo()
   formData.creator = userInfo.w3Id || ''
@@ -357,86 +401,98 @@ const handleSubmit = async () => {
   try {
     // 验证表单
     await formRef.value.validate()
-    
+
     submitting.value = true
-    
+
     // 处理扫描路径：按逗号分割并过滤空值
     const validScanPaths = formData.scanPaths
       .split(',')
       .map(path => path.trim())
       .filter(path => path !== '')
     
-    // 提交时获取当前时间
-    const currentTime = getCurrentTime()
-    
     // 获取用户信息
     const userInfo = userStore.getUserInfo()
-    
-    // 构建创建任务的请求数据（根据接口文档格式）
+
+    const lineNumStr = String(formData.lineNum ?? '').trim()
+    const lineNumForApi =
+      lineNumStr === '' ? undefined : Number(lineNumStr)
+
+    // 构建创建任务的请求数据（与《接口文档》1.5 创建代码仓扫描任务一致）
     const createTaskData = {
-      taskName: formData.taskName,
-      productName: formData.productName,
-      repoUrl: formData.repoUrl,
-      branch: formData.branch,
-      pathList: validScanPaths.join(','), // 接口要求是逗号分隔的字符串
+      taskName: formData.taskName.trim(),
+      productName: formData.productName.trim(),
+      repoUrl: formData.repoUrl.trim(),
+      branch: formData.branch.trim(),
+      pathList:
+        validScanPaths.length > 0 ? validScanPaths.join(',') : undefined,
       creator: formData.creator || userInfo.w3Id,
-      assistantVersions: formData.assistantVersions.join(','), // 接口要求是字符串，多个版本用逗号分隔
-      codeLanguage: 'Unknown', // 默认值，实际应该从扫描结果获取
-      lineNum: 0, // 默认值，实际应该从扫描结果获取
-      deptName: formData.deptName || undefined,
-      pduName: formData.pduName || undefined
+      assistantVersions: formData.assistantVersions.join(','),
+      codeLanguage: formData.codeLanguage || undefined,
+      lineNum: lineNumForApi,
+      deptName: formData.deptName?.trim() || undefined,
+      pduName: formData.pduName?.trim() || undefined,
     }
-    
-    // 调用创建任务接口（接口已定义，这里模拟调用）
-    console.log('创建任务请求数据:', createTaskData)
-    // const createResponse = await taskManagementService.createTask(createTaskData)
-    
-    // 模拟API调用
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    // 模拟返回的任务ID（实际应该从接口响应中获取）
-    const mockTaskId = `task_${Date.now()}`
-    
-    // 如果选择了文件，则上传扫描结果文件
+
+    let createResponse
+    try {
+      createResponse = await taskManagementService.createTask(createTaskData)
+    } catch (e) {
+      console.error('创建任务请求失败:', e)
+      ElMessage.error(e?.message || '网络异常，请检查 VITE_API_REPO_SCAN 配置或稍后重试')
+      return
+    }
+    const { meta, data } = createResponse
+
+    if (!meta?.success || meta.number !== 200 || !data?.taskId) {
+      ElMessage.error(meta?.message || '任务创建失败')
+      return
+    }
+
+    let s3Path = null
+
+    // 若选择了扫描结果文件，在创建成功后上传（接口 1.3）
     if (selectedFile.value) {
       try {
-        console.log('开始上传扫描结果文件:', selectedFile.value.name)
-        // const uploadResponse = await taskManagementService.uploadScanResultFile(
-        //   mockTaskId,
-        //   selectedFile.value,
-        //   userInfo.w3Id
-        // )
-        
-        // 模拟上传
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        console.log('文件上传成功')
-        ElMessage.success('任务创建成功，扫描结果文件已上传！')
+        const uploadResponse = await taskManagementService.uploadScanResultFile(
+          data.taskId,
+          selectedFile.value,
+          userInfo.w3Id || formData.creator,
+        )
+        if (uploadResponse.meta?.success && uploadResponse.data) {
+          s3Path = uploadResponse.data
+          ElMessage.success('任务创建成功，扫描结果文件已上传！')
+        } else {
+          ElMessage.warning(
+            uploadResponse.meta?.message ||
+              '任务已创建，但扫描结果文件上传失败，可在任务详情中重新上传',
+          )
+        }
       } catch (uploadError) {
         console.error('文件上传失败:', uploadError)
-        ElMessage.warning('任务创建成功，但文件上传失败，您可以在任务详情中重新上传')
+        ElMessage.warning('任务已创建，但文件上传失败，您可以在任务详情中重新上传')
       }
     } else {
       ElMessage.success('任务创建成功！')
     }
-    
+
     // 构建返回给父组件的数据（用于更新任务列表）
     const submitData = {
-      taskId: mockTaskId,
-      taskName: formData.taskName,
+      taskId: data.taskId,
+      taskName: data.taskName,
       repoUrl: formData.repoUrl,
       branch: formData.branch,
       assistantVersions: formData.assistantVersions,
-      pathList: validScanPaths,
+      pathList: validScanPaths.join(','),
       creator: formData.creator || userInfo.w3Id,
-      createTime: currentTime,
-      codeLanguage: 'Unknown',
-      lineNum: 0,
-      productName: formData.productName,
+      createTime: data.createTime,
+      codeLanguage: formData.codeLanguage || 'Unknown',
+      lineNum: lineNumForApi ?? 0,
+      productName: data.productName,
       deptName: formData.deptName,
       pduName: formData.pduName,
-      taskStatus: '未开始',
+      taskStatus: data.taskStatus || '未开始',
       scanResults: [],
-      s3Path: selectedFile.value ? `AIRepoScan/${mockTaskId}/scan_result.json` : null
+      s3Path,
     }
     
     // 触发成功事件
@@ -445,7 +501,7 @@ const handleSubmit = async () => {
     // 关闭弹窗
     handleClose()
   } catch (error) {
-    console.error('表单验证失败:', error)
+    console.error('创建任务流程失败:', error)
     if (error && error.message) {
       ElMessage.error(error.message)
     } else {

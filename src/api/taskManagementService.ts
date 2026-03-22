@@ -49,11 +49,16 @@ const taskManagementService = {
 
   // 保存标注
   // saveAnnotation: (reqBody: any): any => {
-  //   return axios.post(`${REPO_SCAN_URL}/api/annotations`, reqBody)
+  //   return service.post(`${REPO_SCAN_URL}/api/annotations`, reqBody)
   // },
 
   // 获取任务的标注完成度和状态分布统计信息
   // getAnnotationStatistics: (taskId: string): any => service.get(`${REPO_SCAN_URL}/api/tasks/${taskId}/annotation-statistics`),
+
+  // 删除任务
+  // deleteTask: (taskId: string): any => {
+  //   return service.delete(`${REPO_SCAN_URL}/api/tasks/${taskId}`)
+  // },
 };
 
 export default taskManagementService;

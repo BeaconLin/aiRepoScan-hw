@@ -12,7 +12,7 @@ const defaultTasks = [{
     taskName: '前端代码扫描任务',
     repoUrl: 'https://github.com/example/frontend.git',
     branch: 'main',
-    pathList: ['src', 'main'],
+    pathList: 'src,main',
     assistantVersions: ['v2.0.0', 'v2.1.0'],
     creator: 'a00559876',
     createTime: '2024-01-15 10:30:00',
@@ -21,7 +21,28 @@ const defaultTasks = [{
     lineNum: 1.5,
     productName: 'UDM',
     s3Path: 's3://ai-repo-scan/results/T00112233-4455-6677-8899-aabbccddeeff',
-    scanResults: []
+    scanResults: [{
+        file_name: '',
+        function_name: 'HandleReqMsgfromMML',
+        start_line: 19,
+        end_line: 95,
+        code_snippet: '',
+        func_uuid: '1bfc1bdf-cf24-46b1-b58f-ac03eb484909',
+        self_increment_id: 1,
+        check_function_id: null,
+        index: null,
+        rule_name: '内存安全',
+        warn_line: 58,
+        warn_code_block: 'if (EOK != strcpy_s(input.grRule, MAX_GR_RULE_LEN + 1, grRule.c_str()))',
+        warn: 'strcpy_s 函数调用可能存在内存安全问题，因为 grRule.c_str() 的长度可能超过 MAX_GR_RULE_LEN + 1，导致缓冲区溢出。建议先检查 grRule 的长度是否超过 MAX_GR_RULE_LEN。',
+        reason: '',
+        confidence: 0,
+        warn_uuid: '55c1a98c-641c-46f3-bdc0-c7662b33559a',
+        annotation: {
+            issueResult: null,
+            annotationStatus: 0,
+        },
+    }, ],
 }, ]
 
 // 从 localStorage 加载数据

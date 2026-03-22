@@ -2,20 +2,43 @@
   <div class="task-detail-page">
     <!-- 加载状态 -->
     <div v-if="loading" class="loading-container">
-      <el-skeleton :rows="5" animated />
+      <el-skeleton :rows="5" animated/>
     </div>
 
     <!-- 错误提示 -->
     <div v-else-if="error" class="error-container">
       <el-alert
-        :title="error"
-        type="error"
-        :closable="false"
-        show-icon
+          :title="error"
+          type="error"
+          :closable="false"
+          show-icon
       />
-      <el-button type="primary" style="margin-top: 16px" @click="handleRetry">
-        重试
-      </el-button>
+      <div class="error-actions">
+        <el-button type="primary" @click="handleRetry">
+          重试
+        </el-button>
+        <el-button @click="handleBack">
+          返回任务首页
+        </el-button>
+      </div>
+    </div>
+
+    <!-- 未找到任务信息提示 -->
+    <div v-else-if="!task" class="error-container">
+      <el-alert
+          :title="error || '未找到该任务信息'"
+          :type="error ? 'error' : 'info'"
+          :closable="false"
+          show-icon
+      />
+      <div class="error-actions">
+        <el-button type="primary" @click="handleRetry">
+          重试
+        </el-button>
+        <el-button @click="handleBack">
+          返回任务首页
+        </el-button>
+      </div>
     </div>
 
     <!-- 正常内容 -->
@@ -24,10 +47,13 @@
       <div class="page-header">
         <div class="header-left">
           <el-button @click="handleBack">← 返回任务列表</el-button>
-          <h1 v-if="task">{{ task.taskName }}</h1>
+          <h1 v-if="task?.taskName">{{ task.taskName }}</h1>
           <h1 v-else>任务详情</h1>
-          <el-tag v-if="task" :type="TASK_STATUS_MAP[task.taskStatus]" size="large" class="status-tag">
+          <el-tag v-if="task?.taskStatus" :type="TASK_STATUS_MAP[task.taskStatus]" size="large" class="status-tag">
             {{ task.taskStatus }}
+          </el-tag>
+          <el-tag v-else-if="task?.status" :type="TASK_STATUS_MAP[task.status]" size="large" class="status-tag">
+            {{ task.status }}
           </el-tag>
         </div>
       </div>
@@ -39,422 +65,455 @@
           <div class="view-content">
             <!-- 任务信息区域 -->
             <div v-if="task" class="task-info-section">
-      <!-- 核心信息卡片 -->
-      <div class="core-info-card">
-        <div class="core-info-main">
-          <div class="main-info-row">
-            <div class="repo-url-block">
-              <div class="repo-url-label">代码仓地址</div>
-              <a :href="task.repoUrl" target="_blank" class="repo-url-value">
-                <span class="repo-icon">🔗</span>
-                <span class="repo-url-text">{{ task.repoUrl }}</span>
-              </a>
-            </div>
-            <div class="repo-url-block">
-              <div class="repo-url-label">代码行数</div>
-              <div class="repo-url-value">
-                <span class="repo-icon">📊</span>
-                <span class="repo-url-text">{{ task.lineNum }}万行</span>
-              </div>
-            </div>
-            <div class="repo-url-block">
-              <div class="repo-url-label">代码语言</div>
-              <div class="repo-url-value">
-                <span class="repo-icon">💻</span>
-                <span class="repo-url-text">{{ task.codeLanguage }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 配置信息卡片 -->
-      <div class="config-info-card">
-        <div class="config-header">
-          <span class="config-title">扫描配置</span>
-        </div>
-        <div class="config-content">
-          <div class="config-item">
-            <div class="config-label">
-              <span class="config-icon">🌿</span>
-              <span>扫描分支</span>
-            </div>
-            <div class="config-value">{{ task.branch }}</div>
-          </div>
-          <div class="config-item">
-            <div class="config-label">
-              <span class="config-icon">🤖</span>
-              <span>助手版本</span>
-            </div>
-            <div class="config-value">
-              <el-tag
-                v-for="version in task.assistantVersions"
-                :key="version"
-                size="small"
-                type="info"
-                class="version-tag"
-              >
-                {{ version }}
-              </el-tag>
-            </div>
-          </div>
-            <div class="config-item full-width">
-            <div class="config-label">
-              <span class="config-icon">📁</span>
-              <span>扫描路径</span>
-            </div>
-            <div class="config-value">
-              <el-tag
-                v-for="(path, index) in task.pathList"
-                :key="index"
-                size="small"
-                class="path-tag"
-              >
-                {{ path }}
-              </el-tag>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 元信息卡片 -->
-      <div class="meta-info-card">
-        <div class="meta-item">
-          <div class="meta-label">
-            <span class="meta-icon">👤</span>
-            <span>创建人</span>
-          </div>
-          <div class="meta-value">{{ task.creator }}</div>
-        </div>
-        <div class="meta-item">
-          <div class="meta-label">
-            <span class="meta-icon">🕐</span>
-            <span>创建时间</span>
-          </div>
-          <div class="meta-value">{{ task.createTime }}</div>
-        </div>
-        <div class="meta-item">
-          <div class="meta-label">
-            <span class="meta-icon">🏢</span>
-            <span>所属部门/开发部</span>
-          </div>
-          <div class="meta-value">{{ task.dept_name || '-' }}</div>
-        </div>
-        <div class="meta-item">
-          <div class="meta-label">
-            <span class="meta-icon">🏭</span>
-            <span>所属PDU</span>
-          </div>
-          <div class="meta-value">{{ task.pdu_name || '-' }}</div>
-        </div>
-        <div class="meta-item">
-          <div class="meta-label">
-            <span class="meta-icon">📦</span>
-            <span>产品名称</span>
-          </div>
-          <div class="meta-value">{{ task.productName || '-' }}</div>
-        </div>
-      </div>
-    </div>
-
-              <!-- 未找到任务提示 -->
-              <div v-else class="empty-section">
-                <el-empty description="未找到该任务信息" />
-              </div>
-
-              <!-- 统计看板区域 - 仅当任务状态为已完成时显示 -->
-              <div v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && scanResults && scanResults.length > 0" class="dashboard-section">
-                <div class="section-label">任务扫描结果统计看板</div>
-                <div class="dashboard-content">
-                  <!-- 总缺陷数统计卡片 -->
-                  <div class="stat-summary-card">
-                    <div class="summary-icon">📊</div>
-                    <div class="summary-content">
-                      <div class="summary-label">总缺陷数</div>
-                      <div class="summary-value">{{ annotationStatistics?.totalWarnCount || statistics.totalIssues }}</div>
-                      <div class="summary-desc">扫描发现的全部缺陷</div>
-                    </div>
-                  </div>
-
-                  <!-- 标注比例环形图 -->
-                  <div class="chart-card">
-                    <div class="chart-title">标注完成度</div>
-                    <div ref="annotationRatioChartRef" class="chart-container"></div>
-                    <div class="chart-legend">
-                      <div v-if="statistics.annotated > 0" class="legend-item">
-                        <span class="legend-dot annotated"></span>
-                        <span class="legend-text">已标注：{{ statistics.annotated }}</span>
-                      </div>
-                      <div v-if="statistics.unannotated > 0" class="legend-item">
-                        <span class="legend-dot unannotated"></span>
-                        <span class="legend-text">未标注：{{ statistics.unannotated }}</span>
+              <!-- 核心信息卡片 -->
+              <div class="core-info-card">
+                <div class="core-info-main">
+                  <div class="main-info-row">
+                    <div class="repo-url-block">
+                      <div class="repo-url-label">代码仓地址</div>
+                      <a v-if="task && task.repoUrl" :href="task.repoUrl" target="_blank" class="repo-url-value">
+                        <span class="repo-icon">🔗</span>
+                        <span class="repo-url-text">{{ task.repoUrl }}</span>
+                      </a>
+                      <div v-else class="repo-url-value">
+                        <span class="repo-icon">❌</span>
+                        <span class="repo-url-text">未提供地址</span>
                       </div>
                     </div>
-                  </div>
-
-                  <!-- 标注状态分布饼图 -->
-                  <div class="chart-card">
-                    <div class="chart-title">标注状态分布</div>
-                    <div ref="annotationStatusChartRef" class="chart-container"></div>
-                    <div class="chart-legend">
-                      <div v-if="statistics.needModify > 0" class="legend-item">
-                        <span class="legend-dot need-modify"></span>
-                        <span class="legend-text">需要修改：{{ statistics.needModify }}</span>
-                      </div>
-                      <div v-if="statistics.noNeedModify > 0" class="legend-item">
-                        <span class="legend-dot no-need-modify"></span>
-                        <span class="legend-text">无需修改：{{ statistics.noNeedModify }}</span>
-                      </div>
-                      <div v-if="statistics.falsePositive > 0" class="legend-item">
-                        <span class="legend-dot false-positive"></span>
-                        <span class="legend-text">问题误报：{{ statistics.falsePositive }}</span>
-                      </div>
-                      <div v-if="statistics.unmarked > 0" class="legend-item">
-                        <span class="legend-dot unmarked"></span>
-                        <span class="legend-text">未标注：{{ statistics.unmarked }}</span>
+                    <div class="repo-url-block">
+                      <div class="repo-url-label">代码行数</div>
+                      <div class="repo-url-value">
+                        <span class="repo-icon">📊</span>
+                        <span class="repo-url-text">{{ task?.lineNum || 0 }}万行</span>
                       </div>
                     </div>
-                  </div>
-
-                  <!-- 规则名称分布柱状图 -->
-                  <div class="chart-card full-width">
-                    <div class="chart-title">规则名称分布（Top 10）</div>
-                    <div ref="ruleDistributionChartRef" class="chart-container-large"></div>
+                    <div class="repo-url-block">
+                      <div class="repo-url-label">代码语言</div>
+                      <div class="repo-url-value">
+                        <span class="repo-icon">💻</span>
+                        <span class="repo-url-text">{{ task?.codeLanguage || '未知' }}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <!-- 任务未完成提示 -->
-              <div v-if="task && task.taskStatus !== TASK_STATUS.COMPLETED" class="status-tip-section">
-                <el-alert
+              <!-- 配置信息卡片 -->
+              <div class="config-info-card">
+                <div class="config-header">
+                  <span class="config-title">扫描配置</span>
+                </div>
+                <div class="config-content">
+                  <div class="config-item">
+                    <div class="config-label">
+                      <span class="config-icon">🌿</span>
+                      <span>扫描分支</span>
+                    </div>
+                    <div class="config-value">{{ task?.branch || '未设置' }}</div>
+                  </div>
+                  <div class="config-item">
+                    <div class="config-label">
+                      <span class="config-icon">🤖</span>
+                      <span>助手版本</span>
+                    </div>
+                    <div class="config-value">
+                      <el-tag
+                          v-if="task?.assistantVersions && task.assistantVersions.length > 0"
+                          v-for="version in task.assistantVersions"
+                          :key="version"
+                          size="small"
+                          type="info"
+                          class="version-tag"
+                      >
+                        {{ version }}
+                      </el-tag>
+                      <span v-else class="no-version">未设置</span>
+                    </div>
+                  </div>
+                  <div class="config-item ">
+                    <div class="config-label">
+                      <span class="config-icon">📁</span>
+                      <span>扫描路径</span>
+                    </div>
+                    <div class="config-value">
+                      <el-tag v-if="task?.pathList">
+                        {{ task.pathList }}
+                      </el-tag>
+                      <span v-else class="no-s3path">未设置</span>
+                    </div>
+                  </div>
+                  <div class="config-item ">
+                    <div class="config-label">
+                      <span class="config-icon">📁</span>
+                      <span>扫描结果文件</span>
+                    </div>
+                    <div class="config-value">
+                      <el-tag v-if="task?.s3Path">
+                        {{ task.s3Path }}
+                      </el-tag>
+                      <el-upload
+                          ref="uploadRef"
+                          :auto-upload="false"
+                          :limit="1"
+                          :on-change="handleFileChange"
+                          :on-remove="handleFileRemove"
+                          :file-list="fileList"
+                          accept=".json"
+                      >
+                        <template #trigger>
+                          <el-button type="primary">选择文件</el-button>
+                        </template>
+                        <template #tip>
+                          <div class="el-upload__tip">
+                            支持上传JSON格式的扫描结果文件
+                          </div>
+                        </template>
+                      </el-upload>
+                      <el-button v-if="selectedFile" @click="handleSubmit">
+                        上传
+                      </el-button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 元信息卡片 -->
+              <div class="meta-info-card">
+                <div class="meta-item">
+                  <div class="meta-label">
+                    <span class="meta-icon">👤</span>
+                    <span>创建人</span>
+                  </div>
+                  <div class="meta-value">{{ task?.creator || '未知' }}</div>
+                </div>
+                <div class="meta-item">
+                  <div class="meta-label">
+                    <span class="meta-icon">🕐</span>
+                    <span>创建时间</span>
+                  </div>
+                  <div class="meta-value">{{ task?.createTime || '未知' }}</div>
+                </div>
+                <div class="meta-item">
+                  <div class="meta-label">
+                    <span class="meta-icon">🏢</span>
+                    <span>所属部门/开发部</span>
+                  </div>
+                  <div class="meta-value">{{ task?.dept_name || '-' }}</div>
+                </div>
+                <div class="meta-item">
+                  <div class="meta-label">
+                    <span class="meta-icon">🏭</span>
+                    <span>所属PDU</span>
+                  </div>
+                  <div class="meta-value">{{ task?.pdu_name || '-' }}</div>
+                </div>
+                <div class="meta-item">
+                  <div class="meta-label">
+                    <span class="meta-icon">📦</span>
+                    <span>产品名称</span>
+                  </div>
+                  <div class="meta-value">{{ task?.productName || '-' }}</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 未找到任务提示 -->
+            <div v-else class="empty-section">
+              <el-empty description="未找到该任务信息"/>
+            </div>
+
+            <!-- 统计看板区域 - 仅当任务状态为已完成时显示 -->
+            <div v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && scanResultsList && scanResultsList.length > 0"
+                 class="dashboard-section">
+              <div class="section-label">任务扫描结果统计看板</div>
+              <div class="dashboard-content">
+                <!-- 总缺陷数统计卡片 -->
+                <div class="stat-summary-card">
+                  <div class="summary-icon">📊</div>
+                  <div class="summary-content">
+                    <div class="summary-label">总缺陷数</div>
+                    <div class="summary-value">{{ statistics.totalIssues }}</div>
+                    <div class="summary-desc">扫描发现的全部缺陷</div>
+                  </div>
+                </div>
+
+                <!-- 标注比例环形图 -->
+                <div class="chart-card">
+                  <div class="chart-title">标注完成度</div>
+                  <div ref="annotationRatioChartRef" class="chart-container"></div>
+                  <div class="chart-legend">
+                    <div v-if="statistics.annotated > 0" class="legend-item">
+                      <span class="legend-dot annotated"></span>
+                      <span class="legend-text">已标注：{{ statistics.annotated }}</span>
+                    </div>
+                    <div v-if="statistics.unannotated > 0" class="legend-item">
+                      <span class="legend-dot unannotated"></span>
+                      <span class="legend-text">未标注：{{ statistics.unannotated }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 标注状态分布饼图 -->
+                <div class="chart-card">
+                  <div class="chart-title">标注状态分布</div>
+                  <div ref="annotationStatusChartRef" class="chart-container"></div>
+                  <div class="chart-legend">
+                    <div v-if="statistics.needModify > 0" class="legend-item">
+                      <span class="legend-dot need-modify"></span>
+                      <span class="legend-text">需要修改：{{ statistics.needModify }}</span>
+                    </div>
+                    <div v-if="statistics.noNeedModify > 0" class="legend-item">
+                      <span class="legend-dot no-need-modify"></span>
+                      <span class="legend-text">无需修改：{{ statistics.noNeedModify }}</span>
+                    </div>
+                    <div v-if="statistics.falsePositive > 0" class="legend-item">
+                      <span class="legend-dot false-positive"></span>
+                      <span class="legend-text">问题误报：{{ statistics.falsePositive }}</span>
+                    </div>
+                    <div v-if="statistics.unmarked > 0" class="legend-item">
+                      <span class="legend-dot unmarked"></span>
+                      <span class="legend-text">未标注：{{ statistics.unmarked }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 规则名称分布柱状图 -->
+                <div class="chart-card full-width">
+                  <div class="chart-title">规则名称分布（Top 10）</div>
+                  <div ref="ruleDistributionChartRef" class="chart-container-large"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 任务未完成提示 -->
+            <div v-if="task && task.taskStatus !== TASK_STATUS.COMPLETED" class="status-tip-section">
+              <el-alert
                   :title="getStatusTipTitle()"
                   :description="getStatusTipDescription()"
                   type="info"
                   :closable="false"
                   show-icon
-                />
-              </div>
+              />
             </div>
-          </el-tab-pane>
+          </div>
+        </el-tab-pane>
 
-          <!-- 标注视图 -->
-          <el-tab-pane label="标注视图" name="annotation">
-            <div class="view-content">
-              <!-- 扫描结果列表和规则树区域 - 仅当任务状态为已完成时显示 -->
-              <div v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && scanResults" class="result-list-container">
+        <!-- 标注视图 -->
+        <el-tab-pane label="标注视图" name="annotation">
+          <div class="view-content">
+            <!-- 扫描结果列表和规则树区域 - 仅当任务状态为已完成时显示 -->
+            <div v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && scanResultsList" class="result-list-container">
               <!-- 左侧：扫描结果列表 -->
               <div class="result-list-section">
                 <div class="list-header-with-filter">
                   <div class="section-label">扫描结果列表</div>
                   <!-- 标注结果筛选 -->
-                   <div class="annotation-filter">
+                  <div class="annotation-filter">
                     <div class="filter-label">标注结果筛选：</div>
                     <div class="filter-options">
                       <el-select
-                        v-model="filterForm.issueResult"
-                        @change="handleFilter"
-                        placeholder="请选择标注结果"
-                        clearable
-                        class="annotation-filter-select"
-                        style="width: 200px"
+                          v-model="filterForm.issueResult"
+                          @change="handleFilter"
+                          placeholder="请选择标注结果"
+                          clearable
+                          class="annotation-filter-select"
+                          style="width: 200px"
                       >
-                        <el-option label="全部" value="" />
-                        <el-option label="需要修改" value="0" />
-                        <el-option label="无需修改的问题" value="1" />
-                        <el-option label="问题误报" value="2" />
-                        <el-option label="未标注" value="unmarked" />
+                        <el-option label="全部" value=""/>
+                        <el-option label="需要修改" value="0"/>
+                        <el-option label="无需修改的问题" value="1"/>
+                        <el-option label="问题误报" value="2"/>
+                        <el-option label="未标注" value="unmarked"/>
                       </el-select>
                     </div>
-              </div>
-            </div>
-        <div class="list-content">
-          <div v-if="filteredResults.length === 0" class="empty-results">
-            <el-empty description="暂无扫描结果" />
-          </div>
-          <div
-            v-for="result in scanResultsList"
-            :key="result.id"
-            class="result-item"
-          >
-            <div class="result-header">
-              <span class="result-title">缺陷 #{{ result.index }}</span>
-              <el-tag :type="getRuleNameTagType(result.rule_name)" size="small">
-                {{ result.rule_name }}
-              </el-tag>
-              <el-tag
-                v-if="result.issue_result !== null"
-                :type="getIssueResultTagType(result.issue_result)"
-                size="small"
-                style="margin-left: 8px"
-              >
-                {{ getIssueResultLabel(result.issue_result) }}
-              </el-tag>
-              <el-tag v-if="result.confidence" size="small" type="info" style="margin-left: 8px">
-                置信度: {{ result.confidence }}
-              </el-tag>
-            </div>
-            <div class="result-body">
-              <div class="result-field">
-                <span class="field-label">文件名称：</span>
-                <span class="field-value">{{ result.file_name || result.fileName }}</span>
-              </div>
-              <div class="result-field">
-                <span class="field-label">问题行号：</span>
-                <span class="field-value">第 {{ result.warn_line || result.line }} 行</span>
-              </div>
-              <div class="result-field">
-                <span class="field-label">代码行范围：</span>
-                <span class="field-value">{{ result.start_line }} - {{ result.end_line }}</span>
-              </div>
-              <div class="result-field full-width">
-                <span class="field-label">问题说明：</span>
-                <span class="field-value">{{ result.warn }}</span>
-              </div>
-              <div class="result-field full-width">
-                <span class="field-label">问题代码块：</span>
-                <CodeBlock 
-                  :code="result.warn_code_block || result.code_block || result.code_snippet || ''" 
-                  :language="getCodeLanguage()" 
-                  style="max-height: 200px; overflow-y: auto;"
-                />
-              </div>
-              <div class="result-field full-width">
-                <span class="field-label">切片代码块：</span>
-                <CodeBlock 
-                  :code="result.code_snippet || result.warn_code_block || result.code_block || ''" 
-                  :language="getCodeLanguage()" 
-                  style="max-height: 200px; overflow-y: auto;"
-                />
-              </div>
-              <div class="result-field full-width">
-                <span class="field-label">上下文代码：</span>
-                <CodeBlock 
-                  :code="result.context || ''" 
-                  :language="getCodeLanguage()" 
-                  style="max-height: 200px; overflow-y: auto;"
-                />
-              </div>
-              <div v-if="result.reason" class="result-field full-width">
-                <span class="field-label">原因解释：</span>
-                <span class="field-value">{{ result.reason }}</span>
-              </div>
-            </div>
-            <div class="result-actions">
-              <div class="annotation-section">
-                <div class="annotation-label">缺陷标注：</div>
-                  <el-radio-group 
-                    :model-value="(getAnnotationIssueResult(result) ?? undefined) as number | undefined"
-                    @update:model-value="(val: string | number | boolean | undefined) => setAnnotationIssueResult(result, typeof val === 'number' ? val : null)"
+                  </div>
+                </div>
+                <div class="list-content">
+                  <div v-if="filteredResults.length === 0" class="empty-results">
+                    <el-empty description="暂无扫描结果"/>
+                  </div>
+                  <div
+                      v-for="result in scanResultsList"
+                      :key="result.id"
+                      class="result-item"
                   >
-                    <el-radio :key="0" :value="0" class="option-item">
-                      需要修改
-                    </el-radio>
-                    <el-radio :key="1" :value="1" class="option-item">
-                      无需修改的问题
-                    </el-radio>
-                    <el-radio :key="2" :value="2" class="option-item">
-                      问题误报
-                    </el-radio>
-                  </el-radio-group>
-                  <!-- 原因说明输入框 -->
-                  <div class="reason-section">
-                    <el-input
-                        :model-value="(getAnnotationReason(result) || '') as string"
-                        @update:model-value="(val: string | null | undefined) => setAnnotationReason(result, val || '')"
-                        type="textarea"
-                        :rows="2"
-                        placeholder="请填写选择当前选项的原因（可选）"
-                        resize="none"
-                    />
-                  <el-button @click="submitAnnotation(result)">提交</el-button>
+                    <div class="result-header">
+                      <span class="result-title">#{{ result.self_increment_id }}、{{ result.rule_name }}</span>
+                      <el-tag
+                          v-if="result.issue_result !== null && false"
+                          :type="getIssueResultTagType(result.issue_result)"
+                          size="small"
+                          style="margin-left: 8px"
+                      >{{ result.issue_result }}、
+                        {{ getIssueResultLabel(result.issue_result) }}
+                      </el-tag>
+                      <el-tag v-if="result.confidence" size="small" type="info" style="margin-left: 8px">
+                        置信度: {{ result.confidence }}
+                      </el-tag>
+                    </div>
+                    <div class="result-body">
+                      <div class="result-field">
+                        <span class="field-label">文件名称：</span>
+                        <!--                        <span class="field-value">{{ result.file_name || result.fileName }}</span>-->
+                        <a
+                            :href="assembleFileName(result)"
+                            target="_blank"
+                            class="file-link">{{ assembleFileNameShow(result) }}</a>
+                      </div>
+                      <div class="result-field">
+                        <span class="field-label">问题行号：</span>
+                        <span class="field-value">第 {{ result.warn_line || result.line }} 行</span>
+                      </div>
+                      <div class="result-field">
+                        <span class="field-label">代码行范围：</span>
+                        <span class="field-value">{{ result.start_line }} - {{ result.end_line }}</span>
+                      </div>
+                      <div class="result-field full-width">
+                        <span class="field-label">问题说明：</span>
+                        <span class="field-value">{{ result.warn }}</span>
+                      </div>
+                      <div class="result-field full-width">
+                        <span class="field-label">问题代码块：</span>
+                        <CodeBlock
+                            :code="result.warn_code_block || result.code_block || result.code_snippet || ''"
+                            :language="getCodeLanguage()"
+                            style="max-height: 200px; overflow-y: auto;"
+                        />
+                      </div>
+                      <div class="result-field full-width">
+                        <span class="field-label">切片代码块：</span>
+                        <CodeBlock
+                            :code="result.code_snippet || result.warn_code_block || result.code_block || ''"
+                            :language="getCodeLanguage()"
+                            style="max-height: 200px; overflow-y: auto;"
+                        />
+                      </div>
+                      <div class="result-field full-width">
+                        <span class="field-label">上下文代码：</span>
+                        <CodeBlock
+                            :code="result.context || ''"
+                            :language="getCodeLanguage()"
+                            style="max-height: 200px; overflow-y: auto;"
+                        />
+                      </div>
+                    </div>
+                    <div class="result-actions">
+                      <div class="annotation-section">
+                        <div class="annotation-label">缺陷标注：</div>
+                        <el-radio-group
+                          :model-value="getAnnotationIssueResult(result)"
+                          @update:model-value="(v) => setAnnotationIssueResult(result, v)"
+                        >
+                          <el-radio :key="0" :value="0" class="option-item">
+                            需要修改
+                          </el-radio>
+                          <el-radio :key="1" :value="1" class="option-item">
+                            无需修改的问题
+                          </el-radio>
+                          <el-radio :key="2" :value="2" class="option-item">
+                            问题误报
+                          </el-radio>
+                        </el-radio-group>
+                        <!-- 原因说明输入框 -->
+                        <div class="reason-section">
+                          <el-input
+                              :model-value="getAnnotationReason(result)"
+                              @update:model-value="(v) => setAnnotationReason(result, v)"
+                              type="textarea"
+                              :rows="2"
+                              placeholder="请填写选择当前选项的原因（可选）"
+                              resize="none"
+                          />
+
+                        </div>
+                        <el-button @click="saveAnnotation(result)">提交</el-button>
+                        <!-- 标注信息显示 -->
+                        <div v-if="result.annotation?.annotationStatus" class="annotation-info">
+                          <span class="annotation-info-text">
+                            <span class="annotation-user">{{ result.annotation?.userId }}</span>
+                            <span
+                                class="annotation-time">{{
+                                result.annotation?.createTime || result.annotation?.updateTime
+                              }}</span>
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <!-- 标注信息显示 - 固定在右侧 -->
-                <div v-if="result.annotation && result.annotation.annotationStatus" class="annotation-info">
-                  <span class="annotation-info-text">
-                    <span class="annotation-user">{{ result.annotation.userId }}</span>
-                    <span
-                        class="annotation-time">{{
-                        result.annotation.createTime || result.annotation.updateTime
-                      }}</span>
-                  </span>
+              </div>
+
+              <!-- 右侧：规则名称树形结构 -->
+              <div class="rule-tree-section">
+                <div class="section-label">规则名称分布</div>
+                <!-- 搜索框 -->
+                <div class="search-box">
+                  <el-input
+                      v-model="filterForm.keyword"
+                      placeholder="搜索文件名称、规则名称或问题说明"
+                      clearable
+                      @input="handleFilter"
+                  >
+                    <template #prefix>
+                      <span style="color: #909399">🔍</span>
+                    </template>
+                  </el-input>
+                </div>
+                <div class="tree-container">
+                  <el-tree
+                      ref="ruleTreeRef"
+                      :data="ruleTreeData"
+                      :props="treeProps"
+                      node-key="id"
+                      default-expand-all
+                      highlight-current
+                      :current-node-key="selectedRuleNodeId"
+                      @node-click="handleRuleNodeClick"
+                      class="rule-tree"
+                  >
+                    <template #default="{ node, data }">
+                      <div class="tree-node-content">
+                        <span class="tree-node-label">{{ node.label }}</span>
+                        <span class="tree-node-count">({{ data.count }}个)</span>
+                      </div>
+                    </template>
+                  </el-tree>
+                  <div v-if="selectedRuleNodeId" class="tree-action">
+                    <el-button size="small" @click="handleClearRuleFilter">清除筛选</el-button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
 
-      <!-- 右侧：规则名称树形结构 -->
-      <div class="rule-tree-section">
-        <div class="section-label">规则名称分布</div>
-        <!-- 搜索框 -->
-        <div class="search-box">
-          <el-input
-            v-model="filterForm.keyword"
-            placeholder="搜索文件名称、规则名称或问题说明"
-            clearable
-            @input="handleFilter"
-          >
-            <template #prefix>
-              <span style="color: #909399">🔍</span>
-            </template>
-          </el-input>
-        </div>
-        <div class="tree-container">
-          <el-tree
-            ref="ruleTreeRef"
-            :data="ruleTreeData"
-            :props="treeProps"
-            node-key="id"
-            default-expand-all
-            highlight-current
-            :current-node-key="selectedRuleNodeId"
-            @node-click="handleRuleNodeClick"
-            class="rule-tree"
-          >
-            <template #default="{ node, data }">
-              <div class="tree-node-content">
-                <span class="tree-node-label">{{ node.label }}</span>
-                <span class="tree-node-count">({{ data.count }}个)</span>
-              </div>
-            </template>
-          </el-tree>
-          <div v-if="selectedRuleNodeId" class="tree-action">
-            <el-button size="small" @click="handleClearRuleFilter">清除筛选</el-button>
-          </div>
-        </div>
-      </div>
-              </div>
-
-                <!-- 分页区域 - 仅当任务状态为已完成时显示 -->
-                <div
-                  v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && filteredResults.length > 0"
-                  class="pagination-section"
-                >
-                  <el-pagination
-                    v-model:current-page="currentPage"
-                    v-model:page-size="pageSize"
-                    :page-sizes="[5, 10, 20, 50]"
-                    :total="filteredResults.length"
-                    layout="total, sizes, prev, pager, next, jumper"
-                    @size-change="handleSizeChange"
-                    @current-change="handleCurrentChange"
-                  />
-                </div>
-
-                <!-- 任务未完成提示 -->
-                <div v-if="task && task.taskStatus !== TASK_STATUS.COMPLETED" class="status-tip-section">
-                  <el-alert
-                    :title="getStatusTipTitle()"
-                    :description="getStatusTipDescription()"
-                    type="info"
-                    :closable="false"
-                    show-icon
-                  />
-                </div>
+            <!-- 分页区域 - 仅当任务状态为已完成时显示 -->
+            <div
+                v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && filteredResults.length > 0"
+                class="pagination-section"
+            >
+              <el-pagination
+                  v-model:current-page="pagination.currentPage"
+                  v-model:page-size="pagination.pageSize"
+                  :page-sizes="[5, 10, 20, 50]"
+                  :total="pagination.total"
+                  layout="total, sizes, prev, pager, next, jumper"
+                  @size-change="handleSizeChange"
+                  @current-change="handleCurrentChange"
+              />
             </div>
-          </el-tab-pane>
-        </el-tabs>
+
+            <!-- 任务未完成提示 -->
+            <div v-if="task && task.taskStatus !== TASK_STATUS.COMPLETED" class="status-tip-section">
+              <el-alert
+                  :title="getStatusTipTitle()"
+                  :description="getStatusTipDescription()"
+                  type="info"
+                  :closable="false"
+                  show-icon
+              />
+            </div>
+          </div>
+        </el-tab-pane>
+      </el-tabs>
     </template>
   </div>
 </template>
@@ -492,7 +551,8 @@ interface Task {
   taskName: string
   repoUrl: string
   branch: string
-  pathList: string[]
+  /** 扫描路径，逗号分隔字符串（与接口文档一致） */
+  pathList: string
   assistantVersions: string[]
   creator: string
   createTime: string
@@ -505,7 +565,8 @@ interface Task {
   // 兼容旧数据格式
   id?: string
   status?: string
-  scanPaths?: string[]
+  /** 兼容旧数据：曾为数组 */
+  scanPaths?: string | string[]
   language?: string
   codeLines?: number
   product_name?: string
@@ -605,7 +666,31 @@ const userInfo = userProfileStore().userInfo
 
 // 任务信息
 const task = ref<Task | null>(null)
-const scanResults = ref<ScanResult[]>([])
+// 分页扫描结果
+const scanResultsList = ref<any[]>([])
+
+/** 将 pathList 规范为逗号分隔字符串（兼容接口 string 与旧数据 string[]） */
+function normalizePathListToString(raw: unknown): string {
+  if (raw == null) return ''
+  if (Array.isArray(raw)) {
+    return raw.map((x) => String(x).trim()).filter(Boolean).join(',')
+  }
+  return String(raw).trim()
+}
+
+/** 详情页展示用：按逗号拆分为各路径标签 */
+const pathListSegments = computed(() => {
+  const s = normalizePathListToString(task.value?.pathList)
+  if (!s) return []
+  return s.split(',').map((p) => p.trim()).filter(Boolean)
+})
+
+let pagination = ref({
+  currentPage: 1,
+  pageSize: 10,
+  total: 0
+})
+
 const currentPage = ref<number>(1)
 const pageSize = ref<number>(10)
 const loading = ref<boolean>(false)
@@ -644,6 +729,48 @@ const treeProps = {
   label: 'label'
 }
 
+// 组装文件名及跳转CodeHub链接
+const assembleFileName = (result) => {
+  if (!task.value || !task.value.repoUrl) {
+    return '#'
+  }
+
+  let repoHost = task.value.repoUrl.split('?')[0]
+  let subProductPathList = repoHost.split('/');
+  let subProductPath = subProductPathList[subProductPathList.length - 2]
+
+  if (!subProductPath || !result.file_name) {
+    return '#'
+  }
+
+  try {
+    return repoHost + '?ref=' + task.value.branch + '&filePath=' + result.file_name.split(subProductPath)[1].substring(1) + '&isFile=true#L' + result.warn_line
+  } catch (error) {
+    console.warn('组装文件链接失败:', error)
+    return '#'
+  }
+}
+
+const assembleFileNameShow = (result) => {
+  if (!task.value || !task.value.repoUrl || !result.file_name) {
+    return '未知文件'
+  }
+
+  try {
+    let repoHost = task.value.repoUrl.split('?')[0]
+    let subProductPathList = repoHost.split('/');
+    let subProductPath = subProductPathList[subProductPathList.length - 2]
+
+    if (!subProductPath) {
+      return result.file_name
+    }
+
+    return result.file_name.split(subProductPath)[1].substring(1)
+  } catch (error) {
+    console.warn('组装文件名称显示失败:', error)
+    return result.file_name
+  }
+}
 
 // 加载任务详情和扫描结果
 const loadTaskData = async (taskId: string): Promise<void> => {
@@ -659,22 +786,31 @@ const loadTaskData = async (taskId: string): Promise<void> => {
       const resTask = taskResponse.data as any
       
       // 转换为新格式
+      const rawScanResults: any[] = Array.isArray(resTask.scanResults)
+        ? resTask.scanResults
+        : []
+
       task.value = {
         ...resTask,
         taskId: resTask.taskId || resTask.id,
         taskStatus: resTask.taskStatus || resTask.status,
-        pathList: resTask.pathList || resTask.scanPaths || [],
+        pathList: normalizePathListToString(
+          resTask.pathList ?? resTask.scanPaths ?? '',
+        ),
         codeLanguage: resTask.codeLanguage || resTask.language || 'Unknown',
         lineNum: resTask.lineNum || (resTask.codeLines ? resTask.codeLines / 10000 : 0),
         productName: resTask.productName || resTask.product_name || '-',
         s3Path: resTask.s3Path || `s3://ai-repo-scan/results/${resTask.taskId || resTask.id}`,
-        scanResults: resTask.scanResults || []
+        scanResults: rawScanResults,
       } as Task
-      
-      // 如果任务已完成，直接使用 queryTaskDetail 返回的扫描结果
-      if (task.value.taskStatus === TASK_STATUS.COMPLETED && resTask.scanResults) {
-        // 处理扫描结果，确保annotation字段正确映射
-        scanResults.value = (resTask.scanResults as any[]).map((item: any) => {
+
+      // 与列表展示同源：scanResultsList ← filteredResults ← scanResults（由详情接口 scanResults 映射而来）
+      scanResultsList.value = rawScanResults
+      annotationStatistics.value = null
+
+      // 已完成：始终用接口返回的 scanResults（含空数组）填充，避免 undefined 时沿用上一任务的残留数据
+      if (task.value.taskStatus === TASK_STATUS.COMPLETED) {
+        scanResultsList.value = rawScanResults.map((item: any) => {
           const result: ScanResult = {
             ...item,
             warn_uuid: item.warn_uuid || item.warnUuid || item.id,
@@ -739,16 +875,16 @@ const loadTaskData = async (taskId: string): Promise<void> => {
 
 // 计算属性：获取所有规则名称
 const ruleNames = computed<string[]>(() => {
-  if (!scanResults.value.length) {
+  if (!scanResultsList.value.length) {
     return []
   }
-  const names = new Set(scanResults.value.map(r => r.rule_name))
+  const names = new Set(scanResultsList.value.map(r => r.rule_name))
   return Array.from(names)
 })
 
 // 计算属性：统计信息
 const statistics = computed<Statistics>(() => {
-  if (!scanResults.value.length) {
+  if (!scanResultsList.value.length) {
     return {
       totalIssues: 0,
       annotated: 0,
@@ -762,7 +898,7 @@ const statistics = computed<Statistics>(() => {
   }
 
   const stats = {
-    totalIssues: scanResults.value.length,
+    totalIssues: scanResultsList.value.length,
     annotated: 0,
     unannotated: 0,
     typeDistribution: {},
@@ -772,7 +908,7 @@ const statistics = computed<Statistics>(() => {
     unmarked: 0 // 未标注 (null)
   }
 
-  scanResults.value.forEach(result => {
+  scanResultsList.value.forEach(result => {
     // 统计标注状态
     const issueResult = result.issue_result
     if (issueResult === 0) {
@@ -913,7 +1049,7 @@ const buildRuleTree = (typeDistribution: Record<string, number>): RuleTreeNode[]
 
 // 计算属性：规则名称树形数据
 const ruleTreeData = computed<RuleTreeNode[]>(() => {
-  if (!scanResults.value.length) {
+  if (!scanResultsList.value.length) {
     return []
   }
   return buildRuleTree(statistics.value.typeDistribution)
@@ -979,7 +1115,7 @@ const handleRuleSelectChange = (): void => {
 
 // 计算属性：筛选后的结果
 const filteredResults = computed<ScanResult[]>(() => {
-  let results = scanResults.value
+  let results = scanResultsList.value
 
   // 关键词搜索（兼容旧数据格式）
   if (filterForm.value.keyword) {
@@ -1012,12 +1148,7 @@ const filteredResults = computed<ScanResult[]>(() => {
   return results
 })
 
-// 计算属性：分页后的结果
-const scanResultsList = computed<ScanResult[]>(() => {
-  const start = (currentPage.value - 1) * pageSize.value
-  const end = start + pageSize.value
-  return filteredResults.value.slice(start, end)
-})
+
 
 // 获取规则名称标签类型
 const getRuleNameTagType = (ruleName: string): TagType => {
@@ -1072,12 +1203,20 @@ const getAnnotationIssueResult = (result: ScanResult): number | null => {
   return annotation.issueResult
 }
 
-// 设置annotation的issueResult
-const setAnnotationIssueResult = (result: ScanResult, value: number | null): void => {
+// 设置annotation的issueResult（兼容 el-radio-group 等组件的 update 值类型）
+const setAnnotationIssueResult = (result: ScanResult, value: unknown): void => {
   const annotation = getOrInitAnnotation(result)
-  annotation.issueResult = value
-  // 同步到issue_result字段（兼容旧字段）
-  result.issue_result = value
+  let parsed: number | null = null
+  if (value === null || value === undefined || value === '') {
+    parsed = null
+  } else if (typeof value === 'number') {
+    parsed = Number.isFinite(value) ? value : null
+  } else if (typeof value === 'string') {
+    const n = Number(value)
+    parsed = Number.isFinite(n) ? n : null
+  }
+  annotation.issueResult = parsed as IssueResult
+  result.issue_result = parsed as IssueResult
 }
 
 // 获取annotation的reason（用于v-model）
@@ -1180,18 +1319,21 @@ const saveAnnotationHandler = async (result: ScanResult, value: IssueResult): Pr
 
 // 筛选处理
 const handleFilter = (): void => {
-  currentPage.value = 1
+  pagination.value.currentPage = 1
 }
 
 // 分页大小改变
 const handleSizeChange = (size: number): void => {
-  pageSize.value = size
-  currentPage.value = 1
+  pagination.value.pageSize = size
+  pagination.value.currentPage = 1
 }
 
 // 当前页改变
 const handleCurrentChange = (page: number): void => {
-  currentPage.value = page
+  pagination.value.currentPage = page
+  if (task.value) {
+    loadTaskData(route.params.id as string)
+  }
 }
 
 // 获取状态提示标题
@@ -1644,9 +1786,9 @@ const updateAllCharts = async (): Promise<void> => {
 
 // 监听统计数据变化，更新图表
 watch(
-  () => [statistics.value, scanResults.value.length, annotationStatistics.value],
+  () => [statistics.value, scanResultsList.value.length, annotationStatistics.value],
   () => {
-    if (task.value?.taskStatus === TASK_STATUS.COMPLETED && scanResults.value.length > 0) {
+    if (task.value?.taskStatus === TASK_STATUS.COMPLETED && scanResultsList.value.length > 0) {
       console.log('统计数据变化，更新图表')
       updateAllCharts()
     }

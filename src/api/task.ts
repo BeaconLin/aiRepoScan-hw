@@ -59,7 +59,7 @@ interface TaskDetail {
     taskName: string
     repoUrl: string
     branch: string
-    pathList: string[]
+    pathList: string
     assistantVersions: string[]
     creator: string
     createTime: string
@@ -101,7 +101,7 @@ const mockTaskDetails: Record<string, TaskDetail> = {
         taskName: '前端代码扫描任务',
         repoUrl: 'https://github.com/example/frontend.git',
         branch: 'main',
-        pathList: ['src', 'main'],
+        pathList: 'src,main',
         assistantVersions: ['v2.0.0', 'v2.1.0'],
         creator: 'a00559876',
         createTime: '2024-01-15 10:30:00',
@@ -133,7 +133,7 @@ const mockTaskDetails: Record<string, TaskDetail> = {
         taskName: '移动端代码扫描',
         repoUrl: 'https://github.com/example/mobile.git',
         branch: 'master',
-        pathList: ['ios', 'android'],
+        pathList: 'ios,android',
         assistantVersions: ['v2.0.0'],
         creator: 'a00559876',
         createTime: '2024-01-13 09:15:00',

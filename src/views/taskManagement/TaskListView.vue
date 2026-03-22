@@ -78,14 +78,14 @@
         </div>
         <div v-else class="list-content">
           <div
-            v-for="task in scanTasks"
-            :key="task.taskId"
-            class="task-card"
+              v-for="task in scanTasks"
+              :key="task.taskId"
+              class="task-card"
           >
             <div class="card-header">
               <div class="card-title">
                 <span class="task-name">{{ task.taskName }}</span>
-                <el-tag :type="TASK_STATUS_MAP[task.taskStatus]" size="small">
+                <el-tag :type="TASK_STATUS_MAP[task.taskStatus] || ''" size="small">
                   {{ task.taskStatus }}
                 </el-tag>
               </div>
@@ -111,10 +111,10 @@
                 <span class="item-label">扫描助手：</span>
                 <span class="item-value">
                   <el-tag
-                    v-for="version in task.assistantVersions"
-                    :key="version"
-                    size="small"
-                    style="margin-right: 4px"
+                      v-for="version in task.assistantVersions"
+                      :key="version"
+                      size="small"
+                      style="margin-right: 4px"
                   >
                     {{ version }}
                   </el-tag>
@@ -122,19 +122,7 @@
               </div>
               <div class="card-item">
                 <span class="item-label">扫描路径：</span>
-                <span class="item-value">{{ task.pathList.join(', ') }}</span>
-              </div>
-              <div class="card-item">
-                <span class="item-label">代码语言：</span>
-                <span class="item-value">{{ task.codeLanguage }}</span>
-              </div>
-              <div class="card-item">
-                <span class="item-label">代码量：</span>
-                <span class="item-value">{{ task.lineNum }}万行</span>
-              </div>
-              <div class="card-item">
-                <span class="item-label">产品名称：</span>
-                <span class="item-value">{{ task.productName || '-' }}</span>
+                <span class="item-value">{{ formatPathListDisplay(task.pathList) }}</span>
               </div>
             </div>
             <div class="card-footer">
@@ -142,10 +130,11 @@
                 查看详情
               </el-button>
               <el-button
-                type="danger"
-                size="small"
-                @click="handleDelete(task.taskId)"
-                :disabled="task.taskStatus === TASK_STATUS.RUNNING"
+                  v-if="canDeleteTask(task.creator)"
+                  type="danger"
+                  size="small"
+                  @click="handleDelete(task.taskId, task.creator)"
+                  :disabled="task.taskStatus === TASK_STATUS.RUNNING"
               >
                 删除
               </el-button>
@@ -170,7 +159,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { 
@@ -187,6 +176,15 @@ import {
 import CreateTaskDialog from '../../components/CreateTaskDialog.vue'
 import { useTaskStore } from '../../stores/task.js'
 import { TASK_STATUS_MAP, TASK_STATUS } from '../../constants/scanTaskConst'
+import { userProfileStore } from '@/stores/userProfile'
+const profileStore = userProfileStore()
+
+/** pathList 为逗号分隔字符串；兼容 localStorage 中仍为数组的旧数据 */
+function formatPathListDisplay(v) {
+  if (v == null || v === '') return '--'
+  if (Array.isArray(v)) return v.join(',')
+  return String(v)
+}
 
 const router = useRouter()
 const taskStore = useTaskStore()
@@ -285,6 +283,22 @@ const handleResetFilter = () => {
 // 查看详情
 const handleViewDetail = (taskId) => {
   router.push(`/task/${taskId}`)
+}
+
+// 判断当前用户是否可以删除任务
+const canDeleteTask = (taskCreator: string) => {
+  // 构造当前用户的完整标识
+  const currentUserId = profileStore.userInfo?.w3Id;
+  const userNameCn = profileStore.userInfo?.nameCn;
+  const currentUserIdentifier = `${userNameCn || ''} ${currentUserId || ''}`.trim();
+
+  // 如果用户信息不完整，默认不允许删除
+  if (!currentUserIdentifier) {
+    return false;
+  }
+
+  // 根据与创建任务相同的逻辑进行比较
+  return taskCreator === currentUserIdentifier;
 }
 
 // 删除任务
