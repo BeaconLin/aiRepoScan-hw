@@ -885,7 +885,7 @@ const loadTaskData = async (taskId: string): Promise<void> => {
 
   try {
     // 获取任务详情（已包含扫描结果）。
-    // taskManagementService.getTaskDetail(taskId,pagination.value.currentPage,pagination.value.pageSize)
+    // const taskResponse = await taskManagementService.getTaskDetail(taskId,pagination.value.currentPage,pagination.value.pageSize)
     const taskResponse = await getTaskDetail(
       taskId,
       pagination.value.currentPage,
@@ -969,10 +969,10 @@ const loadTaskData = async (taskId: string): Promise<void> => {
           updateAllCharts()
         }, 300)
         
-        // 接后端时：const statisticsResponse = await taskManagementService.getAnnotationStatistics(taskId)
         try {
+          // const statisticsResponse = await taskManagementService.getAnnotationStatistics(taskId)
           const statisticsResponse = await getAnnotationStatistics(taskId)
-          if (statisticsResponse.code === 200 && statisticsResponse.data) {
+          if (statisticsResponse.meta.isSuccess && statisticsResponse.data) {
             annotationStatistics.value = statisticsResponse.data
           }
         } catch (err) {

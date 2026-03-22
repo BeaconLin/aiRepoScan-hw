@@ -52,7 +52,7 @@ const taskManagementService = {
   //   return service.post(`${REPO_SCAN_URL}/api/annotations`, reqBody)
   // },
 
-  // 获取任务的标注完成度和状态分布统计信息
+  // 获取任务的标注完成度和状态分布统计信息（响应体与 @/api/task 的 ApiEnvelope<AnnotationStatistics> 一致：{ data, meta }）
   // getAnnotationStatistics: (taskId: string): any => service.get(`${REPO_SCAN_URL}/api/tasks/${taskId}/annotation-statistics`),
 
   // 删除任务

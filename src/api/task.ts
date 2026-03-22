@@ -82,6 +82,19 @@ export interface ApiResponse<T> {
     data: T
 }
 
+/** 与后端统一：接口元信息（如 getAnnotationStatistics 的 meta） */
+export interface ApiResponseMeta {
+    number: number
+    message: string
+    isSuccess: boolean
+}
+
+/** 带 meta 的载荷：{ data, meta } */
+export interface ApiEnvelope<T> {
+    data: T
+    meta: ApiResponseMeta
+}
+
 /** 列表项（不含扫描结果明细） */
 export type TaskListItem = Omit<TaskDetail, 'scanResults'>
 
@@ -919,9 +932,9 @@ export const saveAnnotationApi = async (
 /**
  * 获取任务的标注完成度和状态分布统计信息
  * @param {string} taskId - 任务ID
- * @returns {Promise<ApiResponse<AnnotationStatistics>>} 标注统计信息
+ * @returns {Promise<ApiEnvelope<AnnotationStatistics>>} 标注统计信息（data + meta）
  */
-export const getAnnotationStatistics = async (taskId: string): Promise<ApiResponse<AnnotationStatistics>> => {
+export const getAnnotationStatistics = async (taskId: string): Promise<ApiEnvelope<AnnotationStatistics>> => {
     // 模拟网络延迟
     await new Promise(resolve => setTimeout(resolve, 300))
 
@@ -1008,8 +1021,11 @@ export const getAnnotationStatistics = async (taskId: string): Promise<ApiRespon
     }
 
     return {
-        code: 200,
-        message: '获取成功',
-        data: statistics
+        data: statistics,
+        meta: {
+            number: 200,
+            message: 'OK',
+            isSuccess: true
+        }
     }
 }
