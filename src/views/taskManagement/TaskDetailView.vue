@@ -433,7 +433,7 @@
                           />
 
                         </div>
-                        <el-button @click="saveAnnotation(result)">提交</el-button>
+                        <el-button @click="submitAnnotation(result)">提交</el-button>
                         <!-- 标注信息显示 -->
                         <div v-if="result.annotation?.annotationStatus" class="annotation-info">
                           <span class="annotation-info-text">
@@ -548,15 +548,34 @@ import {
 } from 'element-plus'
 import { TASK_STATUS, TASK_STATUS_MAP } from '@/constants/scanTaskConst'
 import { useProfileStore } from '@/stores/userProfile'
+/**
+ * 以下为 `@/api/task` 的本地 mock。接真实接口时改为使用 `taskManagementService`（见 `@/api/taskManagementService.ts`，解开注释并实现），用法示例：
+ * // import taskManagementService from '@/api/taskManagementService'
+ * // const taskResponse = await taskManagementService.queryTaskDetail(taskId, pageNum, pageSize)
+ * // const statisticsResponse = await taskManagementService.getAnnotationStatistics(taskId)
+ * // await taskManagementService.saveAnnotationApi(reqBody)
+ */
 import {
   queryTaskDetail,
-  fetchScanResults,
-  saveAnnotation as saveAnnotationApi,
+  saveAnnotationApi,
   getAnnotationStatistics,
-  formatTaskCreatorDisplay,
-  resolveTaskCreatorNameCn,
 } from '@/api/task'
 import CodeBlock from '@/views/taskManagement/components/CodeBlock.vue'
+
+/**
+ * 仅采用接口/存储中的 nameCn；若无则留空，创建人由 formatTaskCreatorDisplay 只展示 creator。
+ */
+function resolveTaskCreatorNameCn(explicitNameCn?: string | null): string {
+  return explicitNameCn?.trim() || ''
+}
+
+/** 任务详情创建人展示：「中文名 短工号」 */
+function formatTaskCreatorDisplay(task: { creator?: string; nameCn?: string }): string {
+  const w3 = (task.creator || '').trim()
+  const cn = (task.nameCn || '').trim()
+  if (cn && w3) return `${cn} ${w3}`
+  return w3 || '--'
+}
 
 // 类型定义
 interface Task {
@@ -869,7 +888,7 @@ const loadTaskData = async (taskId: string): Promise<void> => {
   pagination.value.currentPage = 1
 
   try {
-    // 获取任务详情（已包含扫描结果）
+    // 获取任务详情（已包含扫描结果）。实际接口见 taskManagementService.getTaskDetail：GET `/api/tasks/{taskId}`，query：pageNum、pageSize。
     const taskResponse = await queryTaskDetail(taskId)
     
     // 设置任务详情（兼容旧数据格式）
@@ -893,10 +912,7 @@ const loadTaskData = async (taskId: string): Promise<void> => {
         productName: resTask.productName || resTask.product_name || '-',
         s3Path: resTask.s3Path || `s3://ai-repo-scan/results/${resTask.taskId || resTask.id}`,
         creator: resTask.creator ?? '',
-        nameCn: resolveTaskCreatorNameCn(
-          String(resTask.creator ?? ''),
-          resTask.nameCn as string | undefined,
-        ),
+        nameCn: resolveTaskCreatorNameCn(resTask.nameCn as string | undefined),
         scanResults: rawScanResults,
       } as Task
 
@@ -952,7 +968,7 @@ const loadTaskData = async (taskId: string): Promise<void> => {
           updateAllCharts()
         }, 300)
         
-        // 获取标注统计信息
+        // 接后端时：const statisticsResponse = await taskManagementService.getAnnotationStatistics(taskId)
         try {
           const statisticsResponse = await getAnnotationStatistics(taskId)
           if (statisticsResponse.code === 200 && statisticsResponse.data) {
@@ -1394,7 +1410,7 @@ const saveAnnotationHandler = async (result: ScanResult, value: IssueResult): Pr
     }).replace(/\//g, '-')
     
     if (value === null) {
-      // 取消标注
+      // 接后端时：await taskManagementService.saveAnnotationApi(reqBody)
       await saveAnnotationApi(taskId, uuid, null, '', '')
       
       // 更新 result 对象的标注信息
@@ -1412,7 +1428,7 @@ const saveAnnotationHandler = async (result: ScanResult, value: IssueResult): Pr
       
       ElMessage.success('已取消标注')
     } else {
-      // 保存标注
+      // 接后端时：await taskManagementService.saveAnnotationApi(reqBody)
       await saveAnnotationApi(taskId, uuid, value, currentUser, annotationTime)
       
       // 更新 result 对象的标注信息

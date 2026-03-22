@@ -119,8 +119,9 @@ const W3_CREATOR_NAME_CN: Record<string, string> = {
 
 /**
  * 解析创建人中文名：优先接口/存储中的 nameCn，否则按短工号查表补全。
+ * 仅本模块内使用；与 TaskDetailView 中同名逻辑保持一致。
  */
-export function resolveTaskCreatorNameCn(
+function resolveTaskCreatorNameCn(
     creatorW3: string,
     explicitNameCn?: string | null,
 ): string {
@@ -136,17 +137,6 @@ function pickExplicitNameCnFromRaw(raw: Record<string, unknown>): string | undef
         if (v != null && String(v).trim() !== '') return String(v).trim()
     }
     return undefined
-}
-
-/** 任务列表/详情统一展示：「中文名 短工号」 */
-export function formatTaskCreatorDisplay(task: {
-    creator?: string
-    nameCn?: string
-}): string {
-    const w3 = (task.creator || '').trim()
-    const cn = (task.nameCn || '').trim()
-    if (cn && w3) return `${cn} ${w3}`
-    return w3 || '--'
 }
 
 const normalizeStoredTask = (raw: Record<string, unknown>): TaskDetail => {
@@ -882,7 +872,7 @@ export const fetchScanResults = async (taskId: string): Promise<ApiResponse<Scan
  * @param {string} annotationTime - 标注时间
  * @returns {Promise<Object>} 保存结果
  */
-export const saveAnnotation = async (
+export const saveAnnotationApi = async (
     taskId: string,
     warnUuid: string,
     issueResult: IssueResult,

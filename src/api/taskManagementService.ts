@@ -12,8 +12,8 @@ const taskManagementService = {
   //   pageSize
   // }),
 
-  // 查询任务详情
-  // getTaskDetail: (taskId: string, pageNum: number, pageSize: number): any => service.get(`${REPO_SCAN_URL}/api/tasks/${taskId}`, {
+  // 查询任务详情（与 src/api/task.ts 中 queryTaskDetail 对应，便于替换调用）
+  // queryTaskDetail: (taskId: string, pageNum: number, pageSize: number): any => service.get(`${REPO_SCAN_URL}/api/tasks/${taskId}`, {
   //   pageNum,
   //   pageSize
   // }),
@@ -48,7 +48,7 @@ const taskManagementService = {
   // },
 
   // 保存标注
-  // saveAnnotation: (reqBody: any): any => {
+  // saveAnnotationApi: (reqBody: any): any => {
   //   return service.post(`${REPO_SCAN_URL}/api/annotations`, reqBody)
   // },
 

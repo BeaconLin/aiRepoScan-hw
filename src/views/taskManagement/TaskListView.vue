@@ -167,18 +167,25 @@ import CreateTaskDialog from '../../components/CreateTaskDialog.vue'
 import {
   queryTaskList,
   deleteTask as deleteTaskApi,
-  formatTaskCreatorDisplay,
   type TaskListItem,
 } from '../../api/task'
 import { TASK_STATUS_MAP, TASK_STATUS } from '../../constants/scanTaskConst'
-import { userProfileStore } from '@/stores/userProfile'
-const profileStore = userProfileStore()
+import { useProfileStore } from '@/stores/userProfile'
+const profileStore = useProfileStore()
 
 /** pathList 为逗号分隔字符串；兼容 localStorage 中仍为数组的旧数据 */
 function formatPathListDisplay(v) {
   if (v == null || v === '') return '--'
   if (Array.isArray(v)) return v.join(',')
   return String(v)
+}
+
+/** 任务列表创建人展示：「中文名 短工号」（与 TaskDetailView 一致） */
+function formatTaskCreatorDisplay(task: { creator?: string; nameCn?: string }) {
+  const w3 = (task.creator || '').trim()
+  const cn = (task.nameCn || '').trim()
+  if (cn && w3) return `${cn} ${w3}`
+  return w3 || '--'
 }
 
 const router = useRouter()

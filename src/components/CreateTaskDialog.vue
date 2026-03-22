@@ -167,7 +167,7 @@
 <script setup>
 import { ref, reactive, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { userProfileStore } from '../stores/userProfile'
+import { useProfileStore } from '../stores/userProfile'
 import { createTask as createTaskApi, uploadScanResultFile } from '../api/task'
 
 const props = defineProps({
@@ -183,7 +183,7 @@ const dialogVisible = ref(false)
 const formRef = ref(null)
 const uploadRef = ref(null)
 const submitting = ref(false)
-const userStore = userProfileStore()
+const userStore = useProfileStore()
 
 // 文件上传相关
 const fileList = ref([])
