@@ -49,19 +49,6 @@
               />
             </el-select>
           </el-form-item>
-          <el-form-item label="创建时间">
-            <el-date-picker
-              v-model="filterForm.dateRange"
-              type="daterange"
-              range-separator="至"
-              start-placeholder="开始日期"
-              end-placeholder="结束日期"
-              format="YYYY-MM-DD"
-              value-format="YYYY-MM-DD"
-              style="width: 240px"
-              @change="handleFilter"
-            />
-          </el-form-item>
           <el-form-item>
             <el-button @click="handleResetFilter">重置</el-button>
           </el-form-item>
@@ -104,7 +91,7 @@
               </div>
               <div class="card-item">
                 <span class="item-label">创建人：</span>
-                <span class="item-value">{{ task.creator }}</span>
+                <span class="item-value">{{ formatTaskCreatorDisplay(task) }}</span>
               </div>
               <div class="card-item">
                 <span class="item-label">创建时间：</span>
@@ -177,7 +164,12 @@ import {
   ElRadioButton
 } from 'element-plus'
 import CreateTaskDialog from '../../components/CreateTaskDialog.vue'
-import { queryTaskList, deleteTask as deleteTaskApi, type TaskListItem } from '../../api/task'
+import {
+  queryTaskList,
+  deleteTask as deleteTaskApi,
+  formatTaskCreatorDisplay,
+  type TaskListItem,
+} from '../../api/task'
 import { TASK_STATUS_MAP, TASK_STATUS } from '../../constants/scanTaskConst'
 import { userProfileStore } from '@/stores/userProfile'
 const profileStore = userProfileStore()
@@ -217,8 +209,7 @@ const pageSize = ref(8) // 减少每页显示数量
 // 筛选表单
 const filterForm = ref({
   taskName: '',
-  status: '',
-  dateRange: null
+  status: ''
 })
 
 // 计算属性：根据任务类型和筛选条件过滤任务
@@ -226,10 +217,12 @@ const filteredTasks = computed((): TaskListItem[] => {
   let list: TaskListItem[] = [...tasks.value]
 
   if (taskType.value === 'my') {
-    const id = currentUserIdentifier.value
+    const myW3 = profileStore.userInfo?.w3Id?.trim()
+    const fullId = currentUserIdentifier.value
     list = list.filter((task) => {
-      const creator = task.creator || ''
-      return id && (creator === id || creator.includes(id))
+      const creator = (task.creator || '').trim()
+      if (!myW3) return false
+      return creator === myW3 || creator === fullId
     })
   }
 
@@ -245,14 +238,6 @@ const filteredTasks = computed((): TaskListItem[] => {
       const row = task as TaskListItem & { status?: string }
       const status = row.taskStatus || row.status
       return status === filterForm.value.status
-    })
-  }
-
-  if (filterForm.value.dateRange && filterForm.value.dateRange.length === 2) {
-    const [startDate, endDate] = filterForm.value.dateRange
-    list = list.filter((task) => {
-      const taskDate = String(task.createTime ?? '').split(' ')[0]
-      return taskDate >= startDate && taskDate <= endDate
     })
   }
 
@@ -295,8 +280,7 @@ const handleFilter = () => {
 const handleResetFilter = () => {
   filterForm.value = {
     taskName: '',
-    status: '',
-    dateRange: null
+    status: ''
   }
   currentPage.value = 1
 }
@@ -308,18 +292,12 @@ const handleViewDetail = (taskId) => {
 
 // 判断当前用户是否可以删除任务
 const canDeleteTask = (taskCreator: string) => {
-  // 构造当前用户的完整标识
-  const currentUserId = profileStore.userInfo?.w3Id;
-  const userNameCn = profileStore.userInfo?.nameCn;
-  const currentUserIdentifier = `${userNameCn || ''} ${currentUserId || ''}`.trim();
-
-  // 如果用户信息不完整，默认不允许删除
-  if (!currentUserIdentifier) {
-    return false;
-  }
-
-  // 根据与创建任务相同的逻辑进行比较
-  return taskCreator === currentUserIdentifier;
+  const w3Id = profileStore.userInfo?.w3Id?.trim()
+  const nameCn = profileStore.userInfo?.nameCn
+  const fullId = `${nameCn || ''} ${w3Id || ''}`.trim()
+  if (!w3Id) return false
+  const c = (taskCreator || '').trim()
+  return c === w3Id || c === fullId
 }
 
 // 删除任务

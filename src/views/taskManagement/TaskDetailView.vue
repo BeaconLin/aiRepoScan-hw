@@ -184,7 +184,7 @@
                     <span class="meta-icon">👤</span>
                     <span>创建人</span>
                   </div>
-                  <div class="meta-value">{{ task?.creator || '未知' }}</div>
+                  <div class="meta-value">{{ task ? formatTaskCreatorDisplay(task) : '未知' }}</div>
                 </div>
                 <div class="meta-item">
                   <div class="meta-label">
@@ -548,7 +548,14 @@ import {
 } from 'element-plus'
 import { TASK_STATUS, TASK_STATUS_MAP } from '../../constants/scanTaskConst'
 import { userProfileStore } from '../../stores/userProfile'
-import { queryTaskDetail, fetchScanResults, saveAnnotation as saveAnnotationApi, getAnnotationStatistics } from '../../api/task'
+import {
+  queryTaskDetail,
+  fetchScanResults,
+  saveAnnotation as saveAnnotationApi,
+  getAnnotationStatistics,
+  formatTaskCreatorDisplay,
+  resolveTaskCreatorNameCn,
+} from '../../api/task'
 import CodeBlock from './components/CodeBlock.vue'
 
 // 类型定义
@@ -885,6 +892,11 @@ const loadTaskData = async (taskId: string): Promise<void> => {
         lineNum: resTask.lineNum || (resTask.codeLines ? resTask.codeLines / 10000 : 0),
         productName: resTask.productName || resTask.product_name || '-',
         s3Path: resTask.s3Path || `s3://ai-repo-scan/results/${resTask.taskId || resTask.id}`,
+        creator: resTask.creator ?? '',
+        nameCn: resolveTaskCreatorNameCn(
+          String(resTask.creator ?? ''),
+          resTask.nameCn as string | undefined,
+        ),
         scanResults: rawScanResults,
       } as Task
 

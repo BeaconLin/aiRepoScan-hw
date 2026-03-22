@@ -64,6 +64,8 @@ interface TaskDetail {
     pathList: string
     assistantVersions: string[]
     creator: string
+    /** 创建人中文名；与 creator（短工号 w3Id）组合展示，持久化与接口对齐 */
+    nameCn: string
     createTime: string
     taskStatus: TaskStatus
     codeLanguage: string
@@ -91,6 +93,8 @@ export interface CreateTaskPayload {
     branch: string
     pathList?: string
     creator: string
+    /** 创建人中文名，与 creator（w3Id）一并展示 */
+    nameCn?: string
     /** 逗号分隔的助手版本，如 "v1.0.0,v2.0.0" */
     assistantVersions: string
     codeLanguage?: string
@@ -103,6 +107,46 @@ const generateTaskId = (): string => {
     const timestamp = Date.now().toString(16)
     const random = Math.random().toString(16).substring(2, 10)
     return `T${timestamp}-${random.substring(0, 4)}-${random.substring(4, 8)}-${random.substring(8, 12)}-${random.substring(12, 20)}`
+}
+
+/** 短工号无接口 nameCn 时的演示用映射；生产环境以接口返回为准 */
+const W3_CREATOR_NAME_CN: Record<string, string> = {
+    a00559876: '张三',
+    a00559877: '李四',
+    a00559878: '王五',
+    t00598420: '田园',
+}
+
+/**
+ * 解析创建人中文名：优先接口/存储中的 nameCn，否则按短工号查表补全。
+ */
+export function resolveTaskCreatorNameCn(
+    creatorW3: string,
+    explicitNameCn?: string | null,
+): string {
+    const e = explicitNameCn?.trim()
+    if (e) return e
+    const w = (creatorW3 || '').trim()
+    return W3_CREATOR_NAME_CN[w] || ''
+}
+
+function pickExplicitNameCnFromRaw(raw: Record<string, unknown>): string | undefined {
+    for (const key of ['nameCn', 'creatorNameCn', 'creatorCn'] as const) {
+        const v = raw[key]
+        if (v != null && String(v).trim() !== '') return String(v).trim()
+    }
+    return undefined
+}
+
+/** 任务列表/详情统一展示：「中文名 短工号」 */
+export function formatTaskCreatorDisplay(task: {
+    creator?: string
+    nameCn?: string
+}): string {
+    const w3 = (task.creator || '').trim()
+    const cn = (task.nameCn || '').trim()
+    if (cn && w3) return `${cn} ${w3}`
+    return w3 || '--'
 }
 
 const normalizeStoredTask = (raw: Record<string, unknown>): TaskDetail => {
@@ -123,6 +167,10 @@ const normalizeStoredTask = (raw: Record<string, unknown>): TaskDetail => {
         pathList,
         assistantVersions: av as string[],
         creator: String(raw.creator ?? ''),
+        nameCn: resolveTaskCreatorNameCn(
+            String(raw.creator ?? ''),
+            pickExplicitNameCnFromRaw(raw),
+        ),
         createTime: String(raw.createTime ?? ''),
         taskStatus: (raw.taskStatus || TASK_STATUS.NOT_STARTED) as TaskStatus,
         codeLanguage: String(raw.codeLanguage ?? 'Unknown'),
@@ -159,6 +207,7 @@ const mockTaskDetails: Record<string, TaskDetail> = {
         pathList: 'src,main',
         assistantVersions: ['v2.0.0', 'v2.1.0'],
         creator: 'a00559876',
+        nameCn: '张三',
         createTime: '2024-01-15 10:30:00',
         taskStatus: '已完成',
         codeLanguage: 'JavaScript',
@@ -175,6 +224,7 @@ const mockTaskDetails: Record<string, TaskDetail> = {
         pathList: 'app,config',
         assistantVersions: ['v1.1.0'],
         creator: 'a00559877',
+        nameCn: '李四',
         createTime: '2024-01-14 14:20:00',
         taskStatus: '进行中',
         codeLanguage: 'Python',
@@ -191,12 +241,132 @@ const mockTaskDetails: Record<string, TaskDetail> = {
         pathList: 'ios,android',
         assistantVersions: ['v2.0.0'],
         creator: 'a00559876',
+        nameCn: '张三',
         createTime: '2024-01-13 09:15:00',
         taskStatus: '未开始',
         codeLanguage: 'Swift',
         lineNum: 0.8,
         productName: '移动应用',
         s3Path: 's3://ai-repo-scan/results/T22334455-6677-8899-aabb-ccddeeff0011',
+        scanResults: []
+    },
+    'T01020304-0506-0708-090a-0b0c0d0e0f01': {
+        taskId: 'T01020304-0506-0708-090a-0b0c0d0e0f01',
+        taskName: '网络服务安全扫描',
+        repoUrl: 'https://codehub.huawei.com/CloudCore/NetService/gateway.git',
+        branch: 'release',
+        pathList: 'src/main,src/test',
+        assistantVersions: ['v2.0.0'],
+        creator: 'a00559878',
+        nameCn: '王五',
+        createTime: '2026-03-16 09:00:00',
+        taskStatus: TASK_STATUS.NOT_STARTED,
+        codeLanguage: 'Java',
+        lineNum: 3.2,
+        productName: 'NetService',
+        s3Path: 's3://ai-repo-scan/results/T01020304-0506-0708-090a-0b0c0d0e0f01',
+        scanResults: []
+    },
+    'T01020304-0506-0708-090a-0b0c0d0e0f02': {
+        taskId: 'T01020304-0506-0708-090a-0b0c0d0e0f02',
+        taskName: '数据库访问层扫描',
+        repoUrl: 'https://codehub.huawei.com/UDM/DataAccess/dal.git',
+        branch: 'master',
+        pathList: 'dal,orm',
+        assistantVersions: ['v1.1.0', 'v2.0.0'],
+        creator: 'a00559877',
+        nameCn: '李四',
+        createTime: '2026-03-15 14:30:00',
+        taskStatus: TASK_STATUS.NOT_STARTED,
+        codeLanguage: 'Go',
+        lineNum: 1.2,
+        productName: 'UDM',
+        s3Path: 's3://ai-repo-scan/results/T01020304-0506-0708-090a-0b0c0d0e0f02',
+        scanResults: []
+    },
+    'T01020304-0506-0708-090a-0b0c0d0e0f03': {
+        taskId: 'T01020304-0506-0708-090a-0b0c0d0e0f03',
+        taskName: '配置中心模块扫描',
+        repoUrl: 'https://codehub.huawei.com/Platform/ConfigCenter/config-server.git',
+        branch: 'develop',
+        pathList: 'config,plugins',
+        assistantVersions: ['v2.0.0'],
+        creator: 't00598420',
+        nameCn: '田园',
+        createTime: '2026-03-14 11:20:00',
+        taskStatus: TASK_STATUS.NOT_STARTED,
+        codeLanguage: 'Java',
+        lineNum: 0.6,
+        productName: 'ConfigCenter',
+        s3Path: 's3://ai-repo-scan/results/T01020304-0506-0708-090a-0b0c0d0e0f03',
+        scanResults: []
+    },
+    'T01020304-0506-0708-090a-0b0c0d0e0f04': {
+        taskId: 'T01020304-0506-0708-090a-0b0c0d0e0f04',
+        taskName: '消息队列客户端扫描',
+        repoUrl: 'https://github.com/example/mq-client.git',
+        branch: 'main',
+        pathList: 'src',
+        assistantVersions: ['v1.0.0'],
+        creator: 'a00559876',
+        nameCn: '张三',
+        createTime: '2026-03-13 16:45:00',
+        taskStatus: TASK_STATUS.NOT_STARTED,
+        codeLanguage: 'C++',
+        lineNum: 2.1,
+        productName: 'Messaging',
+        s3Path: 's3://ai-repo-scan/results/T01020304-0506-0708-090a-0b0c0d0e0f04',
+        scanResults: []
+    },
+    'T01020304-0506-0708-090a-0b0c0d0e0f05': {
+        taskId: 'T01020304-0506-0708-090a-0b0c0d0e0f05',
+        taskName: '容器镜像构建脚本扫描',
+        repoUrl: 'https://codehub.huawei.com/CloudNative/buildkit.git',
+        branch: 'master',
+        pathList: 'docker,scripts',
+        assistantVersions: ['v2.1.0'],
+        creator: 'a00559878',
+        nameCn: '王五',
+        createTime: '2026-03-12 10:10:00',
+        taskStatus: TASK_STATUS.NOT_STARTED,
+        codeLanguage: 'Shell',
+        lineNum: 0.4,
+        productName: 'CloudNative',
+        s3Path: 's3://ai-repo-scan/results/T01020304-0506-0708-090a-0b0c0d0e0f05',
+        scanResults: []
+    },
+    'T01020304-0506-0708-090a-0b0c0d0e0f06': {
+        taskId: 'T01020304-0506-0708-090a-0b0c0d0e0f06',
+        taskName: '认证授权服务扫描',
+        repoUrl: 'https://codehub.huawei.com/Security/AuthService/oauth2.git',
+        branch: 'release',
+        pathList: 'authz,authn',
+        assistantVersions: ['v2.0.0'],
+        creator: 'a00559877',
+        nameCn: '李四',
+        createTime: '2026-03-11 09:30:00',
+        taskStatus: TASK_STATUS.NOT_STARTED,
+        codeLanguage: 'TypeScript',
+        lineNum: 1.8,
+        productName: 'Security',
+        s3Path: 's3://ai-repo-scan/results/T01020304-0506-0708-090a-0b0c0d0e0f06',
+        scanResults: []
+    },
+    'T01020304-0506-0708-090a-0b0c0d0e0f07': {
+        taskId: 'T01020304-0506-0708-090a-0b0c0d0e0f07',
+        taskName: '批处理作业调度扫描',
+        repoUrl: 'https://codehub.huawei.com/Batch/Scheduler/job-runner.git',
+        branch: 'develop',
+        pathList: 'jobs,scheduler',
+        assistantVersions: ['v1.1.0'],
+        creator: 'a00559876',
+        nameCn: '张三',
+        createTime: '2026-03-10 08:00:00',
+        taskStatus: TASK_STATUS.NOT_STARTED,
+        codeLanguage: 'Python',
+        lineNum: 0.9,
+        productName: 'Batch',
+        s3Path: 's3://ai-repo-scan/results/T01020304-0506-0708-090a-0b0c0d0e0f07',
         scanResults: []
     }
 }
@@ -389,7 +559,14 @@ const mockScanResults: Record<string, (Omit<ScanResult, 'issue_result' | 'annota
         }
     ],
     'T11223344-5566-7788-99aa-bbccddeeff00': [],
-    'T22334455-6677-8899-aabb-ccddeeff0011': []
+    'T22334455-6677-8899-aabb-ccddeeff0011': [],
+    'T01020304-0506-0708-090a-0b0c0d0e0f01': [],
+    'T01020304-0506-0708-090a-0b0c0d0e0f02': [],
+    'T01020304-0506-0708-090a-0b0c0d0e0f03': [],
+    'T01020304-0506-0708-090a-0b0c0d0e0f04': [],
+    'T01020304-0506-0708-090a-0b0c0d0e0f05': [],
+    'T01020304-0506-0708-090a-0b0c0d0e0f06': [],
+    'T01020304-0506-0708-090a-0b0c0d0e0f07': []
 }
 
 const persistTasksToStorage = (): void => {
@@ -538,6 +715,7 @@ export const createTask = async (payload: CreateTaskPayload): Promise<ApiRespons
         pathList: payload.pathList ?? '',
         assistantVersions,
         creator: payload.creator,
+        nameCn: resolveTaskCreatorNameCn(payload.creator, payload.nameCn),
         createTime: now,
         taskStatus: TASK_STATUS.NOT_STARTED,
         codeLanguage: payload.codeLanguage || 'Unknown',
