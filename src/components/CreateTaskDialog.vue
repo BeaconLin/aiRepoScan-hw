@@ -167,8 +167,8 @@
 <script setup>
 import { ref, reactive, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { useProfileStore } from '../stores/userProfile'
-import { createTask as createTaskApi, uploadScanResultFile } from '../api/task'
+import { useProfileStore } from '@/stores/userProfile'
+import { createTaskApi, uploadScanResultFile } from '@/api/task'
 
 const props = defineProps({
   modelValue: {
@@ -433,30 +433,24 @@ const handleSubmit = async () => {
       pduName: formData.pduName?.trim() || undefined,
     }
 
+    const createTaskPayload = {
+      ...createTaskData,
+      creator: createTaskData.creator || userInfo.w3Id || '',
+      nameCn: userInfo.nameCn || undefined,
+    }
+
     let createResponse
     try {
-      createResponse = await createTaskApi({
-        taskName: createTaskData.taskName,
-        productName: createTaskData.productName,
-        repoUrl: createTaskData.repoUrl,
-        branch: createTaskData.branch,
-        pathList: createTaskData.pathList,
-        creator: createTaskData.creator || userInfo.w3Id || '',
-        nameCn: userInfo.nameCn || undefined,
-        assistantVersions: formData.assistantVersions.join(','),
-        codeLanguage: createTaskData.codeLanguage,
-        lineNum: createTaskData.lineNum,
-        deptName: createTaskData.deptName,
-        pduName: createTaskData.pduName
-      })
+      // createResponse = await taskManagementService.createTaskApi(createTaskPayload)
+      createResponse = await createTaskApi(createTaskPayload)
     } catch (e) {
       console.error('创建任务请求失败:', e)
       ElMessage.error(e?.message || '创建任务失败，请稍后重试')
       return
     }
 
-    if (createResponse.code !== 200 || !createResponse.data?.taskId) {
-      ElMessage.error(createResponse.message || '任务创建失败')
+    if (!createResponse.meta.isSuccess || !createResponse.data?.taskId) {
+      ElMessage.error(createResponse.meta.message || '任务创建失败')
       return
     }
 
@@ -467,17 +461,22 @@ const handleSubmit = async () => {
     // 若选择了扫描结果文件，在创建成功后上传（Mock：task.ts）
     if (selectedFile.value) {
       try {
+        // const uploadResponse = await taskManagementService.uploadScanResultFile(
+        //   data.taskId,
+        //   selectedFile.value,
+        //   userInfo.w3Id || formData.creator,
+        // )
         const uploadResponse = await uploadScanResultFile(
           data.taskId,
           selectedFile.value,
           userInfo.w3Id || formData.creator,
         )
-        if (uploadResponse.code === 200 && uploadResponse.data) {
+        if (uploadResponse.meta.isSuccess && uploadResponse.data) {
           s3Path = uploadResponse.data
           ElMessage.success('任务创建成功，扫描结果文件已上传！')
         } else {
           ElMessage.warning(
-            uploadResponse.message ||
+            uploadResponse.meta.message ||
               '任务已创建，但扫描结果文件上传失败，可在任务详情中重新上传',
           )
         }

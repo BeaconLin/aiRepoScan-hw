@@ -163,14 +163,35 @@ import {
   ElRadioGroup,
   ElRadioButton
 } from 'element-plus'
-import CreateTaskDialog from '../../components/CreateTaskDialog.vue'
+import CreateTaskDialog from '@/components/CreateTaskDialog.vue'
 import {
   queryTaskList,
-  deleteTask as deleteTaskApi,
-  type TaskListItem,
-} from '../../api/task'
-import { TASK_STATUS_MAP, TASK_STATUS } from '../../constants/scanTaskConst'
+  deleteTaskApi,
+} from '@/api/task'
+import { TASK_STATUS_MAP, TASK_STATUS } from '@/constants/scanTaskConst'
 import { useProfileStore } from '@/stores/userProfile'
+import taskManagementService from '@/api/services/taskManagementService'
+
+type TaskStatus = (typeof TASK_STATUS)[keyof typeof TASK_STATUS]
+
+/** 任务列表项（不含扫描结果明细；与列表接口返回一致） */
+interface TaskListItem {
+  taskId: string
+  taskName: string
+  repoUrl: string
+  branch: string
+  pathList: string
+  assistantVersions: string[]
+  creator: string
+  nameCn: string
+  createTime: string
+  taskStatus: TaskStatus
+  codeLanguage: string
+  lineNum: number
+  productName: string
+  s3Path: string
+}
+
 const profileStore = useProfileStore()
 
 /** pathList 为逗号分隔字符串；兼容 localStorage 中仍为数组的旧数据 */
@@ -194,8 +215,9 @@ const router = useRouter()
 const tasks = ref<TaskListItem[]>([])
 
 const loadTasks = async () => {
+  // const res = await taskManagementService.queryTaskList()
   const res = await queryTaskList()
-  if (res.code === 200) {
+  if (res.meta.isSuccess) {
     tasks.value = res.data
   }
 }
@@ -320,8 +342,9 @@ const handleDelete = async (taskId) => {
       }
     )
     
+    // const res = await taskManagementService.deleteTaskApi(taskId)
     const res = await deleteTaskApi(taskId)
-    const success = res.code === 200 && !!res.data
+    const success = res.meta.isSuccess && !!res.data
     if (success) await loadTasks()
     if (success) {
       ElMessage.success('任务删除成功！')
@@ -330,7 +353,7 @@ const handleDelete = async (taskId) => {
         currentPage.value--
       }
     } else {
-      ElMessage.error('任务删除失败！')
+      ElMessage.error(res.meta.message || '任务删除失败！')
     }
   } catch {
     // 用户取消删除

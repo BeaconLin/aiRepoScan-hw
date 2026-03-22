@@ -12,7 +12,7 @@ const taskManagementService = {
   //   pageSize
   // }),
 
-  // 查询任务详情（与 src/api/task.ts 中 getTaskDetail 对应，便于替换调用）
+  // 查询任务详情（与 src/api/task.ts 中 getTaskDetail 对应；响应 ApiEnvelope<TaskDetail>：{ data, meta }）
   // getTaskDetail: (taskId: string, pageNum: number, pageSize: number): any => service.get(`${REPO_SCAN_URL}/api/tasks/${taskId}`, {
   //   pageNum,
   //   pageSize
@@ -47,7 +47,7 @@ const taskManagementService = {
   //   })
   // },
 
-  // 保存标注（reqBody 类型见 @/api/task 的 SaveAnnotationReqBody）
+  // 保存标注（reqBody：SaveAnnotationReqBody；响应 ApiEnvelope<null>：{ data, meta }）
   // saveAnnotationApi: (reqBody: SaveAnnotationReqBody): any => {
   //   return service.post(`${REPO_SCAN_URL}/api/annotations`, reqBody)
   // },
@@ -56,7 +56,7 @@ const taskManagementService = {
   // getAnnotationStatistics: (taskId: string): any => service.get(`${REPO_SCAN_URL}/api/tasks/${taskId}/annotation-statistics`),
 
   // 删除任务
-  // deleteTask: (taskId: string): any => {
+  // deleteTaskApi: (taskId: string): any => {
   //   return service.delete(`${REPO_SCAN_URL}/api/tasks/${taskId}`)
   // },
 };

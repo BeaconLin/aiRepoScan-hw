@@ -553,7 +553,6 @@ import {
   getTaskDetail,
   saveAnnotationApi,
   getAnnotationStatistics,
-  type SaveAnnotationReqBody,
 } from '@/api/task'
 import CodeBlock from '@/views/taskManagement/components/CodeBlock.vue'
 import taskManagementService from '@/api/services/taskManagementService'
@@ -687,6 +686,17 @@ interface RuleTreeNode {
 }
 
 type IssueResult = 0 | 1 | 2 | null // 0: 需要修改, 1: 无需修改的问题, 2: 问题误报, null: 未标注
+
+/** 保存标注请求体（与 taskManagementService.saveAnnotationApi POST body 一致） */
+interface SaveAnnotationReqBody {
+  taskId: string
+  warnUuid: string
+  issueResult: IssueResult
+  annotator: string
+  annotationTime: string
+  reason?: string | null
+}
+
 type TagType = 'success' | 'info' | 'warning' | 'danger'
 
 const router = useRouter()
@@ -892,8 +902,8 @@ const loadTaskData = async (taskId: string): Promise<void> => {
       pagination.value.pageSize
     )
     
-    // 设置任务详情（兼容旧数据格式）
-    if (taskResponse.code === 200 && taskResponse.data) {
+    // 设置任务详情（兼容旧数据格式）；成功态以 ApiResponseMeta.isSuccess 为准
+    if (taskResponse.meta.isSuccess && taskResponse.data) {
       const resTask = taskResponse.data as any
       
       // 转换为新格式
@@ -981,7 +991,7 @@ const loadTaskData = async (taskId: string): Promise<void> => {
         }
       }
     } else {
-      throw new Error(taskResponse.message || '获取任务详情失败')
+      throw new Error(taskResponse.meta.message || '获取任务详情失败')
     }
   } catch (err) {
     error.value = err instanceof Error ? err.message : '加载数据失败'
@@ -1419,7 +1429,10 @@ const saveAnnotationHandler = async (result: ScanResult, value: IssueResult): Pr
         annotationTime: ''
       }
       // await taskManagementService.saveAnnotationApi(reqBody)
-      await saveAnnotationApi(reqBody)
+      const cancelRes = await saveAnnotationApi(reqBody)
+      if (!cancelRes.meta.isSuccess) {
+        throw new Error(cancelRes.meta.message || '取消标注失败')
+      }
       
       // 更新 result 对象的标注信息
       result.issue_result = null
@@ -1444,7 +1457,10 @@ const saveAnnotationHandler = async (result: ScanResult, value: IssueResult): Pr
         annotationTime,
         reason: result.annotation?.reason ?? result.reason ?? null
       }
-      await saveAnnotationApi(reqBody)
+      const saveRes = await saveAnnotationApi(reqBody)
+      if (!saveRes.meta.isSuccess) {
+        throw new Error(saveRes.meta.message || '保存标注失败')
+      }
       
       // 更新 result 对象的标注信息
       result.issue_result = value

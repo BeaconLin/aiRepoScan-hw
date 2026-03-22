@@ -75,24 +75,39 @@ interface TaskDetail {
     scanResults: ScanResult[]
 }
 
-// API 响应接口
-export interface ApiResponse<T> {
-    code: number
-    message: string
-    data: T
-}
-
-/** 与后端统一：接口元信息（如 getAnnotationStatistics 的 meta） */
+/** 与后端统一：接口元信息 */
 export interface ApiResponseMeta {
     number: number
     message: string
     isSuccess: boolean
 }
 
-/** 带 meta 的载荷：{ data, meta } */
+/** 统一响应：仅含 data 与 meta（与 saveAnnotationApi 等一致） */
 export interface ApiEnvelope<T> {
     data: T
     meta: ApiResponseMeta
+}
+
+function envelopeOk<T>(data: T): ApiEnvelope<T> {
+    return {
+        data,
+        meta: {
+            number: 200,
+            message: 'OK',
+            isSuccess: true
+        }
+    }
+}
+
+function envelopeFail<T>(data: T, number: number, message: string): ApiEnvelope<T> {
+    return {
+        data,
+        meta: {
+            number,
+            message,
+            isSuccess: false
+        }
+    }
 }
 
 /** 列表项（不含扫描结果明细） */
@@ -678,22 +693,18 @@ const getAnnotationsForTask = (taskId: string): Record<string, AnnotationData> =
 /**
  * 任务列表（不含 scanResults）
  */
-export const queryTaskList = async (): Promise<ApiResponse<TaskListItem[]>> => {
+export const queryTaskList = async (): Promise<ApiEnvelope<TaskListItem[]>> => {
     const list: TaskListItem[] = Object.values(mockTaskDetails).map(
         ({ scanResults: _sr, ...rest }) => rest
     )
     list.sort((a, b) => b.createTime.localeCompare(a.createTime))
-    return {
-        code: 200,
-        message: '获取成功',
-        data: list
-    }
+    return envelopeOk(list)
 }
 
 /**
  * 创建任务（Mock：写入内存并持久化到 localStorage）
  */
-export const createTask = async (payload: CreateTaskPayload): Promise<ApiResponse<TaskDetail>> => {
+export const createTaskApi = async (payload: CreateTaskPayload): Promise<ApiEnvelope<TaskDetail>> => {
     const taskId = generateTaskId()
     const now = new Date().toLocaleString('zh-CN', {
         year: 'numeric',
@@ -730,25 +741,21 @@ export const createTask = async (payload: CreateTaskPayload): Promise<ApiRespons
     mockTaskDetails[taskId] = task
     mockScanResults[taskId] = []
     persistTasksToStorage()
-    return {
-        code: 200,
-        message: '创建成功',
-        data: task
-    }
+    return envelopeOk(task)
 }
 
 /**
  * 删除任务
  */
-export const deleteTask = async (taskId: string): Promise<ApiResponse<boolean>> => {
+export const deleteTaskApi = async (taskId: string): Promise<ApiEnvelope<boolean>> => {
     if (!mockTaskDetails[taskId]) {
-        return { code: 404, message: '未找到任务', data: false }
+        return envelopeFail(false, 404, '未找到任务')
     }
     delete mockTaskDetails[taskId]
     delete mockScanResults[taskId]
     delete annotationsData[taskId]
     persistTasksToStorage()
-    return { code: 200, message: '删除成功', data: true }
+    return envelopeOk(true)
 }
 
 /**
@@ -758,7 +765,7 @@ export const uploadScanResultFile = async (
     taskId: string,
     file: File,
     _userId: string
-): Promise<ApiResponse<string>> => {
+): Promise<ApiEnvelope<string>> => {
     await new Promise((resolve) => setTimeout(resolve, 200))
     const path = `s3://ai-repo-scan/uploads/${taskId}/${file.name}`
     const t = mockTaskDetails[taskId]
@@ -766,11 +773,7 @@ export const uploadScanResultFile = async (
         t.s3Path = path
         persistTasksToStorage()
     }
-    return {
-        code: 200,
-        message: '上传成功',
-        data: path
-    }
+    return envelopeOk(path)
 }
 
 /**
@@ -778,13 +781,13 @@ export const uploadScanResultFile = async (
  * @param taskId - 任务ID
  * @param pageNum - 页码（真实接口 query；本地 mock 暂不用于截取 scanResults，见下方说明）
  * @param pageSize - 每页条数（真实接口 query；本地 mock 暂不用于截取）
- * @returns {Promise<Object>} 任务详情对象（包含任务信息和扫描结果）
+ * @returns {Promise<ApiEnvelope<TaskDetail>>} 任务详情（data + meta）
  */
 export const getTaskDetail = async (
     taskId: string,
     _pageNum: number,
     _pageSize: number
-): Promise<ApiResponse<TaskDetail>> => {
+): Promise<ApiEnvelope<TaskDetail>> => {
     // 直接从 mock 数据中获取任务信息
     const taskDetail = mockTaskDetails[taskId]
 
@@ -835,19 +838,15 @@ export const getTaskDetail = async (
         scanResults: scanResults
     }
 
-    return {
-        code: 200,
-        message: '获取成功',
-        data: resTask
-    }
+    return envelopeOk(resTask)
 }
 
 /**
  * 模拟通过 taskId 获取扫描结果列表
  * @param {string} taskId - 任务ID
- * @returns {Promise<Array>} 扫描结果数组
+ * @returns {Promise<ApiEnvelope<ScanResult[]>>} 扫描结果（data + meta）
  */
-export const fetchScanResults = async (taskId: string): Promise<ApiResponse<ScanResult[]>> => {
+export const fetchScanResults = async (taskId: string): Promise<ApiEnvelope<ScanResult[]>> => {
     // 模拟网络延迟
     await new Promise(resolve => setTimeout(resolve, 500))
 
@@ -875,11 +874,7 @@ export const fetchScanResults = async (taskId: string): Promise<ApiResponse<Scan
         } as ScanResult
     })
 
-    return {
-        code: 200,
-        message: '获取成功',
-        data: resultsWithAnnotations
-    }
+    return envelopeOk(resultsWithAnnotations)
 }
 
 /**
@@ -897,11 +892,11 @@ export interface SaveAnnotationReqBody {
 /**
  * 保存标注数据
  * @param reqBody - 标注请求体
- * @returns {Promise<Object>} 保存结果
+ * @returns {Promise<ApiEnvelope<null>>} 保存结果（data + meta）
  */
 export const saveAnnotationApi = async (
     reqBody: SaveAnnotationReqBody
-): Promise<ApiResponse<null>> => {
+): Promise<ApiEnvelope<null>> => {
     const { taskId, warnUuid, issueResult, annotator, annotationTime } = reqBody
 
     // 初始化任务标注数据
@@ -922,11 +917,7 @@ export const saveAnnotationApi = async (
         }
     }
 
-    return {
-        code: 200,
-        message: '保存成功',
-        data: null
-    }
+    return envelopeOk(null)
 }
 
 /**
@@ -1020,12 +1011,5 @@ export const getAnnotationStatistics = async (taskId: string): Promise<ApiEnvelo
         statusDistribution: statusDistribution
     }
 
-    return {
-        data: statistics,
-        meta: {
-            number: 200,
-            message: 'OK',
-            isSuccess: true
-        }
-    }
+    return envelopeOk(statistics)
 }
