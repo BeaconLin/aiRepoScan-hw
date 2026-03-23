@@ -56,7 +56,7 @@ const taskManagementService = {
   // getAnnotationStatistics: (taskId: string): any => service.get(`${REPO_SCAN_URL}/api/tasks/${taskId}/annotation-statistics`),
 
   // 删除任务
-  // deleteTaskApi: (taskId: string): any => {
+  // deleteTaskById: (taskId: string): any => {
   //   return service.delete(`${REPO_SCAN_URL}/api/tasks/${taskId}`)
   // },
 };

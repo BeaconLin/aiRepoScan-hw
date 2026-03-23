@@ -100,14 +100,17 @@
               <div class="card-item">
                 <span class="item-label">扫描助手：</span>
                 <span class="item-value">
-                  <el-tag
-                      v-for="version in task.assistantVersions"
-                      :key="version"
-                      size="small"
-                      style="margin-right: 4px"
-                  >
-                    {{ version }}
-                  </el-tag>
+                  <template v-if="task.assistantVersions.length">
+                    <el-tag
+                        v-for="(version, idx) in task.assistantVersions"
+                        :key="`${task.taskId}-av-${idx}`"
+                        size="small"
+                        style="margin-right: 4px"
+                    >
+                      {{ version }}
+                    </el-tag>
+                  </template>
+                  <span v-else>--</span>
                 </span>
               </div>
               <div class="card-item">
@@ -163,7 +166,7 @@ import {
   ElRadioGroup,
   ElRadioButton
 } from 'element-plus'
-import CreateTaskDialog from '@/components/CreateTaskDialog.vue'
+import CreateTaskDialog from '@/views/taskManagement/components/CreateTaskDialog.vue'
 import {
   queryTaskList,
   deleteTaskApi,
@@ -201,6 +204,21 @@ function formatPathListDisplay(v) {
   return String(v)
 }
 
+/**
+ * 接口多为英文逗号连接的助手版本字符串；兼容已为 string[] 的旧数据。
+ * 拆分为去空白后的版本号数组。
+ */
+function parseAssistantVersionsToArray(raw: unknown): string[] {
+  if (raw == null) return []
+  if (Array.isArray(raw)) {
+    return raw.map((x) => String(x).trim()).filter(Boolean)
+  }
+  return String(raw)
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
 /** 任务列表创建人展示：「中文名 短工号」（与 TaskDetailView 一致） */
 function formatTaskCreatorDisplay(task: { creator?: string; nameCn?: string }) {
   const w3 = (task.creator || '').trim()
@@ -218,7 +236,12 @@ const loadTasks = async () => {
   // const res = await taskManagementService.queryTaskList()
   const res = await queryTaskList()
   if (res.meta.isSuccess) {
-    tasks.value = res.data
+    tasks.value = res.data.map((row) => ({
+      ...row,
+      assistantVersions: parseAssistantVersionsToArray(
+        (row as { assistantVersions?: unknown }).assistantVersions,
+      ),
+    }))
   }
 }
 
