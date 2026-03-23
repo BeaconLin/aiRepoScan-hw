@@ -482,7 +482,7 @@ import { TASK_STATUS, TASK_STATUS_MAP } from '@/constants/scanTaskConst'
 import { useProfileStore } from '@/stores/userProfile'
 
 import { getTaskDetail, uploadScanResultFile, saveAnnotationApi, getAnnotationStatistics } from '@/api/task'
-import type { SaveAnnotationReqBody } from '@/api/types/saveAnnotation'
+import type { SaveAnnotationReqBody, TaskDetailPaginationInfo } from '@/api/types/saveAnnotation'
 import CodeBlock from '@/views/taskManagement/components/CodeBlock.vue'
 import taskManagementService from '@/api/services/taskManagementService'
 
@@ -724,6 +724,21 @@ let pagination = ref({
   pageSize: 10,
   total: 0
 })
+
+/** 从查询任务详情返回的 paginationInfo 同步底部分页（与接口文档 1.1 中 list 项内 paginationInfo 字段一致） */
+function syncPaginationFromResponse(
+  pInfo: TaskDetailPaginationInfo | null | undefined,
+  fallbackCount: number
+): void {
+  if (pInfo && typeof pInfo.totalCount === 'number') {
+    pagination.value.currentPage = pInfo.currentPage
+    pagination.value.pageSize = pInfo.pageSize
+    pagination.value.total = pInfo.totalCount
+  } else {
+    pagination.value.total = fallbackCount
+  }
+}
+
 const loading = ref<boolean>(false)
 const error = ref<string>('')
 const annotationStatistics = ref<AnnotationStatistics | null>(null)
@@ -806,13 +821,14 @@ const assembleFileNameShow = (result) => {
 /** 扫描结果总条数上限（含同规则补条） */
 const MAX_SCAN_RESULTS_TOTAL = 20
 
-/** 列表序号与接口顺序一致，从 1 连续编号 */
-function renumberScanResultIncrementIds(results: ScanResult[]): ScanResult[] {
+/** 列表序号：与接口分页一致时从 offset+1 起编号（与「查询任务列表」中 paginationInfo 语义对齐） */
+function renumberScanResultIncrementIds(results: ScanResult[], startFrom = 1): ScanResult[] {
   return results.map((r, i) => ({
     ...r,
-    self_increment_id: i + 1
+    self_increment_id: startFrom + i
   }))
 }
+
 
 /** 当前列表中「仅出现 1 次」的规则名数量（可各补 1 条同规则数据） */
 function countSingletonRuleNames(results: ScanResult[]): number {
@@ -882,123 +898,126 @@ function augmentScanResultsWithRepeatedRules(results: ScanResult[]): ScanResult[
   return out
 }
 
-// 加载任务详情和扫描结果
+/**
+ * 拉取任务详情某一页扫描结果；底部分页与接口返回的 `paginationInfo` 同步（字段与接口文档 1.1 中 list 项内 `paginationInfo` 一致：currentPage、hasNext、hasPrevious、pageSize、totalCount、totalPages）。
+ */
+const fetchTaskDetailPage = async (
+  taskId: string,
+  pageNum: number,
+  pageSize: number,
+  options: { fetchAnnotationStats: boolean }
+): Promise<void> => {
+  const taskResponse = await getTaskDetail(taskId, pageNum, pageSize)
+
+  if (!taskResponse.meta.isSuccess || !taskResponse.data) {
+    throw new Error(taskResponse.meta.message || '获取任务详情失败')
+  }
+
+  const resTask = taskResponse.data as any
+  const rawScanResults: any[] = Array.isArray(resTask.scanResults) ? resTask.scanResults : []
+  const pi = resTask.paginationInfo as TaskDetailPaginationInfo | null | undefined
+  syncPaginationFromResponse(pi, rawScanResults.length)
+
+  const offset =
+    pi != null
+      ? (pi.currentPage - 1) * pi.pageSize
+      : Math.max(0, (pageNum - 1) * pageSize)
+
+  task.value = {
+    ...resTask,
+    taskId: resTask.taskId || resTask.id,
+    taskStatus: resTask.taskStatus || resTask.status,
+    pathList: normalizePathListToString(resTask.pathList ?? resTask.scanPaths ?? ''),
+    codeLanguage: resTask.codeLanguage || resTask.language || 'Unknown',
+    lineNum:
+      resTask.lineNum ??
+      (resTask.codeLines != null ? Number(resTask.codeLines) / 1000 : 0),
+    productName: resTask.productName || resTask.product_name || '-',
+    s3Path: resTask.s3Path || `s3://ai-repo-scan/results/${resTask.taskId || resTask.id}`,
+    creator: resTask.creator ?? '',
+    nameCn: resolveTaskCreatorNameCn(resTask.nameCn as string | undefined),
+    scanResults: rawScanResults,
+    paginationInfo: pi ?? null,
+  } as Task
+
+  if (task.value.taskStatus === TASK_STATUS.COMPLETED) {
+    let mapped = rawScanResults.map((item: any, idx: number) => {
+      const result: ScanResult = {
+        ...item,
+        self_increment_id: item.self_increment_id ?? item.index ?? offset + idx + 1,
+        warn_uuid: item.warn_uuid || item.warnUuid || item.id,
+        file_name: item.file_name || item.fileName,
+        warn_line: item.warn_line || item.warnLine || item.line,
+        warn_code_block: item.warn_code_block || item.warnCodeBlock || item.code_block || item.codeBlock,
+        issue_result: item.issue_result ?? item.issueResult ?? null,
+        reason: item.reason ?? null,
+        annotation: (() => {
+          if (item.annotation) {
+            return {
+              id: item.annotation.id,
+              warnUuid: item.annotation.warnUuid || item.annotation.warn_uuid || item.warn_uuid,
+              userId: item.annotation.userId || item.annotation.user_id || item.annotator || '',
+              issueResult: item.annotation.issueResult ?? item.annotation.issue_result ?? item.issue_result ?? null,
+              reason: item.annotation.reason ?? item.reason ?? null,
+              annotationStatus: item.annotation.annotationStatus ?? item.annotation.annotation_status ??
+                (item.issue_result !== null && item.issue_result !== undefined ? 1 : undefined),
+              createTime: item.annotation.createTime || item.annotation.create_time || item.annotationTime,
+              updateTime: item.annotation.updateTime || item.annotation.update_time || item.annotationTime,
+              userName: item.annotation.userName || item.annotation.user_name || null,
+              userDepartment: item.annotation.userDepartment || item.annotation.user_department || null,
+              taskId: item.annotation.taskId || item.annotation.task_id || null,
+            }
+          }
+          if (item.issue_result !== null && item.issue_result !== undefined) {
+            return {
+              warnUuid: item.warn_uuid || item.warnUuid || item.id || '',
+              userId: item.annotator || item.annotation?.userId || '',
+              issueResult: item.issue_result ?? item.issueResult ?? null,
+              reason: item.reason ?? null,
+              annotationStatus: 1,
+              createTime: item.annotationTime || item.annotation?.createTime,
+              updateTime: item.annotationTime || item.annotation?.updateTime,
+            }
+          }
+          return null
+        })(),
+      }
+      return result
+    }) as ScanResult[]
+
+    mapped = augmentScanResultsWithRepeatedRules(mapped)
+    mapped = renumberScanResultIncrementIds(mapped, offset + 1)
+    scanResultsList.value = mapped
+    task.value = { ...task.value, scanResults: mapped as any }
+
+    setTimeout(() => {
+      updateAllCharts()
+    }, 300)
+
+    if (options.fetchAnnotationStats) {
+      try {
+        const statisticsResponse = await getAnnotationStatistics(taskId)
+        if (statisticsResponse.meta.isSuccess && statisticsResponse.data) {
+          annotationStatistics.value = statisticsResponse.data
+        }
+      } catch (err) {
+        console.warn('获取标注统计信息失败:', err)
+      }
+    }
+  } else {
+    scanResultsList.value = rawScanResults
+  }
+}
+
+// 加载任务详情和扫描结果（首页）
 const loadTaskData = async (taskId: string): Promise<void> => {
   loading.value = true
   error.value = ''
   pagination.value.currentPage = 1
+  annotationStatistics.value = null
 
   try {
-    // 获取任务详情（已包含扫描结果）。
-    // const taskResponse = await taskManagementService.getTaskDetail(taskId, pagination.value.currentPage, pagination.value.pageSize)
-    const taskResponse = await getTaskDetail(taskId, pagination.value.currentPage, pagination.value.pageSize)
-    // 设置任务详情（兼容旧数据格式）；成功态以 ApiResponseMeta.isSuccess 为准
-    if (taskResponse.meta.isSuccess && taskResponse.data) {
-      const resTask = taskResponse.data as any
-
-      // 转换为新格式
-      const rawScanResults: any[] = Array.isArray(resTask.scanResults)
-          ? resTask.scanResults
-          : []
-
-      task.value = {
-        ...resTask,
-        taskId: resTask.taskId || resTask.id,
-        taskStatus: resTask.taskStatus || resTask.status,
-        pathList: normalizePathListToString(
-            resTask.pathList ?? resTask.scanPaths ?? '',
-        ),
-        codeLanguage: resTask.codeLanguage || resTask.language || 'Unknown',
-        lineNum:
-            resTask.lineNum ??
-            (resTask.codeLines != null ? Number(resTask.codeLines) / 1000 : 0),
-        productName: resTask.productName || resTask.product_name || '-',
-        s3Path: resTask.s3Path || `s3://ai-repo-scan/results/${resTask.taskId || resTask.id}`,
-        creator: resTask.creator ?? '',
-        nameCn: resolveTaskCreatorNameCn(resTask.nameCn as string | undefined),
-        scanResults: rawScanResults,
-      } as Task
-
-      // 与列表展示同源：详情 scanResults → scanResultsList → filteredScanResultsList → pagedScanResultsList
-      scanResultsList.value = rawScanResults
-      annotationStatistics.value = null
-
-      // 已完成：始终用接口返回的 scanResults（含空数组）填充，避免 undefined 时沿用上一任务的残留数据
-      if (task.value.taskStatus === TASK_STATUS.COMPLETED) {
-        let mapped = rawScanResults.map((item: any, idx: number) => {
-          const result: ScanResult = {
-            ...item,
-            self_increment_id: item.self_increment_id ?? item.index ?? idx + 1,
-            warn_uuid: item.warn_uuid || item.warnUuid || item.id,
-            file_name: item.file_name || item.fileName,
-            warn_line: item.warn_line || item.warnLine || item.line,
-            warn_code_block: item.warn_code_block || item.warnCodeBlock || item.code_block || item.codeBlock,
-            issue_result: item.issue_result ?? item.issueResult ?? null,
-            reason: item.reason ?? null,
-            // 处理annotation字段：如果存在annotation对象，直接使用；否则根据issue_result等字段创建
-            annotation: (() => {
-              // 如果有annotation对象，直接使用
-              if (item.annotation) {
-                return {
-                  id: item.annotation.id,
-                  warnUuid: item.annotation.warnUuid || item.annotation.warn_uuid || item.warn_uuid,
-                  userId: item.annotation.userId || item.annotation.user_id || item.annotator || '',
-                  issueResult: item.annotation.issueResult ?? item.annotation.issue_result ?? item.issue_result ?? null,
-                  reason: item.annotation.reason ?? item.reason ?? null,
-                  annotationStatus: item.annotation.annotationStatus ?? item.annotation.annotation_status ??
-                      (item.issue_result !== null && item.issue_result !== undefined ? 1 : undefined),
-                  createTime: item.annotation.createTime || item.annotation.create_time || item.annotationTime,
-                  updateTime: item.annotation.updateTime || item.annotation.update_time || item.annotationTime,
-                  userName: item.annotation.userName || item.annotation.user_name || null,
-                  userDepartment: item.annotation.userDepartment || item.annotation.user_department || null,
-                  taskId: item.annotation.taskId || item.annotation.task_id || null
-                };
-              }
-
-              // 没有annotation对象但有issue_result，则创建annotation
-              if (item.issue_result !== null && item.issue_result !== undefined) {
-                return {
-                  warnUuid: item.warn_uuid || item.warnUuid || item.id || '',
-                  userId: item.annotator || item.annotation?.userId || '',
-                  issueResult: item.issue_result ?? item.issueResult ?? null,
-                  reason: item.reason ?? null,
-                  annotationStatus: 1,
-                  createTime: item.annotationTime || item.annotation?.createTime,
-                  updateTime: item.annotationTime || item.annotation?.updateTime
-                };
-              }
-
-              // 其他情况返回null
-              return null;
-            })()
-          }
-          return result
-        }) as ScanResult[]
-
-        mapped = augmentScanResultsWithRepeatedRules(mapped)
-        mapped = renumberScanResultIncrementIds(mapped)
-        scanResultsList.value = mapped
-        task.value = {...task.value, scanResults: mapped as any}
-
-        // 数据加载完成后，延迟初始化图表（确保 DOM 已渲染）
-        setTimeout(() => {
-          updateAllCharts()
-        }, 300)
-
-        try {
-          const statisticsResponse = await getAnnotationStatistics(taskId)
-          // const statisticsResponse = await taskManagementService.getAnnotationStatistics(taskId)
-          if (statisticsResponse.meta.isSuccess && statisticsResponse.data) {
-            annotationStatistics.value = statisticsResponse.data
-          }
-        } catch (err) {
-          console.warn('获取标注统计信息失败:', err)
-          // 不阻塞主流程，使用本地计算的统计数据
-        }
-      }
-    } else {
-      throw new Error(taskResponse.meta.message || '获取任务详情失败')
-    }
+    await fetchTaskDetailPage(taskId, 1, pagination.value.pageSize, { fetchAnnotationStats: true })
   } catch (err) {
     error.value = err instanceof Error ? err.message : '加载数据失败'
     ElMessage.error(error.value)
@@ -1330,27 +1349,8 @@ const filteredScanResultsList = computed<ScanResult[]>(() => {
   return results
 })
 
-/** 当前页：对 filteredScanResultsList（源自 scanResultsList）做客户端分页切片 */
-const pagedScanResultsList = computed<ScanResult[]>(() => {
-  const list = filteredScanResultsList.value
-  const page = pagination.value.currentPage
-  const size = pagination.value.pageSize
-  const start = (page - 1) * size
-  return list.slice(start, start + size)
-})
-
-watch(
-    () => [filteredScanResultsList.value.length, pagination.value.pageSize] as const,
-    ([len, size]) => {
-      // 分页 total 与「当前筛选后的扫描结果」条数一致，与 pagedScanResultsList 同源；全量条数见 scanResultsList.length
-      pagination.value.total = len
-      const maxPage = Math.max(1, Math.ceil(len / size) || 1)
-      if (pagination.value.currentPage > maxPage) {
-        pagination.value.currentPage = maxPage
-      }
-    },
-    {immediate: true}
-)
+/** 接口已按页返回 scanResults；筛选仅作用于当前页数据；total/currentPage/pageSize 来自 paginationInfo */
+const pagedScanResultsList = computed<ScanResult[]>(() => filteredScanResultsList.value)
 
 // 获取规则名称标签类型
 const getRuleNameTagType = (ruleName: string): TagType => {
@@ -1542,20 +1542,37 @@ const saveAnnotationHandler = async (result: ScanResult, value: IssueResult): Pr
   }
 }
 
-// 筛选处理
-const handleFilter = (): void => {
-  pagination.value.currentPage = 1
-}
+// 筛选处理（仅过滤当前页数据，不请求接口）
+const handleFilter = (): void => {}
 
-// 分页大小改变
-const handleSizeChange = (size: number): void => {
+// 分页大小改变：回到第一页并重新请求详情
+const handleSizeChange = async (size: number): Promise<void> => {
+  const taskId = route.params.id as string
+  if (!taskId || task.value?.taskStatus !== TASK_STATUS.COMPLETED) return
   pagination.value.pageSize = size
   pagination.value.currentPage = 1
+  loading.value = true
+  try {
+    await fetchTaskDetailPage(taskId, 1, size, { fetchAnnotationStats: false })
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '加载失败')
+  } finally {
+    loading.value = false
+  }
 }
 
-// 当前页改变（仅客户端分页，无需重新请求详情）
-const handleCurrentChange = (page: number): void => {
-  pagination.value.currentPage = page
+// 当前页改变：按页请求任务详情中的扫描结果
+const handleCurrentChange = async (page: number): Promise<void> => {
+  const taskId = route.params.id as string
+  if (!taskId || task.value?.taskStatus !== TASK_STATUS.COMPLETED) return
+  loading.value = true
+  try {
+    await fetchTaskDetailPage(taskId, page, pagination.value.pageSize, { fetchAnnotationStats: false })
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '加载失败')
+  } finally {
+    loading.value = false
+  }
 }
 
 // 获取状态提示标题
