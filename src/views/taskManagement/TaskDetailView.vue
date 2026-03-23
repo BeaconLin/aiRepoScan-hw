@@ -509,7 +509,8 @@ interface Task {
   branch: string
   /** 扫描路径，逗号分隔字符串（与接口文档一致） */
   pathList: string
-  assistantVersions: string[]
+  /** 接口多为英文逗号分隔字符串；兼容 string[] */
+  assistantVersions?: string | string[]
   creator: string
   createTime: string
   taskStatus: string
@@ -645,15 +646,26 @@ function normalizePathListToString(raw: unknown): string {
   return String(raw).trim()
 }
 
+/** 将 assistantVersions 规范为版本号片段数组（接口为英文逗号分隔 string，或旧数据 string[]） */
+function normalizeAssistantVersionsToParts(raw: unknown): string[] {
+  if (raw == null) return []
+  if (Array.isArray(raw)) {
+    return raw.map((x) => String(x).trim()).filter(Boolean)
+  }
+  return String(raw)
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
 const pathListDisplay = computed(() => {
   const s = normalizePathListToString(task.value?.pathList)
   return s || '未设置'
 })
 
 const assistantVersionsDisplay = computed(() => {
-  const v = task.value?.assistantVersions
-  if (v && v.length > 0) return v.join('、')
-  return '未设置'
+  const parts = normalizeAssistantVersionsToParts(task.value?.assistantVersions)
+  return parts.length > 0 ? parts.join('、') : '未设置'
 })
 
 const scanResultFileDisplay = computed(() => (task.value?.s3Path || '').trim())
