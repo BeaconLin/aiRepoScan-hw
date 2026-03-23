@@ -1,10 +1,8 @@
 import { TASK_STATUS } from '../constants/scanTaskConst'
+import type { IssueResult, SaveAnnotationReqBody, SaveAnnotationResultData } from './types/saveAnnotation'
 
 /** 与历史 task store 一致，用于任务列表持久化 */
 const TASKS_STORAGE_KEY = 'aiRepoScan_tasks'
-
-// 标注结果类型：0-需要修改, 1-无需修改的问题, 2-问题误报
-type IssueResult = 0 | 1 | 2 | null
 
 // 任务状态类型
 type TaskStatus = typeof TASK_STATUS[keyof typeof TASK_STATUS]
@@ -877,27 +875,22 @@ export const fetchScanResults = async (taskId: string): Promise<ApiEnvelope<Scan
     return envelopeOk(resultsWithAnnotations)
 }
 
-/**
- * 保存标注请求体（与 `taskManagementService.saveAnnotationApi(reqBody)` POST body 一致）
- */
-export interface SaveAnnotationReqBody {
-    taskId: string
-    warnUuid: string
-    issueResult: IssueResult
-    annotator: string
-    annotationTime: string
-    reason?: string | null
+let mockSaveAnnotationIdSeq = 1
+
+function formatAnnotationResponseTime(d: Date = new Date()): string {
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
 /**
  * 保存标注数据
  * @param reqBody - 标注请求体
- * @returns {Promise<ApiEnvelope<null>>} 保存结果（data + meta）
+ * @returns 成功时 `data` 为标注记录；取消标注时 `data` 为 null
  */
 export const saveAnnotationApi = async (
     reqBody: SaveAnnotationReqBody
-): Promise<ApiEnvelope<null>> => {
-    const { taskId, warnUuid, issueResult, annotator, annotationTime } = reqBody
+): Promise<ApiEnvelope<SaveAnnotationResultData | null>> => {
+    const { taskId, warnUuid, issueResult, userId } = reqBody
 
     // 初始化任务标注数据
     if (!annotationsData[taskId]) {
@@ -907,17 +900,33 @@ export const saveAnnotationApi = async (
     if (issueResult === null) {
         // 取消标注，删除记录
         delete annotationsData[taskId][warnUuid]
-    } else {
-        // 保存标注
-        annotationsData[taskId][warnUuid] = {
-            issue_result: issueResult,
-            annotator: annotator,
-            annotationTime: annotationTime,
-            ...(reqBody.reason !== undefined ? { reason: reqBody.reason } : {})
-        }
+        return envelopeOk(null)
     }
 
-    return envelopeOk(null)
+    const now = formatAnnotationResponseTime()
+    const data: SaveAnnotationResultData = {
+        id: mockSaveAnnotationIdSeq++,
+        warnUuid,
+        userId,
+        issueResult,
+        reason: reqBody.reason ?? '',
+        annotationStatus: 1,
+        createTime: now,
+        updateTime: now,
+        userName: reqBody.userName?.trim() ? reqBody.userName.trim() : null,
+        userDepartment: null,
+        taskId
+    }
+
+    // 保存标注（内存 mock 仍用 annotator 字段承载 userId）
+    annotationsData[taskId][warnUuid] = {
+        issue_result: issueResult,
+        annotator: userId,
+        annotationTime: data.updateTime,
+        ...(reqBody.reason !== undefined ? { reason: reqBody.reason } : {})
+    }
+
+    return envelopeOk(data)
 }
 
 /**

@@ -168,7 +168,8 @@
 import { ref, reactive, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useProfileStore } from '@/stores/userProfile'
-import { createTaskApi, uploadScanResultFile } from '@/api/task'
+import { createTaskApi } from '@/api/task'
+import taskManagementService from '@/api/services/taskManagementService'
 
 const props = defineProps({
   modelValue: {
@@ -215,8 +216,7 @@ const formData = reactive({
   pduName: '', // 可选
   /** 接口字段 codeLanguage */
   codeLanguage: 'Java',
-  /** 接口字段 lineNum（万行），空字符串表示不提交 */
-  lineNum: '',
+  lineNum: '', // 单位k
   createTime: '' // 实际应该自动填充当前时间
 })
 
@@ -285,6 +285,10 @@ const rules = {
         const n = Number(raw)
         if (!Number.isFinite(n)) {
           callback(new Error('请输入有效数字'))
+          return
+        }
+        if (n < 0) {
+          callback(new Error('代码量不能为负数'))
           return
         }
         callback()
@@ -458,7 +462,7 @@ const handleSubmit = async () => {
 
     let s3Path = null
 
-    // 若选择了扫描结果文件，在创建成功后上传（Mock：task.ts）
+    // 若选择了扫描结果文件，在创建成功后上传
     if (selectedFile.value) {
       try {
         // const uploadResponse = await taskManagementService.uploadScanResultFile(

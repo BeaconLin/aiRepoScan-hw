@@ -65,155 +65,88 @@
           <div class="view-content">
             <!-- 任务信息区域 -->
             <div v-if="task" class="task-info-section">
-              <!-- 核心信息卡片 -->
-              <div class="core-info-card">
-                <div class="core-info-main">
-                  <div class="main-info-row">
-                    <div class="repo-url-block">
-                      <div class="repo-url-label">代码仓地址</div>
-                      <a v-if="task && task.repoUrl" :href="task.repoUrl" target="_blank" class="repo-url-value">
-                        <span class="repo-icon">🔗</span>
-                        <span class="repo-url-text">{{ task.repoUrl }}</span>
-                      </a>
-                      <div v-else class="repo-url-value">
-                        <span class="repo-icon">❌</span>
-                        <span class="repo-url-text">未提供地址</span>
-                      </div>
+              <div class="task-info-cards-row">
+                <el-card class="task-detail-field-card" shadow="never">
+                  <template #header>
+                    <span class="task-detail-card-title">任务基本信息</span>
+                  </template>
+                  <div class="task-detail-fields">
+                    <div class="task-detail-field-line">
+                      <span>代码仓地址：</span>
+                      <a
+                        v-if="task.repoUrl"
+                        :href="task.repoUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="task-detail-link"
+                      >{{ task.repoUrl }}</a>
+                      <span v-else class="task-detail-muted">未提供地址</span>
                     </div>
-                    <div class="repo-url-block">
-                      <div class="repo-url-label">代码行数</div>
-                      <div class="repo-url-value">
-                        <span class="repo-icon">📊</span>
-                        <span class="repo-url-text">{{ task?.lineNum || 0 }}万行</span>
-                      </div>
+                    <div class="task-detail-field-line">
+                      <span>代码行数：</span><span>{{ task.lineNum ?? 0 }}万行</span>
                     </div>
-                    <div class="repo-url-block">
-                      <div class="repo-url-label">代码语言</div>
-                      <div class="repo-url-value">
-                        <span class="repo-icon">💻</span>
-                        <span class="repo-url-text">{{ task?.codeLanguage || '未知' }}</span>
-                      </div>
+                    <div class="task-detail-field-line">
+                      <span>代码语言：</span><span>{{ task.codeLanguage || '未知' }}</span>
+                    </div>
+                    <div class="task-detail-field-line">
+                      <span>创建人：</span><span>{{ formatTaskCreatorDisplay(task) }}</span>
+                    </div>
+                    <div class="task-detail-field-line">
+                      <span>创建时间：</span><span>{{ task.createTime || '未知' }}</span>
+                    </div>
+                    <div class="task-detail-field-line">
+                      <span>所属部门/开发部：</span><span>{{ task.dept_name || '-' }}</span>
+                    </div>
+                    <div class="task-detail-field-line">
+                      <span>所属PDU：</span><span>{{ task.pdu_name || '-' }}</span>
+                    </div>
+                    <div class="task-detail-field-line">
+                      <span>产品名称：</span><span>{{ task.productName || '-' }}</span>
                     </div>
                   </div>
-                </div>
-              </div>
+                </el-card>
 
-              <!-- 配置信息卡片 -->
-              <div class="config-info-card">
-                <div class="config-header">
-                  <span class="config-title">扫描配置</span>
-                </div>
-                <div class="config-content">
-                  <div class="config-item">
-                    <div class="config-label">
-                      <span class="config-icon">🌿</span>
-                      <span>扫描分支</span>
+                <el-card class="task-detail-field-card" shadow="never">
+                  <template #header>
+                    <span class="task-detail-card-title">扫描设置</span>
+                  </template>
+                  <div class="task-detail-fields">
+                    <div class="task-detail-field-line">
+                      <span>扫描分支：</span><span>{{ task.branch || '未设置' }}</span>
                     </div>
-                    <div class="config-value">{{ task?.branch || '未设置' }}</div>
-                  </div>
-                  <div class="config-item">
-                    <div class="config-label">
-                      <span class="config-icon">🤖</span>
-                      <span>助手版本</span>
+                    <div class="task-detail-field-line">
+                      <span>助手版本：</span><span>{{ assistantVersionsDisplay }}</span>
                     </div>
-                    <div class="config-value">
-                      <el-tag
-                          v-if="task?.assistantVersions && task.assistantVersions.length > 0"
-                          v-for="version in task.assistantVersions"
-                          :key="version"
-                          size="small"
-                          type="info"
-                          class="version-tag"
-                      >
-                        {{ version }}
-                      </el-tag>
-                      <span v-else class="no-version">未设置</span>
+                    <div class="task-detail-field-line">
+                      <span>扫描路径：</span><span>{{ pathListDisplay }}</span>
                     </div>
-                  </div>
-                  <div class="config-item ">
-                    <div class="config-label">
-                      <span class="config-icon">📁</span>
-                      <span>扫描路径</span>
-                    </div>
-                    <div class="config-value">
-                      <el-tag v-if="task?.pathList">
-                        {{ task.pathList }}
-                      </el-tag>
-                      <span v-else class="no-s3path">未设置</span>
-                    </div>
-                  </div>
-                  <div class="config-item ">
-                    <div class="config-label">
-                      <span class="config-icon">📁</span>
-                      <span>扫描结果文件</span>
-                    </div>
-                    <div class="config-value">
-                      <el-tag v-if="task?.s3Path">
-                        {{ task.s3Path }}
-                      </el-tag>
+                    <div class="task-detail-field-line task-detail-field-line--scan-file">
+                      <div class="task-detail-scan-file-main">
+                        <div class="task-detail-scan-grid">
+                          <span class="task-detail-scan-label">扫描结果文件：</span>
+                          <span
+                            class="task-detail-scan-file-value"
+                            :title="scanResultFileDisplay || undefined"
+                          >{{ scanResultFileDisplay || '—' }}</span>
+                          <span class="task-detail-scan-hint">仅支持 JSON 格式；上传后将替换当前任务关联的扫描结果文件。</span>
+                        </div>
+                      </div>
                       <el-upload
-                          ref="uploadRef"
-                          :auto-upload="false"
-                          :limit="1"
-                          :on-change="handleFileChange"
-                          :on-remove="handleFileRemove"
-                          :file-list="fileList"
-                          accept=".json"
+                        ref="scanResultUploadRef"
+                        class="task-detail-scan-upload"
+                        :auto-upload="false"
+                        :show-file-list="false"
+                        :limit="1"
+                        accept=".json"
+                        :on-change="handleScanResultFileChange"
                       >
                         <template #trigger>
-                          <el-button type="primary">选择文件</el-button>
-                        </template>
-                        <template #tip>
-                          <div class="el-upload__tip">
-                            支持上传JSON格式的扫描结果文件
-                          </div>
+                          <el-button type="primary" size="small">{{ scanResultFileButtonText }}</el-button>
                         </template>
                       </el-upload>
-                      <el-button v-if="selectedFile" @click="handleSubmit">
-                        上传
-                      </el-button>
                     </div>
                   </div>
-                </div>
-              </div>
-
-              <!-- 元信息卡片 -->
-              <div class="meta-info-card">
-                <div class="meta-item">
-                  <div class="meta-label">
-                    <span class="meta-icon">👤</span>
-                    <span>创建人</span>
-                  </div>
-                  <div class="meta-value">{{ task ? formatTaskCreatorDisplay(task) : '未知' }}</div>
-                </div>
-                <div class="meta-item">
-                  <div class="meta-label">
-                    <span class="meta-icon">🕐</span>
-                    <span>创建时间</span>
-                  </div>
-                  <div class="meta-value">{{ task?.createTime || '未知' }}</div>
-                </div>
-                <div class="meta-item">
-                  <div class="meta-label">
-                    <span class="meta-icon">🏢</span>
-                    <span>所属部门/开发部</span>
-                  </div>
-                  <div class="meta-value">{{ task?.dept_name || '-' }}</div>
-                </div>
-                <div class="meta-item">
-                  <div class="meta-label">
-                    <span class="meta-icon">🏭</span>
-                    <span>所属PDU</span>
-                  </div>
-                  <div class="meta-value">{{ task?.pdu_name || '-' }}</div>
-                </div>
-                <div class="meta-item">
-                  <div class="meta-label">
-                    <span class="meta-icon">📦</span>
-                    <span>产品名称</span>
-                  </div>
-                  <div class="meta-value">{{ task?.productName || '-' }}</div>
-                </div>
+                </el-card>
               </div>
             </div>
 
@@ -237,42 +170,53 @@
                   </div>
                 </div>
 
-                <!-- 标注比例环形图 -->
-                <div class="chart-card">
+                <!-- 标注完成度（数字指标） -->
+                <div class="chart-card metric-panel">
                   <div class="chart-title">标注完成度</div>
-                  <div ref="annotationRatioChartRef" class="chart-container"></div>
-                  <div class="chart-legend">
-                    <div v-if="statistics.annotated > 0" class="legend-item">
-                      <span class="legend-dot annotated"></span>
-                      <span class="legend-text">已标注：{{ statistics.annotated }}</span>
+                  <div class="metric-panel-body">
+                    <div class="metric-hero">
+                      <span class="metric-hero-value">{{ annotationCompletionRatePct }}</span>
+                      <span class="metric-hero-unit">%</span>
+                      <div class="metric-hero-caption">标注完成率</div>
                     </div>
-                    <div v-if="statistics.unannotated > 0" class="legend-item">
-                      <span class="legend-dot unannotated"></span>
-                      <span class="legend-text">未标注：{{ statistics.unannotated }}</span>
+                    <div class="metric-split">
+                      <div class="metric-cell metric-cell--annotated">
+                        <div class="metric-cell-value">{{ annotationRatioCounts.annotated }}</div>
+                        <div class="metric-cell-label">已标注（条）</div>
+                        <div class="metric-cell-sub">占 {{ annotationCompletionPct.annotated }}%</div>
+                      </div>
+                      <div class="metric-cell metric-cell--unannotated">
+                        <div class="metric-cell-value">{{ annotationRatioCounts.unannotated }}</div>
+                        <div class="metric-cell-label">未标注（条）</div>
+                        <div class="metric-cell-sub">占 {{ annotationCompletionPct.unannotated }}%</div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <!-- 标注状态分布饼图 -->
-                <div class="chart-card">
+                <!-- 标注状态分布（数字指标） -->
+                <div class="chart-card metric-panel">
                   <div class="chart-title">标注状态分布</div>
-                  <div ref="annotationStatusChartRef" class="chart-container"></div>
-                  <div class="chart-legend">
-                    <div v-if="statistics.needModify > 0" class="legend-item">
-                      <span class="legend-dot need-modify"></span>
-                      <span class="legend-text">需要修改：{{ statistics.needModify }}</span>
+                  <div class="metric-grid-4">
+                    <div class="metric-cell metric-cell--need-modify">
+                      <div class="metric-cell-value">{{ statistics.needModify }}</div>
+                      <div class="metric-cell-label">需要修改</div>
+                      <div class="metric-cell-sub">{{ annotationStatusPct.needModify }}%</div>
                     </div>
-                    <div v-if="statistics.noNeedModify > 0" class="legend-item">
-                      <span class="legend-dot no-need-modify"></span>
-                      <span class="legend-text">无需修改：{{ statistics.noNeedModify }}</span>
+                    <div class="metric-cell metric-cell--no-need-modify">
+                      <div class="metric-cell-value">{{ statistics.noNeedModify }}</div>
+                      <div class="metric-cell-label">无需修改</div>
+                      <div class="metric-cell-sub">{{ annotationStatusPct.noNeedModify }}%</div>
                     </div>
-                    <div v-if="statistics.falsePositive > 0" class="legend-item">
-                      <span class="legend-dot false-positive"></span>
-                      <span class="legend-text">问题误报：{{ statistics.falsePositive }}</span>
+                    <div class="metric-cell metric-cell--false-positive">
+                      <div class="metric-cell-value">{{ statistics.falsePositive }}</div>
+                      <div class="metric-cell-label">问题误报</div>
+                      <div class="metric-cell-sub">{{ annotationStatusPct.falsePositive }}%</div>
                     </div>
-                    <div v-if="statistics.unmarked > 0" class="legend-item">
-                      <span class="legend-dot unmarked"></span>
-                      <span class="legend-text">未标注：{{ statistics.unmarked }}</span>
+                    <div class="metric-cell metric-cell--unmarked">
+                      <div class="metric-cell-value">{{ annotationStatusUnmarkedCount }}</div>
+                      <div class="metric-cell-label">未标注</div>
+                      <div class="metric-cell-sub">{{ annotationStatusPct.unmarked }}%</div>
                     </div>
                   </div>
                 </div>
@@ -383,22 +327,6 @@
                         <span class="field-label">问题代码块：</span>
                         <CodeBlock
                             :code="result.warn_code_block || result.code_block || result.code_snippet || ''"
-                            :language="getCodeLanguage()"
-                            style="max-height: 200px; overflow-y: auto;"
-                        />
-                      </div>
-                      <div class="result-field full-width">
-                        <span class="field-label">切片代码块：</span>
-                        <CodeBlock
-                            :code="result.code_snippet || result.warn_code_block || result.code_block || ''"
-                            :language="getCodeLanguage()"
-                            style="max-height: 200px; overflow-y: auto;"
-                        />
-                      </div>
-                      <div class="result-field full-width">
-                        <span class="field-label">上下文代码：</span>
-                        <CodeBlock
-                            :code="result.context || ''"
                             :language="getCodeLanguage()"
                             style="max-height: 200px; overflow-y: auto;"
                         />
@@ -539,21 +467,22 @@ import {
   ElPagination,
   ElAlert,
   ElMessage,
+  ElMessageBox,
   ElSkeleton,
   ElRadioGroup,
   ElRadio,
   ElTree,
   ElTabs,
-  ElTabPane
+  ElTabPane,
+  ElCard,
+  ElUpload
 } from 'element-plus'
+import type { UploadFile, UploadFiles } from 'element-plus'
 import { TASK_STATUS, TASK_STATUS_MAP } from '@/constants/scanTaskConst'
 import { useProfileStore } from '@/stores/userProfile'
 
-import {
-  getTaskDetail,
-  saveAnnotationApi,
-  getAnnotationStatistics,
-} from '@/api/task'
+import { getTaskDetail, saveAnnotationApi, getAnnotationStatistics } from '@/api/task'
+import type { SaveAnnotationReqBody } from '@/api/types/saveAnnotation'
 import CodeBlock from '@/views/taskManagement/components/CodeBlock.vue'
 import taskManagementService from '@/api/services/taskManagementService'
 
@@ -587,6 +516,8 @@ interface Task {
   codeLanguage: string
   lineNum: number
   productName?: string
+  dept_name?: string
+  pdu_name?: string
   s3Path?: string
   scanResults: any[]
   // 兼容旧数据格式
@@ -599,12 +530,15 @@ interface Task {
   product_name?: string
 }
 
+/** 0: 需要修改, 1: 无需修改的问题, 2: 问题误报, null: 未标注 */
+type IssueResult = 0 | 1 | 2 | null
+
 // 标注信息接口
 interface Annotation {
   id?: number // 标注记录id
   warnUuid: string // 告警uuid
   userId: string // 标注用户id，短工号
-  issueResult: number | null // 标注结果（0:需要修改，1:无需修改，2:问题误报，null:未标注）
+  issueResult: IssueResult
   reason: string | null // 标注原因说明
   annotationStatus?: number // 标注状态（1:已标注）
   createTime?: string // 标注创建时间
@@ -632,7 +566,7 @@ interface ScanResult {
   /** 列表展示序号 */
   self_increment_id?: number
   reason: string | null
-  issue_result: number | null // 0: 需要修改, 1: 无需修改的问题, 2: 问题误报, null: 未标注
+  issue_result: IssueResult
   annotator?: string // 标注用户（兼容旧字段）
   annotationTime?: string // 标注时间（兼容旧字段）
   annotation: Annotation | null // 标注信息，可能为null
@@ -685,16 +619,10 @@ interface RuleTreeNode {
   children?: RuleTreeNode[]
 }
 
-type IssueResult = 0 | 1 | 2 | null // 0: 需要修改, 1: 无需修改的问题, 2: 问题误报, null: 未标注
-
-/** 保存标注请求体（与 taskManagementService.saveAnnotationApi POST body 一致） */
-interface SaveAnnotationReqBody {
-  taskId: string
-  warnUuid: string
-  issueResult: IssueResult
-  annotator: string
-  annotationTime: string
-  reason?: string | null
+/** 与接口文档 2.1 一致：YYYY-MM-DD HH:mm:ss */
+function formatAnnotationTimeForApi(d: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
 type TagType = 'success' | 'info' | 'warning' | 'danger'
@@ -717,12 +645,63 @@ function normalizePathListToString(raw: unknown): string {
   return String(raw).trim()
 }
 
-/** 详情页展示用：按逗号拆分为各路径标签 */
-const pathListSegments = computed(() => {
+const pathListDisplay = computed(() => {
   const s = normalizePathListToString(task.value?.pathList)
-  if (!s) return []
-  return s.split(',').map((p) => p.trim()).filter(Boolean)
+  return s || '未设置'
 })
+
+const assistantVersionsDisplay = computed(() => {
+  const v = task.value?.assistantVersions
+  if (v && v.length > 0) return v.join('、')
+  return '未设置'
+})
+
+const scanResultFileDisplay = computed(() => (task.value?.s3Path || '').trim())
+
+const scanResultFileButtonText = computed(() =>
+  scanResultFileDisplay.value ? '修改文件' : '上传文件',
+)
+
+const scanResultUploadRef = ref<{ clearFiles: () => void } | null>(null)
+
+async function handleScanResultFileChange(uploadFile: UploadFile, _uploadFiles: UploadFiles) {
+  const raw = uploadFile.raw
+  const tid = task.value?.taskId
+  if (!raw || !tid) return
+
+  const currentPath = scanResultFileDisplay.value || '（暂无）'
+
+  try {
+    await ElMessageBox.confirm(
+      `将使用所选文件替换当前扫描结果文件，是否继续？\n\n当前路径：${currentPath}\n将要上传：${raw.name}`,
+      '替换扫描结果文件',
+      {
+        confirmButtonText: '确定替换',
+        cancelButtonText: '取消',
+        type: 'warning',
+        distinguishCancelAndClose: true,
+      },
+    )
+  } catch {
+    scanResultUploadRef.value?.clearFiles()
+    return
+  }
+
+  try {
+    const res = await taskManagementService.uploadScanResultFile(tid, raw, userInfo.w3Id || '')
+    if (res.meta.isSuccess) {
+      if (task.value) task.value.s3Path = res.data
+      ElMessage.success('扫描结果文件已更新')
+    } else {
+      ElMessage.error(res.meta.message || '上传失败')
+    }
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('上传失败')
+  } finally {
+    scanResultUploadRef.value?.clearFiles()
+  }
+}
 
 let pagination = ref({
   currentPage: 1,
@@ -919,7 +898,9 @@ const loadTaskData = async (taskId: string): Promise<void> => {
           resTask.pathList ?? resTask.scanPaths ?? '',
         ),
         codeLanguage: resTask.codeLanguage || resTask.language || 'Unknown',
-        lineNum: resTask.lineNum || (resTask.codeLines ? resTask.codeLines / 10000 : 0),
+        lineNum:
+          resTask.lineNum ??
+          (resTask.codeLines != null ? Number(resTask.codeLines) / 1000 : 0),
         productName: resTask.productName || resTask.product_name || '-',
         s3Path: resTask.s3Path || `s3://ai-repo-scan/results/${resTask.taskId || resTask.id}`,
         creator: resTask.creator ?? '',
@@ -1065,6 +1046,53 @@ const statistics = computed<Statistics>(() => {
   })
 
   return stats
+})
+
+/** 标注完成度数据口径（接口 annotatedCount / unannotatedCount 优先） */
+const annotationRatioCounts = computed(() => ({
+  annotated: annotationStatistics.value?.annotatedCount ?? statistics.value.annotated,
+  unannotated: annotationStatistics.value?.unannotatedCount ?? statistics.value.unannotated,
+}))
+
+/** 标注完成度占比（整数百分比） */
+const annotationCompletionPct = computed(() => {
+  const { annotated, unannotated } = annotationRatioCounts.value
+  const t = annotated + unannotated
+  if (!t) return { annotated: 0, unannotated: 0 }
+  return {
+    annotated: Math.round((annotated / t) * 100),
+    unannotated: Math.round((unannotated / t) * 100),
+  }
+})
+
+/** 标注完成率（已标注 / 全部缺陷，整数百分比） */
+const annotationCompletionRatePct = computed(() => {
+  const { annotated, unannotated } = annotationRatioCounts.value
+  const t = annotated + unannotated
+  if (!t) return 0
+  return Math.round((annotated / t) * 100)
+})
+
+/** 标注状态分布中「未标注」数量（与饼图一致：接口未标注数优先） */
+const annotationStatusUnmarkedCount = computed(
+  () => annotationStatistics.value?.unannotatedCount ?? statistics.value.unmarked,
+)
+
+/** 四类标注状态占全部缺陷数的比例（整数百分比） */
+const annotationStatusPct = computed(() => {
+  const s = statistics.value
+  const unmarked = annotationStatusUnmarkedCount.value
+  const needModify = s.needModify
+  const noNeedModify = s.noNeedModify
+  const falsePositive = s.falsePositive
+  const t = needModify + noNeedModify + falsePositive + unmarked
+  if (!t) return { needModify: 0, noNeedModify: 0, falsePositive: 0, unmarked: 0 }
+  return {
+    needModify: Math.round((needModify / t) * 100),
+    noNeedModify: Math.round((noNeedModify / t) * 100),
+    falsePositive: Math.round((falsePositive / t) * 100),
+    unmarked: Math.round((unmarked / t) * 100),
+  }
 })
 
 // 构建规则名称树形结构
@@ -1347,7 +1375,7 @@ const getOrInitAnnotation = (result: ScanResult): Annotation => {
 }
 
 // 获取annotation的issueResult（用于v-model）
-const getAnnotationIssueResult = (result: ScanResult): number | null => {
+const getAnnotationIssueResult = (result: ScanResult): IssueResult => {
   const annotation = getOrInitAnnotation(result)
   return annotation.issueResult
 }
@@ -1411,22 +1439,16 @@ const saveAnnotationHandler = async (result: ScanResult, value: IssueResult): Pr
 
   try {
     const currentUser = userInfo?.w3Id || userInfo?.nameCn || '当前用户'
-    const annotationTime = new Date().toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    }).replace(/\//g, '-')
+    const userNameCn = userInfo?.nameCn?.trim() ?? ''
     
     if (value === null) {
       const reqBody: SaveAnnotationReqBody = {
         taskId,
         warnUuid: uuid,
         issueResult: null,
-        annotator: '',
-        annotationTime: ''
+        userId: '',
+        userName: '',
+        reason: ''
       }
       // await taskManagementService.saveAnnotationApi(reqBody)
       const cancelRes = await saveAnnotationApi(reqBody)
@@ -1453,29 +1475,38 @@ const saveAnnotationHandler = async (result: ScanResult, value: IssueResult): Pr
         taskId,
         warnUuid: uuid,
         issueResult: value,
-        annotator: currentUser,
-        annotationTime,
-        reason: result.annotation?.reason ?? result.reason ?? null
+        userId: currentUser,
+        userName: userNameCn,
+        reason: result.annotation?.reason ?? result.reason ?? ''
       }
+      // const saveRes = await taskManagementService.saveAnnotationApi(reqBody)
       const saveRes = await saveAnnotationApi(reqBody)
       if (!saveRes.meta.isSuccess) {
         throw new Error(saveRes.meta.message || '保存标注失败')
       }
-      
-      // 更新 result 对象的标注信息
+      const saved = saveRes.data
+      if (!saved) {
+        throw new Error(saveRes.meta.message || '保存标注失败：未返回数据')
+      }
+
+      // 更新 result 对象的标注信息（标注时间以服务端返回为准）
       result.issue_result = value
       result.reason = result.annotation?.reason || null
       result.annotator = currentUser
-      result.annotationTime = annotationTime
-      
+      result.annotationTime = saved.updateTime
+
       // 更新或创建annotation对象
       const annotation = getOrInitAnnotation(result)
       annotation.issueResult = value
-      annotation.userId = currentUser
+      annotation.userId = saved.userId || currentUser
       annotation.reason = annotation.reason || null
-      annotation.annotationStatus = 1
-      annotation.createTime = annotation.createTime || annotationTime
-      annotation.updateTime = annotationTime
+      annotation.annotationStatus = saved.annotationStatus
+      annotation.id = saved.id
+      annotation.createTime = saved.createTime
+      annotation.updateTime = saved.updateTime
+      annotation.userName = saved.userName
+      annotation.userDepartment = saved.userDepartment
+      annotation.taskId = saved.taskId ?? taskId
       
       const statusText = getIssueResultLabel(value)
       ElMessage.success(`已标注为：${statusText}`)
@@ -1577,210 +1608,6 @@ const handleRetry = (): void => {
   const taskId = route.params.id as string
   if (taskId) {
     loadTaskData(taskId)
-  }
-}
-
-// 初始化标注比例环形图
-const initAnnotationRatioChart = (): void => {
-  if (!annotationRatioChartRef.value) {
-    console.warn('annotationRatioChartRef 未找到')
-    return
-  }
-  
-  if (annotationRatioChart) {
-    annotationRatioChart.dispose()
-  }
-  
-  try {
-    annotationRatioChart = echarts.init(annotationRatioChartRef.value)
-    
-    // 优先使用接口返回的统计数据
-    const annotated = annotationStatistics.value?.annotatedCount || statistics.value.annotated || 0
-    const unannotated = annotationStatistics.value?.unannotatedCount || statistics.value.unannotated || 0
-    
-    // 过滤掉值为0的数据项
-    const chartData = []
-    if (annotated > 0) {
-      chartData.push({
-        value: annotated,
-        name: '已标注',
-        itemStyle: { color: '#10b981' }  // 绿色系，表示完成
-      })
-    }
-    if (unannotated > 0) {
-      chartData.push({
-        value: unannotated,
-        name: '未标注',
-        itemStyle: { color: '#6b7280' }  // 深灰色，对比明显
-      })
-    }
-    
-    // 如果数据都为0，显示空状态
-    if (chartData.length === 0) {
-      annotationRatioChart.setOption({
-        graphic: {
-          type: 'text',
-          left: 'center',
-          top: 'center',
-          style: {
-            text: '暂无数据',
-            fontSize: 14,
-            fill: '#9ca3af'
-          }
-        }
-      })
-      return
-    }
-    
-    const option = {
-      tooltip: {
-        trigger: 'item',
-        formatter: '{b}: {c} ({d}%)'
-      },
-      series: [
-        {
-          name: '标注完成度',
-          type: 'pie',
-          radius: ['40%', '70%'],
-          avoidLabelOverlap: false,
-          itemStyle: {
-            borderRadius: 8,
-            borderColor: '#fff',
-            borderWidth: 2
-          },
-          label: {
-            show: true,
-            formatter: '{d}%'
-          },
-          emphasis: {
-            label: {
-              show: true,
-              fontSize: 16,
-              fontWeight: 'bold'
-            }
-          },
-          data: chartData
-        }
-      ]
-    }
-    
-    annotationRatioChart.setOption(option)
-    console.log('标注比例环形图初始化成功')
-  } catch (error) {
-    console.error('初始化标注比例环形图失败:', error)
-  }
-}
-
-// 初始化标注状态分布饼图
-const initAnnotationStatusChart = (): void => {
-  if (!annotationStatusChartRef.value) {
-    console.warn('annotationStatusChartRef 未找到')
-    return
-  }
-  
-  if (annotationStatusChart) {
-    annotationStatusChart.dispose()
-  }
-  
-  try {
-    annotationStatusChart = echarts.init(annotationStatusChartRef.value)
-    
-    // 接口的 statusDistribution 只包含"已标注"的汇总信息
-    // 各个标注结果（需要修改、无需修改、问题误报）需要从本地数据计算
-    // 未标注数优先使用接口返回的数据
-    const needModify = statistics.value.needModify || 0
-    const noNeedModify = statistics.value.noNeedModify || 0
-    const falsePositive = statistics.value.falsePositive || 0
-    const unmarked = annotationStatistics.value?.unannotatedCount || statistics.value.unmarked || 0
-    
-    // 过滤掉值为0的数据项
-    const chartData = []
-    if (needModify > 0) {
-      chartData.push({
-        value: needModify,
-        name: '需要修改',
-        itemStyle: { color: '#ef4444' }  // 鲜明的红色，对比明显
-      })
-    }
-    if (noNeedModify > 0) {
-      chartData.push({
-        value: noNeedModify,
-        name: '无需修改',
-        itemStyle: { color: '#f59e0b' }  // 鲜明的橙色，对比明显
-      })
-    }
-    if (falsePositive > 0) {
-      chartData.push({
-        value: falsePositive,
-        name: '问题误报',
-        itemStyle: { color: '#3b82f6' }  // 鲜明的蓝色，对比明显
-      })
-    }
-    if (unmarked > 0) {
-      chartData.push({
-        value: unmarked,
-        name: '未标注',
-        itemStyle: { color: '#64748b' }  // 深灰蓝色，对比明显
-      })
-    }
-    
-    // 如果数据都为0，显示空状态
-    if (chartData.length === 0) {
-      annotationStatusChart.setOption({
-        graphic: {
-          type: 'text',
-          left: 'center',
-          top: 'center',
-          style: {
-            text: '暂无数据',
-            fontSize: 14,
-            fill: '#9ca3af'
-          }
-        }
-      })
-      return
-    }
-    
-    const option = {
-      tooltip: {
-        trigger: 'item',
-        formatter: '{b}: {c} ({d}%)'
-      },
-      legend: {
-        show: false
-      },
-      series: [
-        {
-          name: '标注状态',
-          type: 'pie',
-          radius: '65%',
-          center: ['50%', '50%'],
-          avoidLabelOverlap: false,
-          itemStyle: {
-            borderRadius: 8,
-            borderColor: '#fff',
-            borderWidth: 2
-          },
-          label: {
-            show: true,
-            formatter: '{b}\n{d}%'
-          },
-          emphasis: {
-            label: {
-              show: true,
-              fontSize: 14,
-              fontWeight: 'bold'
-            }
-          },
-          data: chartData
-        }
-      ]
-    }
-    
-    annotationStatusChart.setOption(option)
-    console.log('标注状态分布饼图初始化成功')
-  } catch (error) {
-    console.error('初始化标注状态分布饼图失败:', error)
   }
 }
 
@@ -1900,8 +1727,6 @@ const initRuleDistributionChart = (): void => {
 
 // 窗口大小变化处理函数
 const handleResize = (): void => {
-  annotationRatioChart?.resize()
-  annotationStatusChart?.resize()
   ruleDistributionChart?.resize()
 }
 
@@ -1915,29 +1740,18 @@ const updateAllCharts = async (): Promise<void> => {
   
   // 检查统计数据
   if (statistics.value.totalIssues === 0) {
-    console.log('统计数据为空，跳过图表初始化')
     return
   }
-  
+
   // 检查 DOM 元素是否存在
-  if (!annotationRatioChartRef.value || !annotationStatusChartRef.value || !ruleDistributionChartRef.value) {
-    console.warn('图表容器 DOM 元素未找到，延迟重试')
-    // 如果 DOM 元素还没准备好，延迟重试
+  if (!ruleDistributionChartRef.value) {
     setTimeout(() => {
       updateAllCharts()
     }, 200)
     return
   }
-  
-  console.log('开始初始化图表', {
-    totalIssues: statistics.value.totalIssues,
-    annotated: statistics.value.annotated,
-    unannotated: statistics.value.unannotated
-  })
-  
+
   try {
-    initAnnotationRatioChart()
-    initAnnotationStatusChart()
     initRuleDistributionChart()
     
     // 监听窗口大小变化，自动调整图表大小（避免重复添加）
@@ -1955,7 +1769,6 @@ watch(
   () => [statistics.value, scanResultsList.value.length, annotationStatistics.value],
   () => {
     if (task.value?.taskStatus === TASK_STATUS.COMPLETED && scanResultsList.value.length > 0) {
-      console.log('统计数据变化，更新图表')
       updateAllCharts()
     }
   },
@@ -1980,14 +1793,6 @@ onUnmounted(() => {
     delete (window as any)._chartResizeHandlerAdded
   }
   
-  if (annotationRatioChart) {
-    annotationRatioChart.dispose()
-    annotationRatioChart = null
-  }
-  if (annotationStatusChart) {
-    annotationStatusChart.dispose()
-    annotationStatusChart = null
-  }
   if (ruleDistributionChart) {
     ruleDistributionChart.dispose()
     ruleDistributionChart = null
@@ -2059,11 +1864,113 @@ onUnmounted(() => {
 }
 
 .task-info-section {
-  background: #ffffff;
-  border-radius: 8px;
-  padding: 16px;
   margin-bottom: 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.task-info-cards-row {
+  display: flex;
+  gap: 16px;
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+
+.task-detail-field-card {
+  flex: 1;
+  min-width: 280px;
+}
+
+.task-detail-field-card :deep(.el-card__header) {
+  padding: 12px 16px;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.task-detail-field-card :deep(.el-card__body) {
+  padding: 16px;
+}
+
+.task-detail-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.task-detail-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.task-detail-field-line {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #303133;
+  word-break: break-word;
+}
+
+.task-detail-link {
+  color: #409eff;
+  text-decoration: none;
+}
+
+.task-detail-link:hover {
+  text-decoration: underline;
+}
+
+.task-detail-muted {
+  color: #909399;
+}
+
+.task-detail-field-line--scan-file {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.task-detail-scan-file-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.task-detail-scan-grid {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 4px;
+  row-gap: 4px;
+  align-items: start;
+}
+
+.task-detail-scan-label {
+  grid-column: 1;
+  grid-row: 1;
+  flex-shrink: 0;
+}
+
+.task-detail-scan-file-value {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-detail-scan-hint {
+  grid-column: 2;
+  grid-row: 2;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #909399;
+}
+
+.task-detail-scan-upload {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.task-detail-scan-upload :deep(.el-upload) {
+  display: inline-block;
 }
 
 .dashboard-section,
@@ -2132,224 +2039,14 @@ onUnmounted(() => {
   font-size: 16px;
 }
 
-/* 核心信息卡片 */
-.core-info-card {
-  background: #ffffff;
-  border: 2px solid #3b82f6;
-  border-radius: 12px;
-  padding: 18px;
-  margin-bottom: 12px;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
-  transition: all 0.3s;
-}
-
-.core-info-card:hover {
-  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.15);
-}
-
-.core-info-main {
-  margin-bottom: 0;
-}
-
-.main-info-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-  align-items: start;
-}
-
-.repo-url-block {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  flex: 1;
-}
-
-.repo-url-label {
-  font-size: 12px;
-  color: #6b7280;
-  margin-bottom: 6px;
-  font-weight: 500;
-}
-
-.repo-url-value {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: #3b82f6;
-  text-decoration: none;
-  font-size: 14px;
-  padding: 8px 12px;
-  background: #eff6ff;
-  border: 1px solid #dbeafe;
-  border-radius: 6px;
-  transition: all 0.3s;
-  word-break: break-all;
-  min-width: 0;
-}
-
-.repo-url-value:hover {
-  background: #dbeafe;
-  border-color: #3b82f6;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
-}
-
-.repo-url-value:not(a) {
-  cursor: default;
-}
-
-.repo-url-value:not(a):hover {
-  transform: none;
-}
-
-.repo-icon {
-  font-size: 14px;
-  flex-shrink: 0;
-}
-
-.repo-url-text {
-  flex: 1;
-  min-width: 0;
-  overflow-wrap: break-word;
-  word-break: break-all;
-}
-
-
-/* 配置信息卡片 */
-.config-info-card {
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s;
-}
-
-.config-info-card:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  border-color: #d1d5db;
-}
-
-.config-header {
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.config-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: #374151;
-}
-
-.config-content {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.config-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 12px;
-  background: #f9fafb;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
-  transition: all 0.3s;
-}
-
-.config-item.full-width {
-  grid-column: 1 / -1;
-}
-
-.config-item:hover {
-  background: #f3f4f6;
-  border-color: #d1d5db;
-}
-
-.config-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #6b7280;
-  min-width: 80px;
-  flex-shrink: 0;
-}
-
-.config-icon {
-  font-size: 14px;
-}
-
-.config-value {
-  flex: 1;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-  color: #374151;
-  font-size: 13px;
-  word-break: break-all;
-}
-
-.path-tag,
-.version-tag {
-  margin: 0;
-}
-
-/* 元信息卡片 */
-.meta-info-card {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 12px;
-}
-
-.meta-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  transition: all 0.3s;
-}
-
-.meta-item:hover {
-  background: #f3f4f6;
-  border-color: #d1d5db;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-.meta-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #6b7280;
-}
-
-.meta-icon {
-  font-size: 14px;
-}
-
-.meta-value {
-  font-size: 13px;
-  color: #374151;
-  font-weight: 500;
-}
-
 .dashboard-content {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 24px;
+  align-items: stretch;
 }
 
+/* 规则分布图独占下一整行 */
 .dashboard-content .full-width {
   grid-column: 1 / -1;
 }
@@ -2428,6 +2125,107 @@ onUnmounted(() => {
   border-bottom: 2px solid #f3f4f6;
 }
 
+.metric-panel .chart-title {
+  margin-bottom: 12px;
+}
+
+.metric-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.metric-hero {
+  text-align: center;
+  padding: 8px 0 4px;
+}
+
+.metric-hero-value {
+  font-size: 48px;
+  font-weight: 700;
+  line-height: 1;
+  color: #059669;
+  letter-spacing: -0.02em;
+}
+
+.metric-hero-unit {
+  font-size: 22px;
+  font-weight: 600;
+  color: #059669;
+  margin-left: 2px;
+}
+
+.metric-hero-caption {
+  margin-top: 8px;
+  font-size: 14px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.metric-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.metric-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.metric-cell {
+  padding: 16px 14px;
+  border-radius: 10px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  text-align: center;
+}
+
+.metric-cell-value {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #111827;
+}
+
+.metric-cell-label {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.metric-cell-sub {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.metric-cell--annotated .metric-cell-value {
+  color: #059669;
+}
+
+.metric-cell--unannotated .metric-cell-value {
+  color: #4b5563;
+}
+
+.metric-cell--need-modify .metric-cell-value {
+  color: #dc2626;
+}
+
+.metric-cell--no-need-modify .metric-cell-value {
+  color: #d97706;
+}
+
+.metric-cell--false-positive .metric-cell-value {
+  color: #2563eb;
+}
+
+.metric-cell--unmarked .metric-cell-value {
+  color: #475569;
+}
+
 .chart-container {
   width: 100%;
   height: 300px;
@@ -2438,60 +2236,6 @@ onUnmounted(() => {
   width: 100%;
   height: 400px;
   min-height: 400px;
-}
-
-.chart-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #f3f4f6;
-  justify-content: center;
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: #6b7280;
-}
-
-.legend-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.legend-dot.annotated {
-  background-color: #10b981;  /* 绿色，与标注完成度图表一致 */
-}
-
-.legend-dot.unannotated {
-  background-color: #6b7280;  /* 深灰色，与标注完成度图表一致 */
-}
-
-.legend-dot.need-modify {
-  background-color: #ef4444;  /* 鲜明的红色，与标注状态分布图表一致 */
-}
-
-.legend-dot.no-need-modify {
-  background-color: #f59e0b;  /* 鲜明的橙色，与标注状态分布图表一致 */
-}
-
-.legend-dot.false-positive {
-  background-color: #3b82f6;  /* 鲜明的蓝色，与标注状态分布图表一致 */
-}
-
-.legend-dot.unmarked {
-  background-color: #64748b;  /* 深灰蓝色，与标注状态分布图表一致 */
-}
-
-.legend-text {
-  color: #374151;
-  font-weight: 500;
 }
 
 /* 规则树形结构样式 */
@@ -3000,30 +2744,13 @@ onUnmounted(() => {
 }
 
 @media (max-width: 768px) {
-  .main-info-row {
-    grid-template-columns: 1fr;
-    gap: 12px;
+  .task-info-cards-row {
+    flex-direction: column;
   }
 
-  .repo-url-block {
-    width: 100%;
-  }
-
-  .repo-url-value {
-    white-space: normal;
-    word-break: break-all;
-  }
-
-  .config-content {
-    grid-template-columns: 1fr;
-  }
-
-  .config-item.full-width {
-    grid-column: 1;
-  }
-
-  .meta-info-card {
-    grid-template-columns: 1fr;
+  .task-detail-field-line--scan-file {
+    flex-wrap: wrap;
+    align-items: flex-start;
   }
 
   .header-left {
@@ -3123,16 +2850,14 @@ onUnmounted(() => {
     min-height: 300px;
   }
 
-  .chart-legend {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
+  .metric-hero-value {
+    font-size: 40px;
   }
 }
 
-@media (max-width: 1200px) {
+@media (min-width: 769px) and (max-width: 1200px) {
   .dashboard-content {
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
   }
 }
 </style>
