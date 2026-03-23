@@ -1,5 +1,10 @@
 import { TASK_STATUS } from '../constants/scanTaskConst'
-import type { IssueResult, SaveAnnotationReqBody, SaveAnnotationResultData } from './types/saveAnnotation'
+import type {
+    IssueResult,
+    SaveAnnotationReqBody,
+    SaveAnnotationResultData,
+    TaskDetailPaginationInfo,
+} from './types/saveAnnotation'
 
 /** 与历史 task store 一致，用于任务列表持久化 */
 const TASKS_STORAGE_KEY = 'aiRepoScan_tasks'
@@ -71,6 +76,8 @@ interface TaskDetail {
     productName: string
     s3Path: string
     scanResults: ScanResult[]
+    /** 扫描结果分页信息（与接口文档「查询任务详情」一致；未完成或无明细时为 null） */
+    paginationInfo?: TaskDetailPaginationInfo | null
 }
 
 /** 与后端统一：接口元信息 */
@@ -108,8 +115,95 @@ function envelopeFail<T>(data: T, number: number, message: string): ApiEnvelope<
     }
 }
 
+/** POST `/api/tasks/{taskId}/uploadDataSet` 内层 meta（与接口文档 1.4 一致） */
+export interface UploadScanResultFileInnerMeta {
+    success: boolean
+    message: string
+    number: number
+}
+
+/** 内层 `data` 与 `meta`（与接口文档 1.4 一致） */
+export interface UploadScanResultFileResponseData {
+    meta: UploadScanResultFileInnerMeta
+    /** 上传后的对象路径，如 `AIRepoScan/task_123456/scan_result.json` */
+    data: string
+}
+
+/**
+ * 上传扫描结果完整响应体（与接口文档 1.4 一致：顶层仅 `data`，其内再含 `meta` 与 `data`）
+ */
+export interface UploadScanResultFileResponse {
+    data: UploadScanResultFileResponseData
+}
+
 /** 列表项（不含扫描结果明细） */
 export type TaskListItem = Omit<TaskDetail, 'scanResults'>
+
+/**
+ * 查询任务列表 GET /api/tasks 响应 `data.list` 单条（与接口文档 1.1 一致）
+ * - `assistantVersions` 为逗号分隔字符串
+ * - `scanResults` 列表接口固定为空数组，`paginationInfo` 固定为 null
+ */
+export interface TaskListApiRow {
+    taskId: string
+    taskName: string
+    repoUrl: string
+    branch: string
+    pathList: string
+    s3Path: string
+    creator: string
+    createTime: string
+    taskStatus: string
+    assistantVersions: string
+    productName: string
+    codeLanguage: string | null
+    lineNum: number | null
+    deptName: string | null
+    pduName: string | null
+    warnCount: number | null
+    scanResults: unknown[]
+    paginationInfo: null
+    /** 前端展示用（接口文档未列） */
+    nameCn?: string
+}
+
+/** 查询任务列表 GET /api/tasks 响应 `data` 体（与接口文档 1.1 一致） */
+export interface TaskListPageData {
+    total: number
+    pages: number
+    size: number
+    page: number
+    list: TaskListApiRow[]
+}
+
+function mapTaskDetailToListApiRow(t: TaskDetail): TaskListApiRow {
+    const av = Array.isArray(t.assistantVersions)
+        ? t.assistantVersions.map((s) => String(s).trim()).filter(Boolean).join(',')
+        : String(t.assistantVersions ?? '')
+    const warnN = mockScanResults[t.taskId]?.length ?? t.scanResults?.length ?? 0
+    const ext = t as TaskDetail & { deptName?: string; pduName?: string }
+    return {
+        taskId: t.taskId,
+        taskName: t.taskName,
+        repoUrl: t.repoUrl,
+        branch: t.branch,
+        pathList: t.pathList,
+        s3Path: t.s3Path,
+        creator: t.creator,
+        createTime: t.createTime,
+        taskStatus: t.taskStatus,
+        assistantVersions: av,
+        productName: t.productName,
+        codeLanguage: t.codeLanguage?.trim() ? t.codeLanguage : null,
+        lineNum: typeof t.lineNum === 'number' && Number.isFinite(t.lineNum) ? t.lineNum : null,
+        deptName: ext.deptName?.trim() ? ext.deptName : null,
+        pduName: ext.pduName?.trim() ? ext.pduName : null,
+        warnCount: warnN > 0 ? warnN : null,
+        scanResults: [],
+        paginationInfo: null,
+        nameCn: t.nameCn?.trim() ? t.nameCn : undefined,
+    }
+}
 
 /** 创建任务入参（与创建表单 / 接口字段对齐） */
 export interface CreateTaskPayload {
@@ -689,14 +783,54 @@ const getAnnotationsForTask = (taskId: string): Record<string, AnnotationData> =
 }
 
 /**
- * 任务列表（不含 scanResults）
+ * 查询任务列表（带过滤），与 GET `/api/tasks` 一致
+ * @param pageNum 必填，当前页码（从 1 起）
+ * @param pageSize 必填，每页条数
+ * @param creator 可选，创建人筛选
+ * @param taskStatus 可选，任务状态筛选
+ * @param taskName 可选，任务名称模糊筛选
  */
-export const queryTaskList = async (): Promise<ApiEnvelope<TaskListItem[]>> => {
-    const list: TaskListItem[] = Object.values(mockTaskDetails).map(
-        ({ scanResults: _sr, ...rest }) => rest
-    )
-    list.sort((a, b) => b.createTime.localeCompare(a.createTime))
-    return envelopeOk(list)
+export const queryTaskList = async (
+    pageNum: number,
+    pageSize: number,
+    creator?: string,
+    taskStatus?: string,
+    taskName?: string
+): Promise<ApiEnvelope<TaskListPageData>> => {
+    let rows = Object.values(mockTaskDetails)
+    const c = creator?.trim()
+    if (c) {
+        rows = rows.filter((t) => t.creator === c)
+    }
+    const st = taskStatus?.trim()
+    if (st) {
+        rows = rows.filter((t) => t.taskStatus === st)
+    }
+    const tn = taskName?.trim()
+    if (tn) {
+        const q = tn.toLowerCase()
+        rows = rows.filter((t) => t.taskName.toLowerCase().includes(q))
+    }
+    rows.sort((a, b) => b.createTime.localeCompare(a.createTime))
+
+    const total = rows.length
+    const size = Math.max(1, pageSize || 8)
+    const pages = Math.max(1, Math.ceil(total / size) || 1)
+    let page = Math.max(1, pageNum || 1)
+    if (page > pages) {
+        page = pages
+    }
+    const start = (page - 1) * size
+    const slice = rows.slice(start, start + size)
+    const list: TaskListApiRow[] = slice.map((t) => mapTaskDetailToListApiRow(t))
+
+    return envelopeOk({
+        total,
+        pages,
+        size,
+        page,
+        list,
+    })
 }
 
 /**
@@ -745,7 +879,7 @@ export const createTaskApi = async (payload: CreateTaskPayload): Promise<ApiEnve
 /**
  * 删除任务
  */
-export const deleteTaskApi = async (taskId: string): Promise<ApiEnvelope<boolean>> => {
+export const deleteTaskById = async (taskId: string): Promise<ApiEnvelope<boolean>> => {
     if (!mockTaskDetails[taskId]) {
         return envelopeFail(false, 404, '未找到任务')
     }
@@ -757,34 +891,71 @@ export const deleteTaskApi = async (taskId: string): Promise<ApiEnvelope<boolean
 }
 
 /**
- * 上传扫描结果文件（Mock，供创建任务流程使用）
+ * 上传扫描结果文件（Mock：与 POST `/api/tasks/{taskId}/uploadDataSet`、接口文档 1.4 响应结构一致）
  */
 export const uploadScanResultFile = async (
     taskId: string,
     file: File,
     _userId: string
-): Promise<ApiEnvelope<string>> => {
+): Promise<UploadScanResultFileResponse> => {
     await new Promise((resolve) => setTimeout(resolve, 200))
-    const path = `s3://ai-repo-scan/uploads/${taskId}/${file.name}`
+    const path = `AIRepoScan/${taskId}/${file.name}`
     const t = mockTaskDetails[taskId]
     if (t) {
         t.s3Path = path
         persistTasksToStorage()
     }
-    return envelopeOk(path)
+    return {
+        data: {
+            meta: {
+                success: true,
+                message: '上传成功',
+                number: 200,
+            },
+            data: path,
+        },
+    }
 }
 
 /**
- * 通过 taskId 获取任务详情（与 `taskManagementService.getTaskDetail(taskId, pageNum, pageSize)` 入参一致）
+ * 任务详情 scanResults 按标注状态筛选（与 GET `/api/tasks/{taskId}` 的 query 一致）
+ * - 空字符串：不过滤
+ * - `unmarked`：仅未标注（issue_result 为 null）
+ * - `0` / `1` / `2`：对应已标注结果
+ */
+export type TaskDetailAnnotationStatusFilter = '' | 'unmarked' | '0' | '1' | '2'
+
+function filterScanResultsByAnnotationStatus(
+    results: ScanResult[],
+    annotationStatus: string
+): ScanResult[] {
+    const raw = annotationStatus == null ? '' : String(annotationStatus).trim()
+    if (raw === '') {
+        return results
+    }
+    if (raw === 'unmarked') {
+        return results.filter((r) => r.issue_result === null)
+    }
+    const n = Number.parseInt(raw, 10)
+    if (!Number.isNaN(n)) {
+        return results.filter((r) => r.issue_result === n)
+    }
+    return results
+}
+
+/**
+ * 通过 taskId 获取任务详情（与 `taskManagementService.getTaskDetail` 入参一致）
  * @param taskId - 任务ID
- * @param pageNum - 页码（真实接口 query；本地 mock 暂不用于截取 scanResults，见下方说明）
- * @param pageSize - 每页条数（真实接口 query；本地 mock 暂不用于截取）
+ * @param pageNum - 页码（与接口 query `pageNum` 一致；mock 对 scanResults 做分页切片）
+ * @param pageSize - 每页条数（与接口 query `pageSize` 一致）
+ * @param annotationStatus - 标注状态筛选（真实接口 query；mock 在返回前过滤 scanResults）
  * @returns {Promise<ApiEnvelope<TaskDetail>>} 任务详情（data + meta）
  */
 export const getTaskDetail = async (
     taskId: string,
-    _pageNum: number,
-    _pageSize: number
+    pageNum: number,
+    pageSize: number,
+    annotationStatus: TaskDetailAnnotationStatusFilter | string = ''
 ): Promise<ApiEnvelope<TaskDetail>> => {
     // 直接从 mock 数据中获取任务信息
     const taskDetail = mockTaskDetails[taskId]
@@ -828,12 +999,34 @@ export const getTaskDetail = async (
                 annotation: r.annotation || null // 保留原始annotation字段
             }
         })
+        scanResults = filterScanResultsByAnnotationStatus(scanResults, annotationStatus)
     }
 
-    // 组装返回数据
+    let finalScanResults = scanResults
+    let paginationInfo: TaskDetailPaginationInfo | null = null
+
+    if (taskDetail.taskStatus === TASK_STATUS.COMPLETED) {
+        const totalCount = scanResults.length
+        const ps = Math.max(1, pageSize || 10)
+        const totalPages = Math.max(1, Math.ceil(totalCount / ps) || 1)
+        let pn = Math.max(1, pageNum || 1)
+        if (pn > totalPages) pn = totalPages
+        const start = (pn - 1) * ps
+        finalScanResults = scanResults.slice(start, start + ps)
+        paginationInfo = {
+            totalPages,
+            pageSize: ps,
+            hasPrevious: pn > 1,
+            hasNext: pn < totalPages,
+            currentPage: pn,
+            totalCount
+        }
+    }
+
     const resTask: TaskDetail = {
         ...taskDetail,
-        scanResults: scanResults
+        scanResults: finalScanResults,
+        paginationInfo
     }
 
     return envelopeOk(resTask)

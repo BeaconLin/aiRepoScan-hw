@@ -248,7 +248,7 @@
               class="view-content"
               :class="{
                 'view-content--with-fixed-pagination':
-                  task && task.taskStatus === TASK_STATUS.COMPLETED && filteredScanResultsList.length > 0
+                  task && task.taskStatus === TASK_STATUS.COMPLETED && pagination.total > 0
               }"
           >
             <!-- 扫描结果列表和规则树区域 - 仅当任务状态为已完成时显示 -->
@@ -422,7 +422,7 @@
 
             <!-- 分页区域 - 仅当任务状态为已完成时显示；固定底部悬浮 -->
             <div
-                v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && filteredScanResultsList.length > 0"
+                v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && pagination.total > 0"
                 class="pagination-section pagination-bar-fixed"
             >
               <el-pagination
@@ -457,13 +457,13 @@
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import * as echarts from 'echarts'
-import { 
-  ElButton, 
-  ElTag, 
-  ElInput, 
-  ElSelect, 
-  ElOption, 
-  ElEmpty, 
+import {
+  ElButton,
+  ElTag,
+  ElInput,
+  ElSelect,
+  ElOption,
+  ElEmpty,
   ElPagination,
   ElAlert,
   ElMessage,
@@ -481,7 +481,7 @@ import type { UploadFile, UploadFiles } from 'element-plus'
 import { TASK_STATUS, TASK_STATUS_MAP } from '@/constants/scanTaskConst'
 import { useProfileStore } from '@/stores/userProfile'
 
-import { getTaskDetail, saveAnnotationApi, getAnnotationStatistics } from '@/api/task'
+import { getTaskDetail, uploadScanResultFile, saveAnnotationApi, getAnnotationStatistics } from '@/api/task'
 import type { SaveAnnotationReqBody } from '@/api/types/saveAnnotation'
 import CodeBlock from '@/views/taskManagement/components/CodeBlock.vue'
 import taskManagementService from '@/api/services/taskManagementService'
@@ -653,9 +653,9 @@ function normalizeAssistantVersionsToParts(raw: unknown): string[] {
     return raw.map((x) => String(x).trim()).filter(Boolean)
   }
   return String(raw)
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
 }
 
 const pathListDisplay = computed(() => {
@@ -671,7 +671,7 @@ const assistantVersionsDisplay = computed(() => {
 const scanResultFileDisplay = computed(() => (task.value?.s3Path || '').trim())
 
 const scanResultFileButtonText = computed(() =>
-  scanResultFileDisplay.value ? '修改文件' : '上传文件',
+    scanResultFileDisplay.value ? '修改文件' : '上传文件',
 )
 
 const scanResultUploadRef = ref<{ clearFiles: () => void } | null>(null)
@@ -685,14 +685,14 @@ async function handleScanResultFileChange(uploadFile: UploadFile, _uploadFiles: 
 
   try {
     await ElMessageBox.confirm(
-      `将使用所选文件替换当前扫描结果文件，是否继续？\n\n当前路径：${currentPath}\n将要上传：${raw.name}`,
-      '替换扫描结果文件',
-      {
-        confirmButtonText: '确定替换',
-        cancelButtonText: '取消',
-        type: 'warning',
-        distinguishCancelAndClose: true,
-      },
+        `将使用所选文件替换当前扫描结果文件，是否继续？\n\n当前路径：${currentPath}\n将要上传：${raw.name}`,
+        '替换扫描结果文件',
+        {
+          confirmButtonText: '确定替换',
+          cancelButtonText: '取消',
+          type: 'warning',
+          distinguishCancelAndClose: true,
+        },
     )
   } catch {
     scanResultUploadRef.value?.clearFiles()
@@ -700,12 +700,16 @@ async function handleScanResultFileChange(uploadFile: UploadFile, _uploadFiles: 
   }
 
   try {
-    const res = await taskManagementService.uploadScanResultFile(tid, raw, userInfo.w3Id || '')
-    if (res.meta.isSuccess) {
-      if (task.value) task.value.s3Path = res.data
+    // const res = await taskManagementService.uploadScanResultFile(tid, raw, userInfo.w3Id || '')
+    const res = await uploadScanResultFile(tid, raw, userInfo.w3Id || '')
+    const uploadResponse = res.data
+    if (uploadResponse.meta.success) {
+      if (task.value) {
+        task.value.s3Path = uploadResponse.data
+      }
       ElMessage.success('扫描结果文件已更新')
     } else {
-      ElMessage.error(res.meta.message || '上传失败')
+      ElMessage.error(uploadResponse.meta.message || '上传失败')
     }
   } catch (e) {
     console.error(e)
@@ -886,33 +890,28 @@ const loadTaskData = async (taskId: string): Promise<void> => {
 
   try {
     // 获取任务详情（已包含扫描结果）。
-    // const taskResponse = await taskManagementService.getTaskDetail(taskId,pagination.value.currentPage,pagination.value.pageSize)
-    const taskResponse = await getTaskDetail(
-      taskId,
-      pagination.value.currentPage,
-      pagination.value.pageSize
-    )
-    
+    // const taskResponse = await taskManagementService.getTaskDetail(taskId, pagination.value.currentPage, pagination.value.pageSize)
+    const taskResponse = await getTaskDetail(taskId, pagination.value.currentPage, pagination.value.pageSize)
     // 设置任务详情（兼容旧数据格式）；成功态以 ApiResponseMeta.isSuccess 为准
     if (taskResponse.meta.isSuccess && taskResponse.data) {
       const resTask = taskResponse.data as any
-      
+
       // 转换为新格式
       const rawScanResults: any[] = Array.isArray(resTask.scanResults)
-        ? resTask.scanResults
-        : []
+          ? resTask.scanResults
+          : []
 
       task.value = {
         ...resTask,
         taskId: resTask.taskId || resTask.id,
         taskStatus: resTask.taskStatus || resTask.status,
         pathList: normalizePathListToString(
-          resTask.pathList ?? resTask.scanPaths ?? '',
+            resTask.pathList ?? resTask.scanPaths ?? '',
         ),
         codeLanguage: resTask.codeLanguage || resTask.language || 'Unknown',
         lineNum:
-          resTask.lineNum ??
-          (resTask.codeLines != null ? Number(resTask.codeLines) / 1000 : 0),
+            resTask.lineNum ??
+            (resTask.codeLines != null ? Number(resTask.codeLines) / 1000 : 0),
         productName: resTask.productName || resTask.product_name || '-',
         s3Path: resTask.s3Path || `s3://ai-repo-scan/results/${resTask.taskId || resTask.id}`,
         creator: resTask.creator ?? '',
@@ -937,27 +936,41 @@ const loadTaskData = async (taskId: string): Promise<void> => {
             issue_result: item.issue_result ?? item.issueResult ?? null,
             reason: item.reason ?? null,
             // 处理annotation字段：如果存在annotation对象，直接使用；否则根据issue_result等字段创建
-            annotation: item.annotation ? {
-              id: item.annotation.id,
-              warnUuid: item.annotation.warnUuid || item.annotation.warn_uuid || item.warn_uuid,
-              userId: item.annotation.userId || item.annotation.user_id || item.annotator || '',
-              issueResult: item.annotation.issueResult ?? item.annotation.issue_result ?? item.issue_result ?? null,
-              reason: item.annotation.reason ?? item.reason ?? null,
-              annotationStatus: item.annotation.annotationStatus ?? item.annotation.annotation_status ?? (item.issue_result !== null && item.issue_result !== undefined ? 1 : undefined),
-              createTime: item.annotation.createTime || item.annotation.create_time || item.annotationTime,
-              updateTime: item.annotation.updateTime || item.annotation.update_time || item.annotationTime,
-              userName: item.annotation.userName || item.annotation.user_name || null,
-              userDepartment: item.annotation.userDepartment || item.annotation.user_department || null,
-              taskId: item.annotation.taskId || item.annotation.task_id || null
-            } : (item.issue_result !== null && item.issue_result !== undefined ? {
-              warnUuid: item.warn_uuid || item.warnUuid || item.id || '',
-              userId: item.annotator || item.annotation?.userId || '',
-              issueResult: item.issue_result ?? item.issueResult ?? null,
-              reason: item.reason ?? null,
-              annotationStatus: 1,
-              createTime: item.annotationTime || item.annotation?.createTime,
-              updateTime: item.annotationTime || item.annotation?.updateTime
-            } : null)
+            annotation: (() => {
+              // 如果有annotation对象，直接使用
+              if (item.annotation) {
+                return {
+                  id: item.annotation.id,
+                  warnUuid: item.annotation.warnUuid || item.annotation.warn_uuid || item.warn_uuid,
+                  userId: item.annotation.userId || item.annotation.user_id || item.annotator || '',
+                  issueResult: item.annotation.issueResult ?? item.annotation.issue_result ?? item.issue_result ?? null,
+                  reason: item.annotation.reason ?? item.reason ?? null,
+                  annotationStatus: item.annotation.annotationStatus ?? item.annotation.annotation_status ??
+                      (item.issue_result !== null && item.issue_result !== undefined ? 1 : undefined),
+                  createTime: item.annotation.createTime || item.annotation.create_time || item.annotationTime,
+                  updateTime: item.annotation.updateTime || item.annotation.update_time || item.annotationTime,
+                  userName: item.annotation.userName || item.annotation.user_name || null,
+                  userDepartment: item.annotation.userDepartment || item.annotation.user_department || null,
+                  taskId: item.annotation.taskId || item.annotation.task_id || null
+                };
+              }
+
+              // 没有annotation对象但有issue_result，则创建annotation
+              if (item.issue_result !== null && item.issue_result !== undefined) {
+                return {
+                  warnUuid: item.warn_uuid || item.warnUuid || item.id || '',
+                  userId: item.annotator || item.annotation?.userId || '',
+                  issueResult: item.issue_result ?? item.issueResult ?? null,
+                  reason: item.reason ?? null,
+                  annotationStatus: 1,
+                  createTime: item.annotationTime || item.annotation?.createTime,
+                  updateTime: item.annotationTime || item.annotation?.updateTime
+                };
+              }
+
+              // 其他情况返回null
+              return null;
+            })()
           }
           return result
         }) as ScanResult[]
@@ -965,16 +978,16 @@ const loadTaskData = async (taskId: string): Promise<void> => {
         mapped = augmentScanResultsWithRepeatedRules(mapped)
         mapped = renumberScanResultIncrementIds(mapped)
         scanResultsList.value = mapped
-        task.value = { ...task.value, scanResults: mapped as any }
+        task.value = {...task.value, scanResults: mapped as any}
 
         // 数据加载完成后，延迟初始化图表（确保 DOM 已渲染）
         setTimeout(() => {
           updateAllCharts()
         }, 300)
-        
+
         try {
-          // const statisticsResponse = await taskManagementService.getAnnotationStatistics(taskId)
           const statisticsResponse = await getAnnotationStatistics(taskId)
+          // const statisticsResponse = await taskManagementService.getAnnotationStatistics(taskId)
           if (statisticsResponse.meta.isSuccess && statisticsResponse.data) {
             annotationStatistics.value = statisticsResponse.data
           }
@@ -1068,9 +1081,9 @@ const annotationRatioCounts = computed(() => ({
 
 /** 标注完成度占比（整数百分比） */
 const annotationCompletionPct = computed(() => {
-  const { annotated, unannotated } = annotationRatioCounts.value
+  const {annotated, unannotated} = annotationRatioCounts.value
   const t = annotated + unannotated
-  if (!t) return { annotated: 0, unannotated: 0 }
+  if (!t) return {annotated: 0, unannotated: 0}
   return {
     annotated: Math.round((annotated / t) * 100),
     unannotated: Math.round((unannotated / t) * 100),
@@ -1079,7 +1092,7 @@ const annotationCompletionPct = computed(() => {
 
 /** 标注完成率（已标注 / 全部缺陷，整数百分比） */
 const annotationCompletionRatePct = computed(() => {
-  const { annotated, unannotated } = annotationRatioCounts.value
+  const {annotated, unannotated} = annotationRatioCounts.value
   const t = annotated + unannotated
   if (!t) return 0
   return Math.round((annotated / t) * 100)
@@ -1087,7 +1100,7 @@ const annotationCompletionRatePct = computed(() => {
 
 /** 标注状态分布中「未标注」数量（与饼图一致：接口未标注数优先） */
 const annotationStatusUnmarkedCount = computed(
-  () => annotationStatistics.value?.unannotatedCount ?? statistics.value.unmarked,
+    () => annotationStatistics.value?.unannotatedCount ?? statistics.value.unmarked,
 )
 
 /** 四类标注状态占全部缺陷数的比例（整数百分比） */
@@ -1098,7 +1111,7 @@ const annotationStatusPct = computed(() => {
   const noNeedModify = s.noNeedModify
   const falsePositive = s.falsePositive
   const t = needModify + noNeedModify + falsePositive + unmarked
-  if (!t) return { needModify: 0, noNeedModify: 0, falsePositive: 0, unmarked: 0 }
+  if (!t) return {needModify: 0, noNeedModify: 0, falsePositive: 0, unmarked: 0}
   return {
     needModify: Math.round((needModify / t) * 100),
     noNeedModify: Math.round((noNeedModify / t) * 100),
@@ -1154,9 +1167,9 @@ const buildRuleTree = (typeDistribution: Record<string, number>): RuleTreeNode[]
       const isLeaf = index === parts.length - 1
       currentPath = currentPath ? `${currentPath}${separator}${part}` : part
       const nodeId = `node-${currentPath}`
-      
+
       let node = nodeMap.get(nodeId)
-      
+
       if (!node) {
         node = {
           id: nodeId,
@@ -1164,11 +1177,11 @@ const buildRuleTree = (typeDistribution: Record<string, number>): RuleTreeNode[]
           count: 0,
           children: []
         }
-        
+
         if (isLeaf) {
           node.ruleName = ruleName
         }
-        
+
         nodeMap.set(nodeId, node)
 
         // 添加到父节点或根节点
@@ -1206,11 +1219,11 @@ const buildRuleTree = (typeDistribution: Record<string, number>): RuleTreeNode[]
   // 按计数降序排序
   const sortNodes = (nodes: RuleTreeNode[]): RuleTreeNode[] => {
     return nodes
-      .map(node => ({
-        ...node,
-        children: node.children ? sortNodes(node.children) : undefined
-      }))
-      .sort((a, b) => b.count - a.count)
+        .map(node => ({
+          ...node,
+          children: node.children ? sortNodes(node.children) : undefined
+        }))
+        .sort((a, b) => b.count - a.count)
   }
 
   return sortNodes(rootNodes)
@@ -1227,7 +1240,7 @@ const ruleTreeData = computed<RuleTreeNode[]>(() => {
 // 处理规则树节点点击
 const handleRuleNodeClick = (data: RuleTreeNode): void => {
   selectedRuleNodeId.value = data.id
-  
+
   if (data.ruleName) {
     // 点击叶子节点，筛选对应的规则
     filterForm.value.ruleName = data.ruleName
@@ -1294,8 +1307,8 @@ const filteredScanResultsList = computed<ScanResult[]>(() => {
       const warn = r.warn || ''
       const ruleName = r.rule_name || ''
       return fileName.toLowerCase().includes(keyword) ||
-        warn.toLowerCase().includes(keyword) ||
-        ruleName.toLowerCase().includes(keyword)
+          warn.toLowerCase().includes(keyword) ||
+          ruleName.toLowerCase().includes(keyword)
     })
   }
 
@@ -1327,16 +1340,16 @@ const pagedScanResultsList = computed<ScanResult[]>(() => {
 })
 
 watch(
-  () => [filteredScanResultsList.value.length, pagination.value.pageSize] as const,
-  ([len, size]) => {
-    // 分页 total 与「当前筛选后的扫描结果」条数一致，与 pagedScanResultsList 同源；全量条数见 scanResultsList.length
-    pagination.value.total = len
-    const maxPage = Math.max(1, Math.ceil(len / size) || 1)
-    if (pagination.value.currentPage > maxPage) {
-      pagination.value.currentPage = maxPage
-    }
-  },
-  { immediate: true }
+    () => [filteredScanResultsList.value.length, pagination.value.pageSize] as const,
+    ([len, size]) => {
+      // 分页 total 与「当前筛选后的扫描结果」条数一致，与 pagedScanResultsList 同源；全量条数见 scanResultsList.length
+      pagination.value.total = len
+      const maxPage = Math.max(1, Math.ceil(len / size) || 1)
+      if (pagination.value.currentPage > maxPage) {
+        pagination.value.currentPage = maxPage
+      }
+    },
+    {immediate: true}
 )
 
 // 获取规则名称标签类型
@@ -1426,12 +1439,12 @@ const setAnnotationReason = (result: ScanResult, value: string): void => {
 const submitAnnotation = async (result: ScanResult): Promise<void> => {
   const annotation = getOrInitAnnotation(result)
   const issueResult = annotation.issueResult
-  
+
   if (issueResult === null) {
     ElMessage.warning('请先选择标注结果')
     return
   }
-  
+
   await saveAnnotationHandler(result, issueResult)
 }
 
@@ -1452,7 +1465,7 @@ const saveAnnotationHandler = async (result: ScanResult, value: IssueResult): Pr
   try {
     const currentUser = userInfo?.w3Id || userInfo?.nameCn || '当前用户'
     const userNameCn = userInfo?.nameCn?.trim() ?? ''
-    
+
     if (value === null) {
       const reqBody: SaveAnnotationReqBody = {
         taskId,
@@ -1462,25 +1475,25 @@ const saveAnnotationHandler = async (result: ScanResult, value: IssueResult): Pr
         userName: '',
         reason: ''
       }
-      // await taskManagementService.saveAnnotationApi(reqBody)
+      // const cancelRes = await taskManagementService.saveAnnotationApi(reqBody)
       const cancelRes = await saveAnnotationApi(reqBody)
       if (!cancelRes.meta.isSuccess) {
         throw new Error(cancelRes.meta.message || '取消标注失败')
       }
-      
+
       // 更新 result 对象的标注信息
       result.issue_result = null
       result.reason = null
       result.annotator = undefined
       result.annotationTime = undefined
-      
+
       // 清除annotation对象
       if (result.annotation) {
         result.annotation.issueResult = null
         result.annotation.reason = null
         result.annotation.annotationStatus = undefined
       }
-      
+
       ElMessage.success('已取消标注')
     } else {
       const reqBody: SaveAnnotationReqBody = {
@@ -1519,7 +1532,7 @@ const saveAnnotationHandler = async (result: ScanResult, value: IssueResult): Pr
       annotation.userName = saved.userName
       annotation.userDepartment = saved.userDepartment
       annotation.taskId = saved.taskId ?? taskId
-      
+
       const statusText = getIssueResultLabel(value)
       ElMessage.success(`已标注为：${statusText}`)
     }
@@ -1555,7 +1568,7 @@ const getStatusTipTitle = (): string => {
     return '任务状态异常'
   }
   const statusMap: Record<string, string> = {
-    [TASK_STATUS.NOT_STARTED]: '任务未开始',
+    [TASK_STATUS.NOT_STARTED]: '任务待处理',
     [TASK_STATUS.RUNNING]: '任务扫描中',
     [TASK_STATUS.FAILED]: '任务扫描失败'
   }
@@ -1584,7 +1597,7 @@ const getCodeLanguage = (): string => {
   if (!task.value || !task.value.codeLanguage) {
     return 'cpp' // 默认使用 cpp
   }
-  
+
   const languageMap: Record<string, string> = {
     'C++': 'cpp',
     'C': 'c',
@@ -1605,7 +1618,7 @@ const getCodeLanguage = (): string => {
     'typescript': 'typescript',
     'go': 'go',
   }
-  
+
   const normalizedLang = task.value.codeLanguage.trim()
   return languageMap[normalizedLang] || 'cpp' // 如果找不到映射，默认使用 cpp
 }
@@ -1629,19 +1642,19 @@ const initRuleDistributionChart = (): void => {
     console.warn('ruleDistributionChartRef 未找到')
     return
   }
-  
+
   if (ruleDistributionChart) {
     ruleDistributionChart.dispose()
   }
-  
+
   try {
     ruleDistributionChart = echarts.init(ruleDistributionChartRef.value)
-    
+
     // 获取 Top 10 规则
     const ruleEntries = Object.entries(statistics.value.typeDistribution)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-    
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+
     // 如果没有规则数据，显示空状态
     if (ruleEntries.length === 0) {
       ruleDistributionChart.setOption({
@@ -1658,13 +1671,13 @@ const initRuleDistributionChart = (): void => {
       })
       return
     }
-    
+
     const ruleNames = ruleEntries.map(([name]) => {
       // 如果名称太长，截断并添加省略号
       return name.length > 20 ? name.substring(0, 20) + '...' : name
     })
     const ruleCounts = ruleEntries.map(([, count]) => count)
-    
+
     const option = {
       tooltip: {
         trigger: 'axis',
@@ -1715,8 +1728,8 @@ const initRuleDistributionChart = (): void => {
           data: ruleCounts,
           itemStyle: {
             color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-              { offset: 0, color: '#3b82f6' },
-              { offset: 1, color: '#60a5fa' }
+              {offset: 0, color: '#3b82f6'},
+              {offset: 1, color: '#60a5fa'}
             ]),
             borderRadius: [0, 4, 4, 0]
           },
@@ -1729,9 +1742,9 @@ const initRuleDistributionChart = (): void => {
         }
       ]
     }
-    
+
     ruleDistributionChart.setOption(option)
-    console.log('规则名称分布柱状图初始化成功', { count: ruleEntries.length })
+    console.log('规则名称分布柱状图初始化成功', {count: ruleEntries.length})
   } catch (error) {
     console.error('初始化规则名称分布柱状图失败:', error)
   }
@@ -1746,10 +1759,10 @@ const handleResize = (): void => {
 const updateAllCharts = async (): Promise<void> => {
   // 等待 DOM 更新
   await nextTick()
-  
+
   // 再次等待，确保 v-if 条件渲染的 DOM 元素已经创建
   await new Promise(resolve => setTimeout(resolve, 100))
-  
+
   // 检查统计数据
   if (statistics.value.totalIssues === 0) {
     return
@@ -1765,9 +1778,9 @@ const updateAllCharts = async (): Promise<void> => {
 
   try {
     initRuleDistributionChart()
-    
+
     // 监听窗口大小变化，自动调整图表大小（避免重复添加）
-    if (!window.hasOwnProperty('_chartResizeHandlerAdded')) {
+    if (!Object.prototype.hasOwnProperty.call(window, '_chartResizeHandlerAdded')) {
       window.addEventListener('resize', handleResize)
       ;(window as any)._chartResizeHandlerAdded = true
     }
@@ -1778,13 +1791,13 @@ const updateAllCharts = async (): Promise<void> => {
 
 // 监听统计数据变化，更新图表
 watch(
-  () => [statistics.value, scanResultsList.value.length, annotationStatistics.value],
-  () => {
-    if (task.value?.taskStatus === TASK_STATUS.COMPLETED && scanResultsList.value.length > 0) {
-      updateAllCharts()
-    }
-  },
-  { deep: true, immediate: false }
+    () => [statistics.value, scanResultsList.value.length, annotationStatistics.value],
+    () => {
+      if (task.value?.taskStatus === TASK_STATUS.COMPLETED && scanResultsList.value.length > 0) {
+        updateAllCharts()
+      }
+    },
+    {deep: true, immediate: false}
 )
 
 // 组件挂载时加载数据
@@ -1804,7 +1817,7 @@ onUnmounted(() => {
   if ((window as any)._chartResizeHandlerAdded) {
     delete (window as any)._chartResizeHandlerAdded
   }
-  
+
   if (ruleDistributionChart) {
     ruleDistributionChart.dispose()
     ruleDistributionChart = null

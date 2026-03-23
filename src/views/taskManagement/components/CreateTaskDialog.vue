@@ -475,12 +475,13 @@ const handleSubmit = async () => {
           selectedFile.value,
           userInfo.w3Id || formData.creator,
         )
-        if (uploadResponse.meta.isSuccess && uploadResponse.data) {
-          s3Path = uploadResponse.data
+        const inner = uploadResponse.data
+        if (inner.meta.success && inner.data) {
+          s3Path = inner.data
           ElMessage.success('任务创建成功，扫描结果文件已上传！')
         } else {
           ElMessage.warning(
-            uploadResponse.meta.message ||
+            inner.meta.message ||
               '任务已创建，但扫描结果文件上传失败，可在任务详情中重新上传',
           )
         }

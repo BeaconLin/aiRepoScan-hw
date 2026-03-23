@@ -14,6 +14,16 @@ export interface SaveAnnotationReqBody {
     reason?: string
 }
 
+/** 查询任务详情 GET /api/tasks/{taskId} 响应字段 `paginationInfo`（与接口文档一致） */
+export interface TaskDetailPaginationInfo {
+    totalPages: number
+    pageSize: number
+    hasPrevious: boolean
+    hasNext: boolean
+    currentPage: number
+    totalCount: number
+}
+
 /** 保存标注成功时 `data` 字段（与接口文档 2.1 响应一致） */
 export interface SaveAnnotationResultData {
     id: number

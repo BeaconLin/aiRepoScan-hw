@@ -2,8 +2,8 @@
   <div class="task-list-page">
     <!-- 创建任务弹窗 -->
     <CreateTaskDialog
-      v-model="createDialogVisible"
-      @success="handleCreateSuccess"
+        v-model="createDialogVisible"
+        @success="handleCreateSuccess"
     />
 
     <!-- 统一容器：包含任务类型、筛选、列表和分页 -->
@@ -26,26 +26,26 @@
         <el-form :inline="true" :model="filterForm" class="filter-form">
           <el-form-item label="任务名称">
             <el-input
-              v-model="filterForm.taskName"
-              placeholder="请输入任务名称"
-              clearable
-              style="width: 200px"
-              @input="handleFilter"
+                v-model="filterForm.taskName"
+                placeholder="请输入任务名称"
+                clearable
+                style="width: 200px"
+                @input="handleFilter"
             />
           </el-form-item>
           <el-form-item label="任务状态">
             <el-select
-              v-model="filterForm.status"
-              placeholder="请选择状态"
-              clearable
-              style="width: 150px"
-              @change="handleFilter"
+                v-model="filterForm.status"
+                placeholder="请选择状态"
+                clearable
+                style="width: 150px"
+                @change="handleFilter"
             >
               <el-option
-                v-for="(status, key) in TASK_STATUS_MAP"
-                :key="key"
-                :label="key"
-                :value="key"
+                  v-for="(status, key) in TASK_STATUS_MAP"
+                  :key="key"
+                  :label="key"
+                  :value="key"
               />
             </el-select>
           </el-form-item>
@@ -58,14 +58,14 @@
       <!-- 任务列表区域 -->
       <div class="task-list-section">
         <div v-if="loading" class="loading-container">
-          <el-skeleton :rows="3" animated />
+          <el-skeleton :rows="3" animated/>
         </div>
         <div v-else-if="filteredTasks.length === 0" class="empty-container">
-          <el-empty description="暂无任务数据" />
+          <el-empty description="暂无任务数据"/>
         </div>
         <div v-else class="list-content">
           <div
-              v-for="task in scanTasks"
+              v-for="task in filteredTasks"
               :key="task.taskId"
               class="task-card"
           >
@@ -73,8 +73,8 @@
               <div class="card-title">
                 <span class="task-name">{{ task.taskName }}</span>
                 <el-tag
-                  :type="(TASK_STATUS_MAP[task.taskStatus] || 'info') as 'info' | 'success' | 'warning' | 'danger'"
-                  size="small"
+                    :type="(TASK_STATUS_MAP[task.taskStatus] || 'info') as 'info' | 'success' | 'warning' | 'danger'"
+                    size="small"
                 >
                   {{ task.taskStatus }}
                 </el-tag>
@@ -137,15 +137,15 @@
       </div>
 
       <!-- 分页区域 -->
-      <div class="pagination-section" v-if="filteredTasks.length > 0">
+      <div class="pagination-section">
         <el-pagination
-          v-model:current-page="currentPage"
-          v-model:page-size="pageSize"
-          :page-sizes="[8, 12, 16, 20]"
-          :total="filteredTasks.length"
-          layout="total, sizes, prev, pager, next, jumper"
-          @size-change="handleSizeChange"
-          @current-change="handleCurrentChange"
+            v-model:current-page="currentPage"
+            v-model:page-size="pageSize"
+            :page-sizes="[8, 12, 16, 20]"
+            :total="pageTotal"
+            layout="total, sizes, prev, pager, next, jumper"
+            @size-change="handleSizeChange"
+            @current-change="handleCurrentChange"
         />
       </div>
     </div>
@@ -155,9 +155,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { 
-  ElButton, 
-  ElMessage, 
+import {
+  ElButton,
+  ElMessage,
   ElMessageBox,
   ElTag,
   ElSkeleton,
@@ -166,11 +166,11 @@ import {
   ElRadioGroup,
   ElRadioButton
 } from 'element-plus'
-import CreateTaskDialog from '@/views/taskManagement/components/CreateTaskDialog.vue'
 import {
   queryTaskList,
-  deleteTaskApi,
+  deleteTaskById,
 } from '@/api/task'
+import CreateTaskDialog from '@/views/taskManagement/components/CreateTaskDialog.vue'
 import { TASK_STATUS_MAP, TASK_STATUS } from '@/constants/scanTaskConst'
 import { useProfileStore } from '@/stores/userProfile'
 import taskManagementService from '@/api/services/taskManagementService'
@@ -214,9 +214,9 @@ function parseAssistantVersionsToArray(raw: unknown): string[] {
     return raw.map((x) => String(x).trim()).filter(Boolean)
   }
   return String(raw)
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
 }
 
 /** 任务列表创建人展示：「中文名 短工号」（与 TaskDetailView 一致） */
@@ -229,34 +229,64 @@ function formatTaskCreatorDisplay(task: { creator?: string; nameCn?: string }) {
 
 const router = useRouter()
 
-/** 任务列表：直接由 task.ts API 拉取 */
-const tasks = ref<TaskListItem[]>([])
+/**
+ * 通用的任务加载函数
+ * @param creator 创建者筛选条件，可选
+ * @param taskStatus 任务状态筛选条件，可选
+ * @param taskName 任务名称筛选条件，可选
+ */
+const loadTasksData = async (creator?: string, taskStatus?: string, taskName?: string) => {
+  // const res = await taskManagementService.queryTaskList(currentPage.value, pageSize.value, creator, taskStatus, taskName)
+  const res = await queryTaskList(currentPage.value, pageSize.value, creator, taskStatus, taskName)
 
-const loadTasks = async () => {
-  // const res = await taskManagementService.queryTaskList()
-  const res = await queryTaskList()
   if (res.meta.isSuccess) {
-    tasks.value = res.data.map((row) => ({
-      ...row,
-      assistantVersions: parseAssistantVersionsToArray(
-        (row as { assistantVersions?: unknown }).assistantVersions,
-      ),
+    filteredTasks.value = res.data.list.map((row) => ({
+      taskId: row.taskId,
+      taskName: row.taskName,
+      repoUrl: row.repoUrl,
+      branch: row.branch,
+      pathList: row.pathList,
+      creator: row.creator,
+      nameCn: row.nameCn ?? '',
+      createTime: row.createTime,
+      taskStatus: row.taskStatus as TaskStatus,
+      codeLanguage: row.codeLanguage ?? '',
+      lineNum: row.lineNum ?? 0,
+      productName: row.productName,
+      s3Path: row.s3Path,
+      assistantVersions: parseAssistantVersionsToArray(row.assistantVersions),
     }))
+
+    pageTotal.value = res.data.total
+    currentPage.value = res.data.page
   }
 }
 
-/** 与删除权限、创建人字段对齐的当前用户标识（替代原 task store 的 currentUser） */
-const currentUserIdentifier = computed(() => {
-  const w3Id = profileStore.userInfo?.w3Id
-  const nameCn = profileStore.userInfo?.nameCn
-  return `${nameCn || ''} ${w3Id || ''}`.trim()
-})
+// 加载所有任务
+const loadTasks = async () => {
+  // 不传筛选参数，加载所有任务
+  await loadTasksData()
+}
 
+// 加载我的任务
+const loadMyTasks = async () => {
+  await loadTasksData(profileStore.userInfo?.w3Id) // 传入creator参数按用户筛选
+}
+
+// 根据当前的任务类型、筛选条件加载任务
+const loadTasksByCurrentCondition = async () => {
+  const creator = taskType.value === 'my' ? profileStore.userInfo?.w3Id : undefined
+  // 确保传递完整的筛选条件，包括任务状态和任务名称
+  const taskStatus = filterForm.value.status || undefined
+  const taskName = filterForm.value.taskName || undefined
+  await loadTasksData(creator, taskStatus, taskName)
+}
 const createDialogVisible = ref(false)
 const loading = ref(false)
 const taskType = ref('all') // 'all' | 'my'
 const currentPage = ref(1)
 const pageSize = ref(8) // 减少每页显示数量
+const pageTotal = ref(0)
 
 // 筛选表单
 const filterForm = ref({
@@ -265,43 +295,7 @@ const filterForm = ref({
 })
 
 // 计算属性：根据任务类型和筛选条件过滤任务
-const filteredTasks = computed((): TaskListItem[] => {
-  let list: TaskListItem[] = [...tasks.value]
-
-  if (taskType.value === 'my') {
-    const myW3 = profileStore.userInfo?.w3Id?.trim()
-    const fullId = currentUserIdentifier.value
-    list = list.filter((task) => {
-      const creator = (task.creator || '').trim()
-      if (!myW3) return false
-      return creator === myW3 || creator === fullId
-    })
-  }
-
-  if (filterForm.value.taskName) {
-    const keyword = filterForm.value.taskName.toLowerCase()
-    list = list.filter((task) =>
-      String(task.taskName ?? '').toLowerCase().includes(keyword)
-    )
-  }
-
-  if (filterForm.value.status) {
-    list = list.filter((task) => {
-      const row = task as TaskListItem & { status?: string }
-      const status = row.taskStatus || row.status
-      return status === filterForm.value.status
-    })
-  }
-
-  return list
-})
-
-// 分页后的任务列表
-const scanTasks = computed(() => {
-  const start = (currentPage.value - 1) * pageSize.value
-  const end = start + pageSize.value
-  return filteredTasks.value.slice(start, end)
-})
+const filteredTasks = ref<TaskListItem[]>([])
 
 // 打开创建任务弹窗
 const openCreateDialog = () => {
@@ -324,17 +318,19 @@ const handleCreateSuccess = async () => {
 }
 
 // 筛选处理
-const handleFilter = () => {
+const handleFilter = async () => {
   currentPage.value = 1 // 重置到第一页
+  await loadTasksByCurrentCondition()
 }
 
 // 重置筛选
-const handleResetFilter = () => {
+const handleResetFilter = async () => {
   filterForm.value = {
     taskName: '',
     status: ''
   }
   currentPage.value = 1
+  await loadTasksByCurrentCondition()
 }
 
 // 查看详情
@@ -356,25 +352,23 @@ const canDeleteTask = (taskCreator: string) => {
 const handleDelete = async (taskId) => {
   try {
     await ElMessageBox.confirm(
-      '确定要删除这个任务吗？删除后无法恢复。',
-      '确认删除',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
+        '确定要删除这个任务吗？删除后无法恢复。',
+        '确认删除',
+        {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }
     )
-    
-    // const res = await taskManagementService.deleteTaskApi(taskId)
-    const res = await deleteTaskApi(taskId)
+
+    const res = await deleteTaskById(taskId)
+    // const res = await taskManagementService.deleteTaskById(taskId)
     const success = res.meta.isSuccess && !!res.data
     if (success) await loadTasks()
     if (success) {
       ElMessage.success('任务删除成功！')
       // 如果当前页没有数据了，返回上一页
-      if (scanTasks.value.length === 0 && currentPage.value > 1) {
-        currentPage.value--
-      }
+
     } else {
       ElMessage.error(res.meta.message || '任务删除失败！')
     }
@@ -387,22 +381,25 @@ const handleDelete = async (taskId) => {
 const handleSizeChange = (size) => {
   pageSize.value = size
   currentPage.value = 1
+  loadTasksByCurrentCondition()
 }
 
 // 当前页改变
 const handleCurrentChange = (page) => {
   currentPage.value = page
+  loadTasksByCurrentCondition()
 }
 
 // 监听任务类型变化，重置分页
-watch(taskType, () => {
+watch(taskType, async () => {
   currentPage.value = 1
+  await loadTasksByCurrentCondition()
 })
 
 onMounted(async () => {
   loading.value = true
   try {
-    await loadTasks()
+    await loadTasksByCurrentCondition()
   } finally {
     loading.value = false
   }

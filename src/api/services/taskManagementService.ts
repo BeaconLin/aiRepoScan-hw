@@ -7,9 +7,12 @@
 
 const taskManagementService = {
   // 查询任务列表
-  // getRepoScanTasks: (pageNum: number, pageSize: number): any => service.get(`${REPO_SCAN_URL}/api/tasks`, {
+  // queryTaskList: (pageNum: number, pageSize: number, creator?: string, taskStatus?: string, taskName?: string): any => service.get(`${REPO_SCAN_URL}/api/tasks`, {
   //   pageNum,
-  //   pageSize
+  //   pageSize,
+  //   ...creator && { creator }, // 如果提供了creator参数，则添加到请求中
+  //   ...taskStatus && { taskStatus }, // 如果提供了taskStatus参数，则添加到请求中
+  //   ...taskName && { taskName } // 如果提供了taskName参数，则添加到请求中
   // }),
 
   // 查询任务详情（与 src/api/task.ts 中 getTaskDetail 对应；响应 ApiEnvelope<TaskDetail>：{ data, meta }）
