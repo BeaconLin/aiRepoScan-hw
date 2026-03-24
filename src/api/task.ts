@@ -117,7 +117,7 @@ function envelopeFail<T>(data: T, number: number, message: string): ApiEnvelope<
 
 /** POST `/api/tasks/{taskId}/uploadDataSet` 内层 meta（与接口文档 1.4 一致） */
 export interface UploadScanResultFileInnerMeta {
-    success: boolean
+    isSuccess: boolean
     message: string
     number: number
 }
@@ -908,7 +908,7 @@ export const uploadScanResultFile = async (
     return {
         data: {
             meta: {
-                success: true,
+                isSuccess: true,
                 message: '上传成功',
                 number: 200,
             },
@@ -949,7 +949,7 @@ function filterScanResultsByAnnotationStatus(
 
 /** 接口文档 1.2.x 成功/失败时的 meta 形态 */
 export interface ApiDocHttpMeta {
-    success: boolean
+    isSuccess: boolean
     message: string
     number: number
 }
@@ -1026,11 +1026,11 @@ export interface TaskScanResultsApiDocResponse {
 }
 
 function metaDocOk(): ApiDocHttpMeta {
-    return { success: true, message: 'OK', number: 200 }
+    return { isSuccess: true, message: 'OK', number: 200 }
 }
 
 function metaDocFail(number: number, message: string): ApiDocHttpMeta {
-    return { success: false, message, number }
+    return { isSuccess: false, message, number }
 }
 
 function scanResultToApiDocRow(r: ScanResult, selfIncrementId: number): TaskScanResultApiDocRow {

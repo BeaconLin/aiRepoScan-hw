@@ -266,7 +266,7 @@
                     <div class="filter-options">
                       <el-select
                           v-model="filterForm.issueResult"
-                          @change="handleFilter"
+                          @change="handleScanFilterRefetch"
                           placeholder="请选择标注结果"
                           clearable
                           class="annotation-filter-select"
@@ -406,7 +406,6 @@
                       v-model="filterForm.keyword"
                       placeholder="搜索文件名称、规则名称或问题说明"
                       clearable
-                      @input="handleFilter"
                   >
                     <template #prefix>
                       <span style="color: #909399">🔍</span>
@@ -510,6 +509,7 @@ import {
 } from '@/api/task'
 import type { SaveAnnotationReqBody, TaskDetailPaginationInfo } from '@/api/types/saveAnnotation'
 import CodeBlock from '@/views/taskManagement/components/CodeBlock.vue'
+import taskManagementService from '@/api/services/taskManagementService'
 
 /** `el-tag` 的 type 需为字面量联合，不能为宽泛的 `string` */
 type ElTagType = 'success' | 'info' | 'warning' | 'danger'
@@ -742,7 +742,7 @@ async function handleScanResultFileChange(uploadFile: UploadFile, _uploadFiles: 
     // const res = await taskManagementService.uploadScanResultFile(tid, raw, userInfo.w3Id || '')
     const res = await uploadScanResultFile(tid, raw, userInfo.w3Id || '')
     const uploadResponse = res.data
-    if (uploadResponse.meta.success) {
+    if (uploadResponse.meta.isSuccess) {
       if (task.value) {
         task.value.s3Path = uploadResponse.data
       }
@@ -961,15 +961,16 @@ const fetchTaskDetailPage = async (
   const ruleName = filterForm.value.ruleName?.trim()
   const annotation = filterForm.value.issueResult?.trim()
 
-  /**
-   * 以下为 `@/api/task` 中的本地模拟；接入真实后端时，应对齐
-   * `src/api/services/taskManagementService.ts` 中同名方法的实际调用（见该文件第 18–26 行注释示例）：
-   *
-   * - getTaskInfo(taskId)
-   *   对应 taskManagementService.getTaskInfo(taskId)
-   * - getTaskScanResults(taskId, pageNum, pageSize, ruleName?, annotation?)
-   *   对应 taskManagementService.getTaskScanResults(taskId, pageNum, pageSize, ruleName, annotation)
-   */
+  //  const [infoRes, scanRes] = await Promise.all([
+  //   taskManagementService.getTaskInfo(taskId),
+  //   taskManagementService.getTaskScanResults(
+  //     taskId,
+  //     pageNum,
+  //     pageSize,
+  //     ruleName || undefined,
+  //     annotation || undefined,
+  //   ),
+  // ])
   const [infoRes, scanRes] = await Promise.all([
     getTaskInfo(taskId),
     getTaskScanResults(
@@ -981,10 +982,10 @@ const fetchTaskDetailPage = async (
     ),
   ])
 
-  if (!infoRes.meta.success || !infoRes.data) {
+  if (!infoRes.meta.isSuccess || !infoRes.data) {
     throw new Error(infoRes.meta.message || '获取任务基本信息失败')
   }
-  if (!scanRes.meta.success || !scanRes.data) {
+  if (!scanRes.meta.isSuccess || !scanRes.data) {
     throw new Error(scanRes.meta.message || '获取任务扫描结果失败')
   }
 
@@ -1091,6 +1092,26 @@ const fetchTaskDetailPage = async (
     }
   } else {
     scanResultsList.value = rawScanResults
+  }
+}
+
+/**
+ * 标注结果或规则名称变化时：回到第一页并重新请求 getTaskInfo + getTaskScanResults，
+ * 其中 getTaskScanResults 会携带 query：ruleName、annotation（与 filterForm 一致）。
+ */
+const handleScanFilterRefetch = async (): Promise<void> => {
+  const taskId = route.params.id as string
+  if (!taskId || task.value?.taskStatus !== TASK_STATUS.COMPLETED) {
+    return
+  }
+  pagination.value.currentPage = 1
+  loading.value = true
+  try {
+    await fetchTaskDetailPage(taskId, 1, pagination.value.pageSize, { fetchAnnotationStats: false })
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '加载失败')
+  } finally {
+    loading.value = false
   }
 }
 
@@ -1332,6 +1353,32 @@ const buildRuleTree = (typeDistribution: Record<string, number>): RuleTreeNode[]
   return sortNodes(rootNodes)
 }
 
+/** 收集节点下所有叶子规则名（叶子含完整 rule_name，父节点表示其下全部规则） */
+function collectLeafRuleNamesUnderNode(node: RuleTreeNode): string[] {
+  if (node.ruleName?.trim()) {
+    return [node.ruleName.trim()]
+  }
+  if (!node.children?.length) {
+    return []
+  }
+  return node.children.flatMap(child => collectLeafRuleNamesUnderNode(child))
+}
+
+function findRuleTreeNodeById(nodes: RuleTreeNode[], id: string): RuleTreeNode | null {
+  for (const n of nodes) {
+    if (n.id === id) {
+      return n
+    }
+    if (n.children?.length) {
+      const found = findRuleTreeNodeById(n.children, id)
+      if (found) {
+        return found
+      }
+    }
+  }
+  return null
+}
+
 // 计算属性：规则名称树形数据
 const ruleTreeData = computed<RuleTreeNode[]>(() => {
   if (!scanResultsList.value.length) {
@@ -1340,29 +1387,22 @@ const ruleTreeData = computed<RuleTreeNode[]>(() => {
   return buildRuleTree(statistics.value.typeDistribution)
 })
 
-// 处理规则树节点点击
+// 处理规则树节点点击：高亮当前节点；列表侧在 filteredScanResultsList 中按选中规则（含父节点下全部叶子）做本地筛选，不请求 ruleName 以免树统计被服务端筛窄
 const handleRuleNodeClick = (data: RuleTreeNode): void => {
   selectedRuleNodeId.value = data.id
-
-  if (data.ruleName) {
-    // 点击叶子节点，筛选对应的规则
-    filterForm.value.ruleName = data.ruleName
-    handleFilter()
-  } else {
-    // 点击父节点，仅选中节点，不进行筛选
-    // 用户可以点击子节点来筛选具体的规则
-  }
 }
 
-// 清除规则筛选
+// 清除规则树选中高亮（若曾通过其它入口设置了 ruleName 服务端筛选，一并清除并重新拉取）
 const handleClearRuleFilter = (): void => {
+  const hadRuleFilter = !!filterForm.value.ruleName?.trim()
   selectedRuleNodeId.value = null
   filterForm.value.ruleName = ''
-  // 清除树形组件的选中状态
   if (ruleTreeRef.value) {
     ruleTreeRef.value.setCurrentKey(null)
   }
-  handleFilter()
+  if (hadRuleFilter) {
+    handleScanFilterRefetch()
+  }
 }
 
 // 处理下拉框规则选择变化
@@ -1395,14 +1435,13 @@ const handleRuleSelectChange = (): void => {
       ruleTreeRef.value.setCurrentKey(null)
     }
   }
-  handleFilter()
+  handleScanFilterRefetch()
 }
 
-/** 基于 scanResultsList 的筛选结果（扫描结果唯一数据源仍为 scanResultsList） */
+/** 标注状态由 getTaskScanResults 的 annotation 在服务端筛选；关键词与规则树选中的规则名为当前页本地筛选（规则树不走高亮 ruleName 接口，以免右侧树统计被筛窄） */
 const filteredScanResultsList = computed<ScanResult[]>(() => {
   let results = scanResultsList.value
 
-  // 关键词搜索（兼容旧数据格式）
   if (filterForm.value.keyword) {
     const keyword = filterForm.value.keyword.toLowerCase()
     results = results.filter(r => {
@@ -1415,25 +1454,20 @@ const filteredScanResultsList = computed<ScanResult[]>(() => {
     })
   }
 
-  // 按规则名称筛选
-  if (filterForm.value.ruleName) {
-    results = results.filter(r => (r.rule_name || '') === filterForm.value.ruleName)
-  }
-
-  // 按标注状态筛选
-  if (filterForm.value.issueResult === 'unmarked') {
-    // 未标注
-    results = results.filter(r => r.issue_result === null)
-  } else if (filterForm.value.issueResult !== '') {
-    // 已标注：需要修改(0)、无需修改的问题(1)、问题误报(2)
-    const issueResult = parseInt(filterForm.value.issueResult, 10)
-    results = results.filter(r => r.issue_result === issueResult)
+  if (selectedRuleNodeId.value) {
+    const node = findRuleTreeNodeById(ruleTreeData.value, selectedRuleNodeId.value)
+    if (node) {
+      const allowed = new Set(collectLeafRuleNamesUnderNode(node))
+      if (allowed.size > 0) {
+        results = results.filter(r => allowed.has((r.rule_name || '').trim()))
+      }
+    }
   }
 
   return results
 })
 
-/** 接口已按页返回 scanResults；筛选仅作用于当前页数据；total/currentPage/pageSize 来自 paginationInfo */
+/** 接口已按页返回 scanResults；total/currentPage/pageSize 来自 paginationInfo */
 const pagedScanResultsList = computed<ScanResult[]>(() => filteredScanResultsList.value)
 
 // 获取规则名称标签类型
@@ -1625,9 +1659,6 @@ const saveAnnotationHandler = async (result: ScanResult, value: IssueResult): Pr
     ElMessage.error('保存标注失败')
   }
 }
-
-// 筛选处理（仅过滤当前页数据，不请求接口）
-const handleFilter = (): void => {}
 
 // 分页大小改变：回到第一页并重新请求详情
 const handleSizeChange = async (size: number): Promise<void> => {
