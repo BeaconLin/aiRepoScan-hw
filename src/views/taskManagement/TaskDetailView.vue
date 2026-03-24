@@ -49,10 +49,10 @@
           <el-button @click="handleBack">← 返回任务列表</el-button>
           <h1 v-if="task?.taskName">{{ task.taskName }}</h1>
           <h1 v-else>任务详情</h1>
-          <el-tag v-if="task?.taskStatus" :type="TASK_STATUS_MAP[task.taskStatus]" size="large" class="status-tag">
+          <el-tag v-if="task?.taskStatus" :type="taskStatusToElTagType(task.taskStatus)" size="large" class="status-tag">
             {{ task.taskStatus }}
           </el-tag>
-          <el-tag v-else-if="task?.status" :type="TASK_STATUS_MAP[task.status]" size="large" class="status-tag">
+          <el-tag v-else-if="task?.status" :type="taskStatusToElTagType(task.status)" size="large" class="status-tag">
             {{ task.status }}
           </el-tag>
         </div>
@@ -74,16 +74,16 @@
                     <div class="task-detail-field-line">
                       <span>代码仓地址：</span>
                       <a
-                        v-if="task.repoUrl"
-                        :href="task.repoUrl"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="task-detail-link"
+                          v-if="task.repoUrl"
+                          :href="task.repoUrl"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          class="task-detail-link"
                       >{{ task.repoUrl }}</a>
                       <span v-else class="task-detail-muted">未提供地址</span>
                     </div>
                     <div class="task-detail-field-line">
-                      <span>代码行数：</span><span>{{ task.lineNum ?? 0 }}万行</span>
+                      <span>代码行数：</span><span>{{ task.lineNum ?? '--' }}k</span>
                     </div>
                     <div class="task-detail-field-line">
                       <span>代码语言：</span><span>{{ task.codeLanguage || '未知' }}</span>
@@ -102,6 +102,9 @@
                     </div>
                     <div class="task-detail-field-line">
                       <span>产品名称：</span><span>{{ task.productName || '-' }}</span>
+                    </div>
+                    <div v-if="task.warnCount != null" class="task-detail-field-line">
+                      <span>告警总数：</span><span>{{ task.warnCount }}</span>
                     </div>
                   </div>
                 </el-card>
@@ -125,20 +128,20 @@
                         <div class="task-detail-scan-grid">
                           <span class="task-detail-scan-label">扫描结果文件：</span>
                           <span
-                            class="task-detail-scan-file-value"
-                            :title="scanResultFileDisplay || undefined"
+                              class="task-detail-scan-file-value"
+                              :title="scanResultFileDisplay || undefined"
                           >{{ scanResultFileDisplay || '—' }}</span>
                           <span class="task-detail-scan-hint">仅支持 JSON 格式；上传后将替换当前任务关联的扫描结果文件。</span>
                         </div>
                       </div>
                       <el-upload
-                        ref="scanResultUploadRef"
-                        class="task-detail-scan-upload"
-                        :auto-upload="false"
-                        :show-file-list="false"
-                        :limit="1"
-                        accept=".json"
-                        :on-change="handleScanResultFileChange"
+                          ref="scanResultUploadRef"
+                          class="task-detail-scan-upload"
+                          :auto-upload="false"
+                          :show-file-list="false"
+                          :limit="1"
+                          accept=".json"
+                          :on-change="handleScanResultFileChange"
                       >
                         <template #trigger>
                           <el-button type="primary" size="small">{{ scanResultFileButtonText }}</el-button>
@@ -331,13 +334,29 @@
                             style="max-height: 200px; overflow-y: auto;"
                         />
                       </div>
+                      <div class="result-field full-width">
+                        <span class="field-label">切片代码块：</span>
+                        <CodeBlock
+                            :code="result.code_snippet || result.warn_code_block || result.code_block || ''"
+                            :language="getCodeLanguage()"
+                            style="max-height: 200px; overflow-y: auto;"
+                        />
+                      </div>
+                      <div class="result-field full-width">
+                        <span class="field-label">上下文代码：</span>
+                        <CodeBlock
+                            :code="result.context || ''"
+                            :language="getCodeLanguage()"
+                            style="max-height: 200px; overflow-y: auto;"
+                        />
+                      </div>
                     </div>
                     <div class="result-actions">
                       <div class="annotation-section">
                         <div class="annotation-label">缺陷标注：</div>
                         <el-radio-group
-                          :model-value="getAnnotationIssueResult(result)"
-                          @update:model-value="(v) => setAnnotationIssueResult(result, v)"
+                            :model-value="getAnnotationIssueResult(result)"
+                            @update:model-value="(v) => setAnnotationIssueResult(result, v)"
                         >
                           <el-radio :key="0" :value="0" class="option-item">
                             需要修改
@@ -469,22 +488,40 @@ import {
   ElMessage,
   ElMessageBox,
   ElSkeleton,
-  ElRadioGroup,
+  ElRadioGroup, 
   ElRadio,
   ElTree,
   ElTabs,
   ElTabPane,
   ElCard,
-  ElUpload
+  ElUpload,
 } from 'element-plus'
 import type { UploadFile, UploadFiles } from 'element-plus'
 import { TASK_STATUS, TASK_STATUS_MAP } from '@/constants/scanTaskConst'
 import { useProfileStore } from '@/stores/userProfile'
 
-import { getTaskDetail, uploadScanResultFile, saveAnnotationApi, getAnnotationStatistics } from '@/api/task'
+import {
+  getTaskInfo,
+  getTaskScanResults,
+  uploadScanResultFile,
+  saveAnnotationApi,
+  getAnnotationStatistics,
+  type TaskScanResultApiDocRow,
+} from '@/api/task'
 import type { SaveAnnotationReqBody, TaskDetailPaginationInfo } from '@/api/types/saveAnnotation'
 import CodeBlock from '@/views/taskManagement/components/CodeBlock.vue'
-import taskManagementService from '@/api/services/taskManagementService'
+
+/** `el-tag` 的 type 需为字面量联合，不能为宽泛的 `string` */
+type ElTagType = 'success' | 'info' | 'warning' | 'danger'
+
+function taskStatusToElTagType(status: string | undefined): ElTagType {
+  if (!status) return 'info'
+  const v = TASK_STATUS_MAP[status as keyof typeof TASK_STATUS_MAP]
+  if (v === 'success' || v === 'info' || v === 'warning' || v === 'danger') {
+    return v
+  }
+  return 'info'
+}
 
 /**
  * 仅采用接口/存储中的 nameCn；若无则留空，创建人由 formatTaskCreatorDisplay 只展示 creator。
@@ -520,6 +557,8 @@ interface Task {
   dept_name?: string
   pdu_name?: string
   s3Path?: string
+  /** 接口 getTaskInfo 返回的 warnCount，组装后用于展示 */
+  warnCount?: number | null
   scanResults: any[]
   // 兼容旧数据格式
   id?: string
@@ -743,6 +782,18 @@ const loading = ref<boolean>(false)
 const error = ref<string>('')
 const annotationStatistics = ref<AnnotationStatistics | null>(null)
 
+/** 将接口文档形扫描行转为列表映射逻辑可用的行（补 issue_result、confidence 字符串等） */
+function normalizeApiDocScanRowForList(row: TaskScanResultApiDocRow): Record<string, unknown> {
+  const conf = row.confidence
+  const confidenceStr = typeof conf === 'number' ? String(conf) : String(conf ?? '')
+  return {
+    ...row,
+    issue_result: row.annotation?.issueResult ?? null,
+    confidence: confidenceStr,
+    check_function_id: row.check_function_id ?? '',
+  }
+}
+
 // 当前激活的视图
 const activeView = ref<string>('info')
 
@@ -907,16 +958,49 @@ const fetchTaskDetailPage = async (
   pageSize: number,
   options: { fetchAnnotationStats: boolean }
 ): Promise<void> => {
-  const taskResponse = await getTaskDetail(taskId, pageNum, pageSize)
+  const ruleName = filterForm.value.ruleName?.trim()
+  const annotation = filterForm.value.issueResult?.trim()
 
-  if (!taskResponse.meta.isSuccess || !taskResponse.data) {
-    throw new Error(taskResponse.meta.message || '获取任务详情失败')
+  /**
+   * 以下为 `@/api/task` 中的本地模拟；接入真实后端时，应对齐
+   * `src/api/services/taskManagementService.ts` 中同名方法的实际调用（见该文件第 18–26 行注释示例）：
+   *
+   * - getTaskInfo(taskId)
+   *   对应 taskManagementService.getTaskInfo(taskId)
+   * - getTaskScanResults(taskId, pageNum, pageSize, ruleName?, annotation?)
+   *   对应 taskManagementService.getTaskScanResults(taskId, pageNum, pageSize, ruleName, annotation)
+   */
+  const [infoRes, scanRes] = await Promise.all([
+    getTaskInfo(taskId),
+    getTaskScanResults(
+      taskId,
+      pageNum,
+      pageSize,
+      ruleName || undefined,
+      annotation || undefined,
+    ),
+  ])
+
+  if (!infoRes.meta.success || !infoRes.data) {
+    throw new Error(infoRes.meta.message || '获取任务基本信息失败')
+  }
+  if (!scanRes.meta.success || !scanRes.data) {
+    throw new Error(scanRes.meta.message || '获取任务扫描结果失败')
   }
 
-  const resTask = taskResponse.data as any
-  const rawScanResults: any[] = Array.isArray(resTask.scanResults) ? resTask.scanResults : []
-  const pi = resTask.paginationInfo as TaskDetailPaginationInfo | null | undefined
+  const d = infoRes.data
+  const scanData = scanRes.data
+  const rawScanResults: any[] = Array.isArray(scanData.scanResults)
+    ? scanData.scanResults.map((row) => normalizeApiDocScanRowForList(row))
+    : []
+  const pi = scanData.paginationInfo as TaskDetailPaginationInfo | null | undefined
   syncPaginationFromResponse(pi, rawScanResults.length)
+
+  const resTask = {
+    ...d,
+    scanResults: rawScanResults,
+    paginationInfo: pi ?? null,
+  } as any
 
   const offset =
     pi != null
@@ -935,7 +1019,8 @@ const fetchTaskDetailPage = async (
     productName: resTask.productName || resTask.product_name || '-',
     s3Path: resTask.s3Path || `s3://ai-repo-scan/results/${resTask.taskId || resTask.id}`,
     creator: resTask.creator ?? '',
-    nameCn: resolveTaskCreatorNameCn(resTask.nameCn as string | undefined),
+    nameCn: resolveTaskCreatorNameCn((resTask as { nameCn?: string }).nameCn),
+    warnCount: typeof d.warnCount === 'number' ? d.warnCount : null,
     scanResults: rawScanResults,
     paginationInfo: pi ?? null,
   } as Task
@@ -1015,7 +1100,6 @@ const loadTaskData = async (taskId: string): Promise<void> => {
   error.value = ''
   pagination.value.currentPage = 1
   annotationStatistics.value = null
-
   try {
     await fetchTaskDetailPage(taskId, 1, pagination.value.pageSize, { fetchAnnotationStats: true })
   } catch (err) {

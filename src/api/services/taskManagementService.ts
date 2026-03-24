@@ -15,6 +15,15 @@ const taskManagementService = {
   //   ...taskName && { taskName } // 如果提供了taskName参数，则添加到请求中
   // }),
 
+  // 查询任务基本信息
+  // getTaskInfo: (taskId: string): any => service.get(`${REPO_SCAN_URL}/api/tasks/${taskId}/info`),
+  // 查询任务扫描结果
+  // getTaskScanResults: (taskId: string, pageNum: number, pageSize: number, ruleName?: string, annotation?: string): any => service.get(`${REPO_SCAN_URL}/api/tasks/${taskId}/scan-results`, {
+  //   pageNum,
+  //   pageSize,
+  //   ...ruleName && { ruleName },
+  //   ...annotation && { annotation }
+  // }),
   // 查询任务详情（与 src/api/task.ts 中 getTaskDetail 对应；响应 ApiEnvelope<TaskDetail>：{ data, meta }）
   // getTaskDetail: (taskId: string, pageNum: number, pageSize: number): any => service.get(`${REPO_SCAN_URL}/api/tasks/${taskId}`, {
   //   pageNum,

@@ -943,6 +943,268 @@ function filterScanResultsByAnnotationStatus(
     return results
 }
 
+// ---------------------------------------------------------------------------
+// 与接口文档 1.2.1 / 1.2.2 一致的 HTTP 响应形（meta.success + data），供本地模拟
+// ---------------------------------------------------------------------------
+
+/** 接口文档 1.2.x 成功/失败时的 meta 形态 */
+export interface ApiDocHttpMeta {
+    success: boolean
+    message: string
+    number: number
+}
+
+/** 1.2.1 `data`（与文档字段一致；无 nameCn） */
+export interface TaskInfoApiDocData {
+    taskId: string
+    taskName: string
+    repoUrl: string
+    branch: string
+    pathList: string
+    assistantVersions: string[]
+    creator: string
+    createTime: string
+    taskStatus: string
+    codeLanguage: string
+    lineNum: number
+    productName: string
+    s3Path: string
+    warnCount: number
+    scanResults: null
+    paginationInfo: null
+}
+
+export interface TaskInfoApiDocResponse {
+    meta: ApiDocHttpMeta
+    data: TaskInfoApiDocData | null
+}
+
+/** 1.2.2 单条扫描结果（与文档示例字段一致） */
+export interface TaskScanResultApiDocRow {
+    file_name: string
+    function_name: string
+    start_line: number
+    end_line: number
+    code_snippet: string
+    context: string
+    func_uuid: string
+    self_increment_id: number
+    check_function_id: string | null
+    index: number | null
+    rule_name: string
+    warn_line: number
+    warn_code_block: string
+    warn: string
+    reason: string
+    confidence: number
+    warn_uuid: string
+    annotation: TaskScanResultAnnotationApiDoc | null
+}
+
+export interface TaskScanResultAnnotationApiDoc {
+    id: number
+    warnUuid: string
+    userId: string
+    issueResult: number
+    reason: string | null
+    annotationStatus: number
+    createTime: string
+    updateTime: string
+    userName: string | null
+    userDepartment: string | null
+    taskId: string | null
+}
+
+export interface TaskScanResultsApiDocData {
+    scanResults: TaskScanResultApiDocRow[]
+    paginationInfo: TaskDetailPaginationInfo
+}
+
+export interface TaskScanResultsApiDocResponse {
+    meta: ApiDocHttpMeta
+    data: TaskScanResultsApiDocData | null
+}
+
+function metaDocOk(): ApiDocHttpMeta {
+    return { success: true, message: 'OK', number: 200 }
+}
+
+function metaDocFail(number: number, message: string): ApiDocHttpMeta {
+    return { success: false, message, number }
+}
+
+function scanResultToApiDocRow(r: ScanResult, selfIncrementId: number): TaskScanResultApiDocRow {
+    const confRaw = r.confidence
+    const confidence =
+        typeof confRaw === 'number'
+            ? confRaw
+            : Number.parseFloat(String(confRaw ?? '0').replace(/%/g, '')) || 0
+    let annotation: TaskScanResultAnnotationApiDoc | null = null
+    if (r.annotation) {
+        const a = r.annotation
+        annotation = {
+            id: a.id,
+            warnUuid: a.warnUuid,
+            userId: a.userId,
+            issueResult: a.issueResult,
+            reason: a.reason,
+            annotationStatus: a.annotationStatus,
+            createTime: a.createTime,
+            updateTime: a.updateTime,
+            userName: a.userName,
+            userDepartment: a.userDepartment,
+            taskId: a.taskId,
+        }
+    }
+    return {
+        file_name: r.file_name,
+        function_name: '',
+        start_line: r.start_line,
+        end_line: r.end_line,
+        code_snippet: r.code_snippet ?? '',
+        context: r.context ?? '',
+        func_uuid: r.func_uuid ?? '',
+        self_increment_id: selfIncrementId,
+        check_function_id: r.check_function_id,
+        index: r.index,
+        rule_name: r.rule_name,
+        warn_line: r.warn_line,
+        warn_code_block: r.warn_code_block,
+        warn: r.warn,
+        reason: r.reason ?? '',
+        confidence,
+        warn_uuid: r.warn_uuid,
+        annotation,
+    }
+}
+
+/**
+ * 模拟 GET `/api/tasks/{taskId}/info` 成功/失败响应（结构对齐接口文档 1.2.1）
+ */
+export async function getTaskInfo(taskId: string): Promise<TaskInfoApiDocResponse> {
+    await new Promise((r) => setTimeout(r, 0))
+    const t = mockTaskDetails[taskId]
+    if (!t) {
+        return { meta: metaDocFail(404, '未找到任务'), data: null }
+    }
+    const warnN = (mockScanResults[taskId]?.length ?? 0) || 0
+    const data: TaskInfoApiDocData = {
+        taskId: t.taskId,
+        taskName: t.taskName,
+        repoUrl: t.repoUrl,
+        branch: t.branch,
+        pathList: t.pathList,
+        assistantVersions: Array.isArray(t.assistantVersions) ? [...t.assistantVersions] : [],
+        creator: t.creator,
+        createTime: t.createTime,
+        taskStatus: t.taskStatus,
+        codeLanguage: t.codeLanguage,
+        lineNum: t.lineNum,
+        productName: t.productName,
+        s3Path: t.s3Path,
+        warnCount: warnN,
+        scanResults: null,
+        paginationInfo: null,
+    }
+    return { meta: metaDocOk(), data }
+}
+
+/**
+ * 模拟 GET `/api/tasks/{taskId}/scan-results`（query：pageNum、pageSize、ruleName、annotation）
+ * 响应结构对齐接口文档 1.2.2
+ */
+export async function getTaskScanResults(
+    taskId: string,
+    pageNum: number,
+    pageSize: number,
+    ruleName?: string,
+    annotation?: string,
+): Promise<TaskScanResultsApiDocResponse> {
+    await new Promise((r) => setTimeout(r, 0))
+    const taskDetail = mockTaskDetails[taskId]
+    if (!taskDetail) {
+        return { meta: metaDocFail(404, '未找到任务'), data: null }
+    }
+    if (taskDetail.taskStatus !== TASK_STATUS.COMPLETED) {
+        const ps = Math.max(1, pageSize || 10)
+        return {
+            meta: metaDocOk(),
+            data: {
+                scanResults: [],
+                paginationInfo: {
+                    totalPages: 1,
+                    pageSize: ps,
+                    hasPrevious: false,
+                    hasNext: false,
+                    currentPage: 1,
+                    totalCount: 0,
+                },
+            },
+        }
+    }
+
+    const results = mockScanResults[taskId] || []
+    const annotations = getAnnotationsForTask(taskId)
+    let scanResults: ScanResult[] = results.map((r: any, idx: number) => {
+        const uuid = r.warn_uuid || r.id || `warn-${idx}`
+        const ann = annotations[uuid]
+        return {
+            warn_uuid: uuid,
+            file_name: r.file_name || r.fileName || '',
+            rule_name: r.rule_name || '',
+            warn_line: r.warn_line || r.line || 0,
+            warn_code_block: r.warn_code_block || r.code_block || '',
+            code_snippet: r.code_snippet || r.warn_code_block || r.code_block || '',
+            context: r.context || '',
+            warn: r.warn || '',
+            check_function_id: r.check_function_id !== undefined ? r.check_function_id : null,
+            confidence: r.confidence || '0%',
+            start_line: r.start_line || r.warn_line || r.line || 0,
+            end_line: r.end_line || r.warn_line || r.line || 0,
+            func_uuid: r.func_uuid || '',
+            index: r.index !== undefined ? r.index : idx + 1,
+            reason: ann?.reason || r.reason || null,
+            issue_result: ann ? ann.issue_result : (r.issue_result !== undefined ? r.issue_result : null),
+            annotator: ann?.annotator || r.annotator,
+            annotationTime: ann?.annotationTime || r.annotationTime,
+            annotation: r.annotation || null,
+        } as ScanResult
+    })
+
+    const annFilter = annotation == null ? '' : String(annotation).trim()
+    scanResults = filterScanResultsByAnnotationStatus(scanResults, annFilter)
+    const rn = ruleName?.trim()
+    if (rn) {
+        scanResults = scanResults.filter((r) => (r.rule_name || '').trim() === rn)
+    }
+
+    const totalCount = scanResults.length
+    const ps = Math.max(1, pageSize || 10)
+    const totalPages = Math.max(1, Math.ceil(totalCount / ps) || 1)
+    let pn = Math.max(1, pageNum || 1)
+    if (pn > totalPages) pn = totalPages
+    const start = (pn - 1) * ps
+    const pageSlice = scanResults.slice(start, start + ps)
+
+    const paginationInfo: TaskDetailPaginationInfo = {
+        totalPages,
+        pageSize: ps,
+        hasPrevious: pn > 1,
+        hasNext: pn < totalPages,
+        currentPage: pn,
+        totalCount,
+    }
+
+    const rows: TaskScanResultApiDocRow[] = pageSlice.map((r, i) =>
+        scanResultToApiDocRow(r, start + i + 1),
+    )
+
+    return {
+        meta: metaDocOk(),
+        data: { scanResults: rows, paginationInfo },
+    }
+}
+
 /**
  * 通过 taskId 获取任务详情（与 `taskManagementService.getTaskDetail` 入参一致）
  * @param taskId - 任务ID
