@@ -5,93 +5,51 @@ import type {
     SaveAnnotationResultData,
     TaskDetailPaginationInfo,
 } from './types/saveAnnotation'
+import type {
+    Annotation,
+    AnnotationData,
+    AnnotationStatistics,
+    ApiEnvelope,
+    CreateTaskPayload,
+    ScanResult,
+    TaskDetail,
+    TaskListApiRow,
+    TaskListItem,
+    TaskListPageData,
+    TaskStatus,
+    TaskDetailAnnotationStatusFilter,
+    ApiDocHttpMeta,
+    TaskInfoApiDocData,
+    TaskInfoApiDocResponse,
+    TaskScanResultAnnotationApiDoc,
+    TaskScanResultApiDocRow,
+    TaskScanResultsApiDocData,
+    TaskScanResultsApiDocResponse,
+    UploadScanResultFileResponse,
+} from './types'
 
 /** 与历史 task store 一致，用于任务列表持久化 */
 const TASKS_STORAGE_KEY = 'aiRepoScan_tasks'
 
-// 任务状态类型
-type TaskStatus = typeof TASK_STATUS[keyof typeof TASK_STATUS]
-
-// 标注数据接口
-interface AnnotationData {
-    issue_result: IssueResult
-    annotator: string
-    annotationTime: string
-    reason?: string | null
-}
-
-// 标注信息接口
-interface Annotation {
-    id: number
-    warnUuid: string
-    userId: string
-    issueResult: number // 0: 需要修改, 1: 无需修改, 2: 问题误报
-    reason: string | null
-    annotationStatus: number
-    createTime: string
-    updateTime: string
-    userName: string | null
-    userDepartment: string | null
-    taskId: string | null
-}
-
-// 扫描结果接口
-interface ScanResult {
-    warn_uuid: string
-    file_name: string
-    rule_name: string
-    warn_line: number
-    warn_code_block: string
-    code_snippet: string
-    context: string
-    warn: string
-    check_function_id: string | null
-    confidence: string
-    start_line: number
-    end_line: number
-    func_uuid: string
-    index: number | null
-    reason: string | null
-    issue_result: IssueResult
-    annotator?: string
-    annotationTime?: string
-    annotation?: Annotation | null
-}
-
-// 任务详情接口
-interface TaskDetail {
-    taskId: string
-    taskName: string
-    repoUrl: string
-    branch: string
-    pathList: string
-    assistantVersions: string[]
-    creator: string
-    /** 创建人中文名；与 creator（短工号 w3Id）组合展示，持久化与接口对齐 */
-    nameCn: string
-    createTime: string
-    taskStatus: TaskStatus
-    codeLanguage: string
-    lineNum: number
-    productName: string
-    s3Path: string
-    scanResults: ScanResult[]
-    /** 扫描结果分页信息（与接口文档「查询任务详情」一致；未完成或无明细时为 null） */
-    paginationInfo?: TaskDetailPaginationInfo | null
-}
-
-/** 与后端统一：接口元信息 */
-export interface ApiResponseMeta {
-    number: number
-    message: string
-    isSuccess: boolean
-}
-
-/** 统一响应：仅含 data 与 meta（与 saveAnnotationApi 等一致） */
-export interface ApiEnvelope<T> {
-    data: T
-    meta: ApiResponseMeta
-}
+export type {
+    ApiResponseMeta,
+    ApiEnvelope,
+    UploadScanResultFileInnerMeta,
+    UploadScanResultFileResponseData,
+    UploadScanResultFileResponse,
+    TaskListItem,
+    TaskListApiRow,
+    TaskListPageData,
+    CreateTaskPayload,
+    TaskDetailAnnotationStatusFilter,
+    ApiDocHttpMeta,
+    TaskInfoApiDocData,
+    TaskInfoApiDocResponse,
+    TaskScanResultApiDocRow,
+    TaskScanResultAnnotationApiDoc,
+    TaskScanResultsApiDocData,
+    TaskScanResultsApiDocResponse,
+} from './types'
 
 function envelopeOk<T>(data: T): ApiEnvelope<T> {
     return {
@@ -113,67 +71,6 @@ function envelopeFail<T>(data: T, number: number, message: string): ApiEnvelope<
             isSuccess: false
         }
     }
-}
-
-/** POST `/api/tasks/{taskId}/uploadDataSet` 内层 meta（与接口文档 1.4 一致） */
-export interface UploadScanResultFileInnerMeta {
-    isSuccess: boolean
-    message: string
-    number: number
-}
-
-/** 内层 `data` 与 `meta`（与接口文档 1.4 一致） */
-export interface UploadScanResultFileResponseData {
-    meta: UploadScanResultFileInnerMeta
-    /** 上传后的对象路径，如 `AIRepoScan/task_123456/scan_result.json` */
-    data: string
-}
-
-/**
- * 上传扫描结果完整响应体（与接口文档 1.4 一致：顶层仅 `data`，其内再含 `meta` 与 `data`）
- */
-export interface UploadScanResultFileResponse {
-    data: UploadScanResultFileResponseData
-}
-
-/** 列表项（不含扫描结果明细） */
-export type TaskListItem = Omit<TaskDetail, 'scanResults'>
-
-/**
- * 查询任务列表 GET /api/tasks 响应 `data.list` 单条（与接口文档 1.1 一致）
- * - `assistantVersions` 为逗号分隔字符串
- * - `scanResults` 列表接口固定为空数组，`paginationInfo` 固定为 null
- */
-export interface TaskListApiRow {
-    taskId: string
-    taskName: string
-    repoUrl: string
-    branch: string
-    pathList: string
-    s3Path: string
-    creator: string
-    createTime: string
-    taskStatus: string
-    assistantVersions: string
-    productName: string
-    codeLanguage: string | null
-    lineNum: number | null
-    deptName: string | null
-    pduName: string | null
-    warnCount: number | null
-    scanResults: unknown[]
-    paginationInfo: null
-    /** 前端展示用（接口文档未列） */
-    nameCn?: string
-}
-
-/** 查询任务列表 GET /api/tasks 响应 `data` 体（与接口文档 1.1 一致） */
-export interface TaskListPageData {
-    total: number
-    pages: number
-    size: number
-    page: number
-    list: TaskListApiRow[]
 }
 
 function mapTaskDetailToListApiRow(t: TaskDetail): TaskListApiRow {
@@ -203,24 +100,6 @@ function mapTaskDetailToListApiRow(t: TaskDetail): TaskListApiRow {
         paginationInfo: null,
         nameCn: t.nameCn?.trim() ? t.nameCn : undefined,
     }
-}
-
-/** 创建任务入参（与创建表单 / 接口字段对齐） */
-export interface CreateTaskPayload {
-    taskName: string
-    productName: string
-    repoUrl: string
-    branch: string
-    pathList?: string
-    creator: string
-    /** 创建人中文名，与 creator（w3Id）一并展示 */
-    nameCn?: string
-    /** 逗号分隔的助手版本，如 "v1.0.0,v2.0.0" */
-    assistantVersions: string
-    codeLanguage?: string
-    lineNum?: number
-    deptName?: string
-    pduName?: string
 }
 
 const generateTaskId = (): string => {
@@ -289,22 +168,6 @@ const normalizeStoredTask = (raw: Record<string, unknown>): TaskDetail => {
         s3Path: String(raw.s3Path ?? ''),
         scanResults: []
     }
-}
-
-// 标注统计信息接口
-interface AnnotationStatistics {
-    taskId: string
-    taskName: string
-    totalWarnCount: number
-    annotatedCount: number
-    unannotatedCount: number
-    annotationCompletionRate: number
-    statusDistribution: Array<{
-        statusCode: number
-        statusDescription: string
-        warnCount: number
-        percentage: number
-    }>
 }
 
 // Mock 任务详情数据（基于 defaultTasks）
@@ -917,14 +780,6 @@ export const uploadScanResultFile = async (
     }
 }
 
-/**
- * 任务详情 scanResults 按标注状态筛选（与 GET `/api/tasks/{taskId}` 的 query 一致）
- * - 空字符串：不过滤
- * - `unmarked`：仅未标注（issue_result 为 null）
- * - `0` / `1` / `2`：对应已标注结果
- */
-export type TaskDetailAnnotationStatusFilter = '' | 'unmarked' | '0' | '1' | '2'
-
 function filterScanResultsByAnnotationStatus(
     results: ScanResult[],
     annotationStatus: string
@@ -943,87 +798,7 @@ function filterScanResultsByAnnotationStatus(
     return results
 }
 
-// ---------------------------------------------------------------------------
-// 与接口文档 1.2.1 / 1.2.2 一致的 HTTP 响应形（meta.success + data），供本地模拟
-// ---------------------------------------------------------------------------
-
-/** 接口文档 1.2.x 成功/失败时的 meta 形态 */
-export interface ApiDocHttpMeta {
-    isSuccess: boolean
-    message: string
-    number: number
-}
-
-/** 1.2.1 `data`（与文档字段一致；无 nameCn） */
-export interface TaskInfoApiDocData {
-    taskId: string
-    taskName: string
-    repoUrl: string
-    branch: string
-    pathList: string
-    assistantVersions: string[]
-    creator: string
-    createTime: string
-    taskStatus: string
-    codeLanguage: string
-    lineNum: number
-    productName: string
-    s3Path: string
-    warnCount: number
-    scanResults: null
-    paginationInfo: null
-}
-
-export interface TaskInfoApiDocResponse {
-    meta: ApiDocHttpMeta
-    data: TaskInfoApiDocData | null
-}
-
-/** 1.2.2 单条扫描结果（与文档示例字段一致） */
-export interface TaskScanResultApiDocRow {
-    file_name: string
-    function_name: string
-    start_line: number
-    end_line: number
-    code_snippet: string
-    context: string
-    func_uuid: string
-    self_increment_id: number
-    check_function_id: string | null
-    index: number | null
-    rule_name: string
-    warn_line: number
-    warn_code_block: string
-    warn: string
-    reason: string
-    confidence: number
-    warn_uuid: string
-    annotation: TaskScanResultAnnotationApiDoc | null
-}
-
-export interface TaskScanResultAnnotationApiDoc {
-    id: number
-    warnUuid: string
-    userId: string
-    issueResult: number
-    reason: string | null
-    annotationStatus: number
-    createTime: string
-    updateTime: string
-    userName: string | null
-    userDepartment: string | null
-    taskId: string | null
-}
-
-export interface TaskScanResultsApiDocData {
-    scanResults: TaskScanResultApiDocRow[]
-    paginationInfo: TaskDetailPaginationInfo
-}
-
-export interface TaskScanResultsApiDocResponse {
-    meta: ApiDocHttpMeta
-    data: TaskScanResultsApiDocData | null
-}
+// 与接口文档 1.2.1 / 1.2.2 一致的 HTTP 响应形（meta + data），供本地模拟
 
 function metaDocOk(): ApiDocHttpMeta {
     return { isSuccess: true, message: 'OK', number: 200 }

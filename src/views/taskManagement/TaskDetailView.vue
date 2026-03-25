@@ -551,8 +551,8 @@ import {
   uploadScanResultFile,
   saveAnnotationApi,
   getAnnotationStatistics,
-  type TaskScanResultApiDocRow,
 } from '@/api/task'
+import type { TaskScanResultApiDocRow } from '@/api/types'
 import type { SaveAnnotationReqBody, TaskDetailPaginationInfo } from '@/api/types/saveAnnotation'
 import CodeBlock from '@/views/taskManagement/components/CodeBlock.vue'
 import taskManagementService from '@/api/services/taskManagementService'

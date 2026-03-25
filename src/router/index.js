@@ -6,8 +6,6 @@ const TaskListView = () =>
     import ('../views/taskManagement/TaskListView.vue')
 const TaskDetailView = () =>
     import ('../views/taskManagement/TaskDetailView.vue')
-const AnnotationView = () =>
-    import ('../views/taskManagement/AnnotationView.vue')
 
 const router = createRouter({
     history: createWebHistory(
@@ -30,11 +28,6 @@ const router = createRouter({
             path: '/task/:id',
             name: 'taskDetail',
             component: TaskDetailView,
-        },
-        {
-            path: '/annotation/:id',
-            name: 'annotation',
-            component: AnnotationView,
         },
     ],
 })
