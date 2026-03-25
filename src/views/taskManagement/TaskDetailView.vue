@@ -1,68 +1,67 @@
 <template>
   <div class="task-detail-page">
-    <!-- 加载状态 -->
-    <div v-if="loading" class="loading-container">
-      <el-skeleton :rows="5" animated/>
-    </div>
-
-    <!-- 错误提示 -->
-    <div v-else-if="error" class="error-container">
-      <el-alert
-          :title="error"
-          type="error"
-          :closable="false"
-          show-icon
-      />
-      <div class="error-actions">
-        <el-button type="primary" @click="handleRetry">
-          重试
-        </el-button>
-        <el-button @click="handleBack">
-          返回任务首页
-        </el-button>
+    <!-- 页面标题和返回按钮区域（加载时也展示） -->
+    <div class="page-header">
+      <div class="header-left">
+        <el-button @click="handleBack">← 返回任务列表</el-button>
+        <h1 v-if="task?.taskName">{{ task.taskName }}</h1>
+        <h1 v-else>任务详情</h1>
+        <el-tag v-if="task?.taskStatus" :type="taskStatusToElTagType(task.taskStatus)" size="large" class="status-tag">
+          {{ task.taskStatus }}
+        </el-tag>
+        <el-tag v-else-if="task?.status" :type="taskStatusToElTagType(task.status)" size="large" class="status-tag">
+          {{ task.status }}
+        </el-tag>
       </div>
     </div>
 
-    <!-- 未找到任务信息提示 -->
-    <div v-else-if="!task" class="error-container">
-      <el-alert
-          :title="error || '未找到该任务信息'"
-          :type="error ? 'error' : 'info'"
-          :closable="false"
-          show-icon
-      />
-      <div class="error-actions">
-        <el-button type="primary" @click="handleRetry">
-          重试
-        </el-button>
-        <el-button @click="handleBack">
-          返回任务首页
-        </el-button>
-      </div>
-    </div>
-
-    <!-- 正常内容 -->
-    <template v-else>
-      <!-- 页面标题和返回按钮区域 -->
-      <div class="page-header">
-        <div class="header-left">
-          <el-button @click="handleBack">← 返回任务列表</el-button>
-          <h1 v-if="task?.taskName">{{ task.taskName }}</h1>
-          <h1 v-else>任务详情</h1>
-          <el-tag v-if="task?.taskStatus" :type="taskStatusToElTagType(task.taskStatus)" size="large" class="status-tag">
-            {{ task.taskStatus }}
-          </el-tag>
-          <el-tag v-else-if="task?.status" :type="taskStatusToElTagType(task.status)" size="large" class="status-tag">
-            {{ task.status }}
-          </el-tag>
-        </div>
-      </div>
-
-      <!-- 视图切换标签页 -->
-      <el-tabs v-model="activeView" class="view-tabs">
-        <!-- 任务基本信息统计视图 -->
-        <el-tab-pane label="任务信息" name="info">
-          <div class="view-content">
+    <!-- 视图切换标签页（加载时也展示） -->
+    <el-tabs v-model="activeView" class="view-tabs">
+      <!-- 任务基本信息统计视图 -->
+      <el-tab-pane label="任务信息" name="info">
+        <div class="view-content">
+          <template v-if="loading">
+            <div class="tab-content-skeleton loading-container">
+              <el-skeleton :rows="10" animated/>
+            </div>
+          </template>
+          <template v-else-if="error">
+            <div class="error-container">
+              <el-alert
+                  :title="error"
+                  type="error"
+                  :closable="false"
+                  show-icon
+              />
+              <div class="error-actions">
+                <el-button type="primary" @click="handleRetry">
+                  重试
+                </el-button>
+                <el-button @click="handleBack">
+                  返回任务首页
+                </el-button>
+              </div>
+            </div>
+          </template>
+          <template v-else-if="!task">
+            <div class="error-container">
+              <el-alert
+                  :title="error || '未找到该任务信息'"
+                  :type="error ? 'error' : 'info'"
+                  :closable="false"
+                  show-icon
+              />
+              <div class="error-actions">
+                <el-button type="primary" @click="handleRetry">
+                  重试
+                </el-button>
+                <el-button @click="handleBack">
+                  返回任务首页
+                </el-button>
+              </div>
+            </div>
+          </template>
+          <template v-else>
             <!-- 任务信息区域 -->
             <div v-if="task" class="task-info-section">
               <div class="task-info-cards-row">
@@ -242,18 +241,65 @@
                   show-icon
               />
             </div>
-          </div>
-        </el-tab-pane>
+          </template>
+        </div>
+      </el-tab-pane>
 
-        <!-- 标注视图 -->
-        <el-tab-pane label="标注视图" name="annotation">
-          <div
-              class="view-content"
-              :class="{
-                'view-content--with-fixed-pagination':
-                  task && task.taskStatus === TASK_STATUS.COMPLETED && pagination.total > 0
-              }"
-          >
+      <!-- 标注视图 -->
+      <el-tab-pane label="标注视图" name="annotation">
+        <div
+            class="view-content"
+            :class="{
+              'view-content--with-fixed-pagination':
+                !loading &&
+                !error &&
+                task &&
+                task.taskStatus === TASK_STATUS.COMPLETED &&
+                pagination.total > 0
+            }"
+        >
+          <template v-if="loading">
+            <div class="tab-content-skeleton loading-container">
+              <el-skeleton :rows="10" animated/>
+            </div>
+          </template>
+          <template v-else-if="error">
+            <div class="error-container">
+              <el-alert
+                  :title="error"
+                  type="error"
+                  :closable="false"
+                  show-icon
+              />
+              <div class="error-actions">
+                <el-button type="primary" @click="handleRetry">
+                  重试
+                </el-button>
+                <el-button @click="handleBack">
+                  返回任务首页
+                </el-button>
+              </div>
+            </div>
+          </template>
+          <template v-else-if="!task">
+            <div class="error-container">
+              <el-alert
+                  :title="error || '未找到该任务信息'"
+                  :type="error ? 'error' : 'info'"
+                  :closable="false"
+                  show-icon
+              />
+              <div class="error-actions">
+                <el-button type="primary" @click="handleRetry">
+                  重试
+                </el-button>
+                <el-button @click="handleBack">
+                  返回任务首页
+                </el-button>
+              </div>
+            </div>
+          </template>
+          <template v-else>
             <!-- 扫描结果列表和规则树区域 - 仅当任务状态为已完成时显示 -->
             <div v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && scanResultsList" class="result-list-container">
               <!-- 左侧：扫描结果列表 -->
@@ -464,10 +510,10 @@
                   show-icon
               />
             </div>
-          </div>
-        </el-tab-pane>
-      </el-tabs>
-    </template>
+          </template>
+        </div>
+      </el-tab-pane>
+    </el-tabs>
   </div>
 </template>
 
@@ -1966,7 +2012,7 @@ onUnmounted(() => {
   display: flex;
   justify-content: flex-start;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 8px;
 }
 
 /* 视图切换标签页样式 */
@@ -2820,22 +2866,18 @@ onUnmounted(() => {
 
 .pagination-section.pagination-bar-fixed {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  width: 600px;
+  max-width: calc(100vw - 32px);
   z-index: 110;
   margin: 0;
-  padding: 12px 24px calc(12px + env(safe-area-inset-bottom, 0px));
+  padding: 12px 16px;
   background: #ffffff;
-  border-radius: 0;
-  border-top: 1px solid #e5e7eb;
-  box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.08);
-}
-
-@media (min-width: 1201px) {
-  .pagination-section.pagination-bar-fixed {
-    right: 360px;
-  }
+  border-radius: 10px;
+  border: none;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.1), 0 2px 6px rgba(15, 23, 42, 0.06);
 }
 
 .status-tip-section {
@@ -2848,6 +2890,10 @@ onUnmounted(() => {
   padding: 24px;
   margin-bottom: 24px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.tab-content-skeleton {
+  min-height: 260px;
 }
 
 .error-container {
