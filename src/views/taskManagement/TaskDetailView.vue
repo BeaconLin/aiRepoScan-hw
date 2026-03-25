@@ -130,7 +130,8 @@
                               class="task-detail-scan-file-value"
                               :title="scanResultFileDisplay || undefined"
                           >{{ scanResultFileDisplay || '—' }}</span>
-                          <span class="task-detail-scan-hint">仅支持 JSON 格式；上传后将替换当前任务关联的扫描结果文件。</span>
+                          <span
+                              class="task-detail-scan-hint">仅支持 JSON 格式；上传后将替换当前任务关联的扫描结果文件。</span>
                         </div>
                       </div>
                       <el-upload
@@ -158,8 +159,9 @@
             </div>
 
             <!-- 统计看板区域 - 仅当任务状态为已完成时显示 -->
-            <div v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && scanResultsList && scanResultsList.length > 0"
-                 class="dashboard-section">
+            <div
+                v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && scanResultsList && scanResultsList.length > 0"
+                class="dashboard-section">
               <div class="section-label">任务扫描结果统计看板</div>
               <div class="dashboard-content">
                 <!-- 总缺陷数统计卡片 -->
@@ -301,7 +303,8 @@
           </template>
           <template v-else>
             <!-- 扫描结果列表和规则树区域 - 仅当任务状态为已完成时显示 -->
-            <div v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && scanResultsList" class="result-list-container">
+            <div v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && scanResultsList"
+                 class="result-list-container">
               <!-- 左侧：扫描结果列表 -->
               <div class="result-list-section">
                 <div class="list-header-with-filter">
@@ -533,7 +536,7 @@ import {
   ElMessage,
   ElMessageBox,
   ElSkeleton,
-  ElRadioGroup, 
+  ElRadioGroup,
   ElRadio,
   ElTree,
   ElTabs,
@@ -552,12 +555,11 @@ import {
   saveAnnotationApi,
   getAnnotationStatistics,
 } from '@/api/task'
-import type { TaskScanResultApiDocRow } from '@/api/types'
+import type { TaskScanResultApiDocRow } from '@/api/types/taskApiDoc'
 import type { SaveAnnotationReqBody, TaskDetailPaginationInfo } from '@/api/types/saveAnnotation'
 import CodeBlock from '@/views/taskManagement/components/CodeBlock.vue'
 import taskManagementService from '@/api/services/taskManagementService'
 
-/** `el-tag` 的 type 需为字面量联合，不能为宽泛的 `string` */
 type ElTagType = 'success' | 'info' | 'warning' | 'danger'
 
 function taskStatusToElTagType(status: string | undefined): ElTagType {
@@ -812,8 +814,8 @@ let pagination = ref({
 
 /** 从查询任务详情返回的 paginationInfo 同步底部分页（与接口文档 1.1 中 list 项内 paginationInfo 字段一致） */
 function syncPaginationFromResponse(
-  pInfo: TaskDetailPaginationInfo | null | undefined,
-  fallbackCount: number
+    pInfo: TaskDetailPaginationInfo | null | undefined,
+    fallbackCount: number
 ): void {
   if (pInfo && typeof pInfo.totalCount === 'number') {
     pagination.value.currentPage = pInfo.currentPage
@@ -857,13 +859,9 @@ const selectedRuleNodeId = ref<string | null>(null)
 const ruleTreeRef = ref()
 
 // 图表容器引用
-const annotationRatioChartRef = ref<HTMLElement | null>(null)
-const annotationStatusChartRef = ref<HTMLElement | null>(null)
 const ruleDistributionChartRef = ref<HTMLElement | null>(null)
 
 // 图表实例
-let annotationRatioChart: echarts.ECharts | null = null
-let annotationStatusChart: echarts.ECharts | null = null
 let ruleDistributionChart: echarts.ECharts | null = null
 
 // 树形结构配置
@@ -999,10 +997,10 @@ function augmentScanResultsWithRepeatedRules(results: ScanResult[]): ScanResult[
  * 拉取任务详情某一页扫描结果；底部分页与接口返回的 `paginationInfo` 同步（字段与接口文档 1.1 中 list 项内 `paginationInfo` 一致：currentPage、hasNext、hasPrevious、pageSize、totalCount、totalPages）。
  */
 const fetchTaskDetailPage = async (
-  taskId: string,
-  pageNum: number,
-  pageSize: number,
-  options: { fetchAnnotationStats: boolean }
+    taskId: string,
+    pageNum: number,
+    pageSize: number,
+    options: { fetchAnnotationStats: boolean }
 ): Promise<void> => {
   const ruleName = filterForm.value.ruleName?.trim()
   const annotation = filterForm.value.issueResult?.trim()
@@ -1038,8 +1036,8 @@ const fetchTaskDetailPage = async (
   const d = infoRes.data
   const scanData = scanRes.data
   const rawScanResults: any[] = Array.isArray(scanData.scanResults)
-    ? scanData.scanResults.map((row) => normalizeApiDocScanRowForList(row))
-    : []
+      ? scanData.scanResults.map((row) => normalizeApiDocScanRowForList(row))
+      : []
   const pi = scanData.paginationInfo as TaskDetailPaginationInfo | null | undefined
   syncPaginationFromResponse(pi, rawScanResults.length)
 
@@ -1050,9 +1048,9 @@ const fetchTaskDetailPage = async (
   } as any
 
   const offset =
-    pi != null
-      ? (pi.currentPage - 1) * pi.pageSize
-      : Math.max(0, (pageNum - 1) * pageSize)
+      pi != null
+          ? (pi.currentPage - 1) * pi.pageSize
+          : Math.max(0, (pageNum - 1) * pageSize)
 
   task.value = {
     ...resTask,
@@ -1061,8 +1059,8 @@ const fetchTaskDetailPage = async (
     pathList: normalizePathListToString(resTask.pathList ?? resTask.scanPaths ?? ''),
     codeLanguage: resTask.codeLanguage || resTask.language || 'Unknown',
     lineNum:
-      resTask.lineNum ??
-      (resTask.codeLines != null ? Number(resTask.codeLines) / 1000 : 0),
+        resTask.lineNum ??
+        (resTask.codeLines != null ? Number(resTask.codeLines) / 1000 : 0),
     productName: resTask.productName || resTask.product_name || '-',
     s3Path: resTask.s3Path || `s3://ai-repo-scan/results/${resTask.taskId || resTask.id}`,
     creator: resTask.creator ?? '',
@@ -1092,7 +1090,7 @@ const fetchTaskDetailPage = async (
               issueResult: item.annotation.issueResult ?? item.annotation.issue_result ?? item.issue_result ?? null,
               reason: item.annotation.reason ?? item.reason ?? null,
               annotationStatus: item.annotation.annotationStatus ?? item.annotation.annotation_status ??
-                (item.issue_result !== null && item.issue_result !== undefined ? 1 : undefined),
+                  (item.issue_result !== null && item.issue_result !== undefined ? 1 : undefined),
               createTime: item.annotation.createTime || item.annotation.create_time || item.annotationTime,
               updateTime: item.annotation.updateTime || item.annotation.update_time || item.annotationTime,
               userName: item.annotation.userName || item.annotation.user_name || null,
@@ -1120,7 +1118,7 @@ const fetchTaskDetailPage = async (
     mapped = augmentScanResultsWithRepeatedRules(mapped)
     mapped = renumberScanResultIncrementIds(mapped, offset + 1)
     scanResultsList.value = mapped
-    task.value = { ...task.value, scanResults: mapped as any }
+    task.value = {...task.value, scanResults: mapped as any}
 
     setTimeout(() => {
       updateAllCharts()
@@ -1129,6 +1127,7 @@ const fetchTaskDetailPage = async (
     if (options.fetchAnnotationStats) {
       try {
         const statisticsResponse = await getAnnotationStatistics(taskId)
+        // const statisticsResponse = await taskManagementService.getAnnotationStatistics(taskId)
         if (statisticsResponse.meta.isSuccess && statisticsResponse.data) {
           annotationStatistics.value = statisticsResponse.data
         }
@@ -1714,7 +1713,7 @@ const handleSizeChange = async (size: number): Promise<void> => {
   pagination.value.currentPage = 1
   loading.value = true
   try {
-    await fetchTaskDetailPage(taskId, 1, size, { fetchAnnotationStats: false })
+    await fetchTaskDetailPage(taskId, 1, size, {fetchAnnotationStats: false})
   } catch (err) {
     ElMessage.error(err instanceof Error ? err.message : '加载失败')
   } finally {
@@ -1728,7 +1727,7 @@ const handleCurrentChange = async (page: number): Promise<void> => {
   if (!taskId || task.value?.taskStatus !== TASK_STATUS.COMPLETED) return
   loading.value = true
   try {
-    await fetchTaskDetailPage(taskId, page, pagination.value.pageSize, { fetchAnnotationStats: false })
+    await fetchTaskDetailPage(taskId, page, pagination.value.pageSize, {fetchAnnotationStats: false})
   } catch (err) {
     ElMessage.error(err instanceof Error ? err.message : '加载失败')
   } finally {
@@ -1922,7 +1921,6 @@ const initRuleDistributionChart = (): void => {
     }
 
     ruleDistributionChart.setOption(option)
-    console.log('规则名称分布柱状图初始化成功', {count: ruleEntries.length})
   } catch (error) {
     console.error('初始化规则名称分布柱状图失败:', error)
   }
@@ -2869,7 +2867,7 @@ onUnmounted(() => {
   left: 50%;
   transform: translateX(-50%);
   bottom: calc(20px + env(safe-area-inset-bottom, 0px));
-  width: 600px;
+  width: 800px;
   max-width: calc(100vw - 32px);
   z-index: 110;
   margin: 0;
@@ -2907,7 +2905,6 @@ onUnmounted(() => {
 
 .reason-section {
   display: flex;
-
   gap: 8px;
   width: 600px;
   margin-top: 8px;
