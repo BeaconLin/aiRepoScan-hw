@@ -93,6 +93,22 @@ export interface CreateTaskPayload {
     pduName?: string
 }
 
+/** 接口文档 1.5：annotationDistribution 单条 */
+export interface AnnotationResultDistributionItem {
+    resultCode: number
+    resultDescription: string
+    annotationCount: number
+    percentage: number
+}
+
+/** 接口文档 1.5：ruleStatistics 单条（扫描告警规则统计） */
+export interface RuleStatisticItem {
+    taskId: string
+    ruleName: string
+    ruleCount: number
+    updateTime: string
+}
+
 /** 标注统计信息（getAnnotationStatistics 响应 data） */
 export interface AnnotationStatistics {
     taskId: string
@@ -107,4 +123,8 @@ export interface AnnotationStatistics {
         warnCount: number
         percentage: number
     }>
+    /** 标注结果统计（与接口文档一致：resultCode 0 非问题 / 1 无需修改的问题 / 2 需要修改） */
+    annotationDistribution?: AnnotationResultDistributionItem[]
+    /** 扫描告警规则统计 */
+    ruleStatistics?: RuleStatisticItem[]
 }

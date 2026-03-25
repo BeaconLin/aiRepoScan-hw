@@ -1240,6 +1240,41 @@ export const getAnnotationStatistics = async (taskId: string): Promise<ApiEnvelo
         }
     })
 
+    // 与接口文档 1.5 一致：issue_result 0/1/2 → resultCode 2/1/0
+    const annotationDistribution = []
+    const docRows: Array<{ resultCode: number; resultDescription: string; count: number }> = [
+        { resultCode: 2, resultDescription: '需要修改', count: statusCountMap[0] },
+        { resultCode: 1, resultDescription: '无需修改的问题', count: statusCountMap[1] },
+        { resultCode: 0, resultDescription: '非问题', count: statusCountMap[2] },
+    ]
+    for (const row of docRows) {
+        if (row.count > 0) {
+            const pct =
+                totalAnnotated > 0 ? Number(((row.count / totalAnnotated) * 100).toFixed(2)) : 0
+            annotationDistribution.push({
+                resultCode: row.resultCode,
+                resultDescription: row.resultDescription,
+                annotationCount: row.count,
+                percentage: pct,
+            })
+        }
+    }
+
+    const ruleCountMap: Record<string, number> = {}
+    for (const r of results) {
+        const name = (r as { rule_name?: string }).rule_name?.trim() || ''
+        if (name) ruleCountMap[name] = (ruleCountMap[name] || 0) + 1
+    }
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const now = new Date()
+    const updateTime = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
+    const ruleStatistics = Object.entries(ruleCountMap).map(([ruleName, ruleCount]) => ({
+        taskId: taskDetail.taskId,
+        ruleName,
+        ruleCount,
+        updateTime,
+    }))
+
     const statistics: AnnotationStatistics = {
         taskId: taskDetail.taskId,
         taskName: taskDetail.taskName,
@@ -1247,7 +1282,9 @@ export const getAnnotationStatistics = async (taskId: string): Promise<ApiEnvelo
         annotatedCount: annotatedCount,
         unannotatedCount: unannotatedCount,
         annotationCompletionRate: annotationCompletionRate,
-        statusDistribution: statusDistribution
+        statusDistribution: statusDistribution,
+        annotationDistribution,
+        ruleStatistics,
     }
 
     return envelopeOk(statistics)

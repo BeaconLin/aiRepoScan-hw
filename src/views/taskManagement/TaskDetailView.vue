@@ -169,7 +169,7 @@
                   <div class="summary-icon">📊</div>
                   <div class="summary-content">
                     <div class="summary-label">总缺陷数</div>
-                    <div class="summary-value">{{ statistics.totalIssues }}</div>
+                    <div class="summary-value">{{ totalWarnCountDisplay }}</div>
                     <div class="summary-desc">扫描发现的全部缺陷</div>
                   </div>
                 </div>
@@ -179,7 +179,7 @@
                   <div class="chart-title">标注完成度</div>
                   <div class="metric-panel-body">
                     <div class="metric-hero">
-                      <span class="metric-hero-value">{{ annotationCompletionRatePct }}</span>
+                      <span class="metric-hero-value">{{ annotationCompletionHeroText }}</span>
                       <span class="metric-hero-unit">%</span>
                       <div class="metric-hero-caption">标注完成率</div>
                     </div>
@@ -203,24 +203,24 @@
                   <div class="chart-title">标注状态分布</div>
                   <div class="metric-grid-4">
                     <div class="metric-cell metric-cell--need-modify">
-                      <div class="metric-cell-value">{{ statistics.needModify }}</div>
+                      <div class="metric-cell-value">{{ annotationStatusDisplay.needModify }}</div>
                       <div class="metric-cell-label">需要修改</div>
-                      <div class="metric-cell-sub">{{ annotationStatusPct.needModify }}%</div>
+                      <div class="metric-cell-sub">{{ annotationStatusDisplay.pct.needModify }}%</div>
                     </div>
                     <div class="metric-cell metric-cell--no-need-modify">
-                      <div class="metric-cell-value">{{ statistics.noNeedModify }}</div>
+                      <div class="metric-cell-value">{{ annotationStatusDisplay.noNeedModify }}</div>
                       <div class="metric-cell-label">无需修改</div>
-                      <div class="metric-cell-sub">{{ annotationStatusPct.noNeedModify }}%</div>
+                      <div class="metric-cell-sub">{{ annotationStatusDisplay.pct.noNeedModify }}%</div>
                     </div>
                     <div class="metric-cell metric-cell--false-positive">
-                      <div class="metric-cell-value">{{ statistics.falsePositive }}</div>
+                      <div class="metric-cell-value">{{ annotationStatusDisplay.falsePositive }}</div>
                       <div class="metric-cell-label">问题误报</div>
-                      <div class="metric-cell-sub">{{ annotationStatusPct.falsePositive }}%</div>
+                      <div class="metric-cell-sub">{{ annotationStatusDisplay.pct.falsePositive }}%</div>
                     </div>
                     <div class="metric-cell metric-cell--unmarked">
-                      <div class="metric-cell-value">{{ annotationStatusUnmarkedCount }}</div>
+                      <div class="metric-cell-value">{{ annotationStatusDisplay.unmarked }}</div>
                       <div class="metric-cell-label">未标注</div>
-                      <div class="metric-cell-sub">{{ annotationStatusPct.unmarked }}%</div>
+                      <div class="metric-cell-sub">{{ annotationStatusDisplay.pct.unmarked }}%</div>
                     </div>
                   </div>
                 </div>
@@ -556,6 +556,7 @@ import {
   getAnnotationStatistics,
 } from '@/api/task'
 import type { TaskScanResultApiDocRow } from '@/api/types/taskApiDoc'
+import type { AnnotationStatistics } from '@/api/types'
 import type { SaveAnnotationReqBody, TaskDetailPaginationInfo } from '@/api/types/saveAnnotation'
 import CodeBlock from '@/views/taskManagement/components/CodeBlock.vue'
 import taskManagementService from '@/api/services/taskManagementService'
@@ -671,34 +672,6 @@ interface FilterForm {
   issueResult: string // '0' | '1' | '2' | 'unmarked' | '' (空字符串表示未选择)
 }
 
-
-interface Statistics {
-  totalIssues: number
-  annotated: number
-  unannotated: number
-  typeDistribution: Record<string, number>
-  needModify: number // 需要修改 (0)
-  noNeedModify: number // 无需修改的问题 (1)
-  falsePositive: number // 问题误报 (2)
-  unmarked: number // 未标注
-}
-
-// 标注统计信息接口（来自API）
-interface AnnotationStatistics {
-  taskId: string
-  taskName: string
-  totalWarnCount: number
-  annotatedCount: number
-  unannotatedCount: number
-  annotationCompletionRate: number
-  statusDistribution: Array<{
-    statusCode: number
-    statusDescription: string
-    warnCount: number
-    percentage: number
-  }>
-}
-
 interface RuleTreeNode {
   id: string
   label: string
@@ -799,7 +772,6 @@ async function handleScanResultFileChange(uploadFile: UploadFile, _uploadFiles: 
       ElMessage.error(uploadResponse.meta.message || '上传失败')
     }
   } catch (e) {
-    console.error(e)
     ElMessage.error('上传失败')
   } finally {
     scanResultUploadRef.value?.clearFiles()
@@ -887,7 +859,6 @@ const assembleFileName = (result) => {
   try {
     return repoHost + '?ref=' + task.value.branch + '&filePath=' + result.file_name.split(subProductPath)[1].substring(1) + '&isFile=true#L' + result.warn_line
   } catch (error) {
-    console.warn('组装文件链接失败:', error)
     return '#'
   }
 }
@@ -908,7 +879,6 @@ const assembleFileNameShow = (result) => {
 
     return result.file_name.split(subProductPath)[1].substring(1)
   } catch (error) {
-    console.warn('组装文件名称显示失败:', error)
     return result.file_name
   }
 }
@@ -1171,7 +1141,6 @@ const loadTaskData = async (taskId: string): Promise<void> => {
   } catch (err) {
     error.value = err instanceof Error ? err.message : '加载数据失败'
     ElMessage.error(error.value)
-    console.error('加载任务数据失败:', err)
   } finally {
     loading.value = false
   }
@@ -1186,106 +1155,76 @@ const ruleNames = computed<string[]>(() => {
   return Array.from(names)
 })
 
-// 计算属性：统计信息
-const statistics = computed<Statistics>(() => {
-  if (!scanResultsList.value.length) {
+/** 接口 GET `/api/tasks/{taskId}/annotation-statistics` 的 ruleStatistics → 规则名 → 条数 */
+const ruleStatisticsTypeDistribution = computed<Record<string, number>>(() => {
+  const rs = annotationStatistics.value?.ruleStatistics
+  if (!rs?.length) return {}
+  const map: Record<string, number> = {}
+  for (const r of rs) {
+    map[r.ruleName] = r.ruleCount
+  }
+  return map
+})
+
+/** 总缺陷数（仅接口 totalWarnCount） */
+const totalWarnCountDisplay = computed(() => annotationStatistics.value?.totalWarnCount ?? 0)
+
+/** 已标注 / 未标注条数（仅接口） */
+const annotationRatioCounts = computed(() => ({
+  annotated: annotationStatistics.value?.annotatedCount ?? 0,
+  unannotated: annotationStatistics.value?.unannotatedCount ?? 0,
+}))
+
+/** 标注完成度「占全部告警」的百分比（由接口字段计算） */
+const annotationCompletionPct = computed(() => {
+  const api = annotationStatistics.value
+  if (!api || api.totalWarnCount <= 0) return {annotated: 0, unannotated: 0}
+  return {
+    annotated: Math.round((api.annotatedCount / api.totalWarnCount) * 100),
+    unannotated: Math.round((api.unannotatedCount / api.totalWarnCount) * 100),
+  }
+})
+
+function formatPercentText(n: number): string {
+  if (!Number.isFinite(n)) return '0'
+  return parseFloat(String(Number(n).toFixed(2))).toString()
+}
+
+/** 标注完成率主数字（仅接口 annotationCompletionRate） */
+const annotationCompletionHeroText = computed(() => {
+  const api = annotationStatistics.value
+  if (api && typeof api.annotationCompletionRate === 'number') {
+    return formatPercentText(api.annotationCompletionRate)
+  }
+  return '0'
+})
+
+/** 标注状态分布（仅接口 annotationDistribution + unannotatedCount） */
+const annotationStatusDisplay = computed(() => {
+  const api = annotationStatistics.value
+  const total = totalWarnCountDisplay.value
+  if (!api) {
     return {
-      totalIssues: 0,
-      annotated: 0,
-      unannotated: 0,
-      typeDistribution: {},
       needModify: 0,
       noNeedModify: 0,
       falsePositive: 0,
-      unmarked: 0
+      unmarked: 0,
+      pct: {needModify: '0', noNeedModify: '0', falsePositive: '0', unmarked: '0'},
     }
   }
-
-  const stats = {
-    totalIssues: scanResultsList.value.length,
-    annotated: 0,
-    unannotated: 0,
-    typeDistribution: {},
-    needModify: 0, // 需要修改 (0)
-    noNeedModify: 0, // 无需修改的问题 (1)
-    falsePositive: 0, // 问题误报 (2)
-    unmarked: 0 // 未标注 (null)
-  }
-
-  scanResultsList.value.forEach(result => {
-    // 统计标注状态
-    const issueResult = result.issue_result
-    if (issueResult === 0) {
-      stats.needModify++
-      stats.annotated++
-    } else if (issueResult === 1) {
-      stats.noNeedModify++
-      stats.annotated++
-    } else if (issueResult === 2) {
-      stats.falsePositive++
-      stats.annotated++
-    } else {
-      stats.unmarked++
-      stats.unannotated++
-    }
-
-    // 统计规则名称分布
-    const ruleName = result.rule_name || ''
-    if (ruleName && !stats.typeDistribution[ruleName]) {
-      stats.typeDistribution[ruleName] = 0
-    }
-    if (ruleName) {
-      stats.typeDistribution[ruleName]++
-    }
-  })
-
-  return stats
-})
-
-/** 标注完成度数据口径（接口 annotatedCount / unannotatedCount 优先） */
-const annotationRatioCounts = computed(() => ({
-  annotated: annotationStatistics.value?.annotatedCount ?? statistics.value.annotated,
-  unannotated: annotationStatistics.value?.unannotatedCount ?? statistics.value.unannotated,
-}))
-
-/** 标注完成度占比（整数百分比） */
-const annotationCompletionPct = computed(() => {
-  const {annotated, unannotated} = annotationRatioCounts.value
-  const t = annotated + unannotated
-  if (!t) return {annotated: 0, unannotated: 0}
+  const map = new Map((api.annotationDistribution ?? []).map(d => [d.resultCode, d]))
+  const unPct = total > 0 ? Number(((api.unannotatedCount / total) * 100).toFixed(2)) : 0
   return {
-    annotated: Math.round((annotated / t) * 100),
-    unannotated: Math.round((unannotated / t) * 100),
-  }
-})
-
-/** 标注完成率（已标注 / 全部缺陷，整数百分比） */
-const annotationCompletionRatePct = computed(() => {
-  const {annotated, unannotated} = annotationRatioCounts.value
-  const t = annotated + unannotated
-  if (!t) return 0
-  return Math.round((annotated / t) * 100)
-})
-
-/** 标注状态分布中「未标注」数量（与饼图一致：接口未标注数优先） */
-const annotationStatusUnmarkedCount = computed(
-    () => annotationStatistics.value?.unannotatedCount ?? statistics.value.unmarked,
-)
-
-/** 四类标注状态占全部缺陷数的比例（整数百分比） */
-const annotationStatusPct = computed(() => {
-  const s = statistics.value
-  const unmarked = annotationStatusUnmarkedCount.value
-  const needModify = s.needModify
-  const noNeedModify = s.noNeedModify
-  const falsePositive = s.falsePositive
-  const t = needModify + noNeedModify + falsePositive + unmarked
-  if (!t) return {needModify: 0, noNeedModify: 0, falsePositive: 0, unmarked: 0}
-  return {
-    needModify: Math.round((needModify / t) * 100),
-    noNeedModify: Math.round((noNeedModify / t) * 100),
-    falsePositive: Math.round((falsePositive / t) * 100),
-    unmarked: Math.round((unmarked / t) * 100),
+    needModify: map.get(2)?.annotationCount ?? 0,
+    noNeedModify: map.get(1)?.annotationCount ?? 0,
+    falsePositive: map.get(0)?.annotationCount ?? 0,
+    unmarked: api.unannotatedCount,
+    pct: {
+      needModify: formatPercentText(map.get(2)?.percentage ?? 0),
+      noNeedModify: formatPercentText(map.get(1)?.percentage ?? 0),
+      falsePositive: formatPercentText(map.get(0)?.percentage ?? 0),
+      unmarked: formatPercentText(unPct),
+    },
   }
 })
 
@@ -1424,12 +1363,13 @@ function findRuleTreeNodeById(nodes: RuleTreeNode[], id: string): RuleTreeNode |
   return null
 }
 
-// 计算属性：规则名称树形数据
+// 计算属性：规则名称树形数据（仅接口 ruleStatistics）
 const ruleTreeData = computed<RuleTreeNode[]>(() => {
-  if (!scanResultsList.value.length) {
+  const dist = ruleStatisticsTypeDistribution.value
+  if (Object.keys(dist).length === 0) {
     return []
   }
-  return buildRuleTree(statistics.value.typeDistribution)
+  return buildRuleTree(dist)
 })
 
 // 处理规则树节点点击：高亮当前节点；列表侧在 filteredScanResultsList 中按选中规则（含父节点下全部叶子）做本地筛选，不请求 ruleName 以免树统计被服务端筛窄
@@ -1700,7 +1640,6 @@ const saveAnnotationHandler = async (result: ScanResult, value: IssueResult): Pr
       ElMessage.success(`已标注为：${statusText}`)
     }
   } catch (error) {
-    console.error('保存标注失败:', error)
     ElMessage.error('保存标注失败')
   }
 }
@@ -1816,7 +1755,6 @@ const handleRetry = (): void => {
 // 初始化规则名称分布柱状图
 const initRuleDistributionChart = (): void => {
   if (!ruleDistributionChartRef.value) {
-    console.warn('ruleDistributionChartRef 未找到')
     return
   }
 
@@ -1827,10 +1765,14 @@ const initRuleDistributionChart = (): void => {
   try {
     ruleDistributionChart = echarts.init(ruleDistributionChartRef.value)
 
-    // 获取 Top 10 规则
-    const ruleEntries = Object.entries(statistics.value.typeDistribution)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 10)
+    const rs = annotationStatistics.value?.ruleStatistics
+    const ruleEntries: [string, number][] =
+        rs && rs.length > 0
+            ? [...rs]
+                .sort((a, b) => b.ruleCount - a.ruleCount)
+                .slice(0, 10)
+                .map((r) => [r.ruleName, r.ruleCount])
+            : []
 
     // 如果没有规则数据，显示空状态
     if (ruleEntries.length === 0) {
@@ -1939,8 +1881,8 @@ const updateAllCharts = async (): Promise<void> => {
   // 再次等待，确保 v-if 条件渲染的 DOM 元素已经创建
   await new Promise(resolve => setTimeout(resolve, 100))
 
-  // 检查统计数据
-  if (statistics.value.totalIssues === 0) {
+  // 无接口统计数据时不绘制
+  if (totalWarnCountDisplay.value === 0) {
     return
   }
 
@@ -1967,7 +1909,7 @@ const updateAllCharts = async (): Promise<void> => {
 
 // 监听统计数据变化，更新图表
 watch(
-    () => [statistics.value, scanResultsList.value.length, annotationStatistics.value],
+    () => [annotationStatistics.value, scanResultsList.value.length],
     () => {
       if (task.value?.taskStatus === TASK_STATUS.COMPLETED && scanResultsList.value.length > 0) {
         updateAllCharts()
