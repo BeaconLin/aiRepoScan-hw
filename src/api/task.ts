@@ -641,7 +641,8 @@ hydrateTasksFromStorage()
             rule_name: rules[(idx - 1) % rules.length],
             warn_line: 20 + i * 3,
             warn_code_block: '// TODO: review',
-            code_snippet: '// example',
+            code_snippet: '// example \n // example \n // example \n // example \n // example'
+            +'// example \n // example \n // example \n // example \n // example',
             context: 'function example() {\n  // ...\n}',
             warn: `Mock 扫描问题 #${idx}：用于分页演示，请检查相关代码路径与配置。`,
             check_function_id: `func-extra-${idx}`,

@@ -3,6 +3,7 @@
     <div class="code-header">
       <span class="language-label">{{ language }}</span>
       <button
+          type="button"
           class="copy-button"
           @click="copyCode"
           :class="{ copied: isCopied }"
@@ -10,7 +11,7 @@
         {{ isCopied ? '✓ 已复制' : '复制' }}
       </button>
     </div>
-    <pre><code v-html="highlightedCode" :class="'language-' + language"></code></pre>
+    <pre class="code-pre"><code v-html="highlightedCode" :class="'hljs language-' + language"></code></pre>
   </div>
 </template>
 
@@ -28,15 +29,13 @@ import rust from 'highlight.js/lib/languages/rust'
 import php from 'highlight.js/lib/languages/php'
 import ruby from 'highlight.js/lib/languages/ruby'
 import csharp from 'highlight.js/lib/languages/csharp'
-import 'highlight.js/styles/atom-one-dark.css'
+import 'highlight.js/styles/github.css'
 
-// 定义 Props 接口
 interface Props {
   code: string
   language?: string
 }
 
-// ✅ 注册所有已导入的语言
 hljs.registerLanguage('cpp', cpp)
 hljs.registerLanguage('c', c)
 hljs.registerLanguage('java', java)
@@ -50,35 +49,31 @@ hljs.registerLanguage('ruby', ruby)
 hljs.registerLanguage('csharp', csharp)
 
 const props = withDefaults(defineProps<Props>(), {
-  language: 'cpp'
+  language: 'cpp',
 })
 
 const isCopied = ref<boolean>(false)
 
-// ✅ 计算高亮代码
 const highlightedCode = computed<string>(() => {
-  // 如果代码为空，直接返回
   if (!props.code || !props.code.trim()) {
     return props.code || ''
   }
-  
-  // 如果语言未指定，使用默认值
+
   const lang: string = props.language || 'cpp'
-  
+
   try {
     const result = hljs.highlight(props.code, {
       language: lang,
-      ignoreIllegals: true
+      ignoreIllegals: true,
     })
     return result.value
   } catch (e: unknown) {
-    // 如果指定语言高亮失败，尝试使用默认语言 cpp
     if (lang !== 'cpp') {
       try {
         console.warn(`语言 "${lang}" 高亮失败，尝试使用 cpp:`, e)
         const result = hljs.highlight(props.code, {
           language: 'cpp',
-          ignoreIllegals: true
+          ignoreIllegals: true,
         })
         return result.value
       } catch (e2: unknown) {
@@ -91,7 +86,6 @@ const highlightedCode = computed<string>(() => {
   }
 })
 
-// ✅ 复制功能
 const copyCode = async (): Promise<void> => {
   await navigator.clipboard.writeText(props.code)
   isCopied.value = true
@@ -103,59 +97,69 @@ const copyCode = async (): Promise<void> => {
 
 <style scoped>
 .code-container {
-  background-color: #282c34;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  background-color: #f6f8fa;
+  border: 1px solid #e1e4e8;
   border-radius: 8px;
-  overflow-x: auto;
-  margin: 16px 0;
+  overflow: hidden;
 }
 
 .code-header {
-  background-color: #21252b;
-  padding: 10px 16px;
-  border-bottom: 1px solid #3e4451;
+  background-color: #eef1f5;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e1e4e8;
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
 .language-label {
-  color: #abb2bf;
+  color: #57606a;
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
 }
 
 .copy-button {
-  background-color: transparent;
-  color: #abb2bf;
-  border: 1px solid #3e4451;
+  background-color: #ffffff;
+  color: #24292f;
+  border: 1px solid #d0d7de;
   padding: 4px 12px;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
   font-size: 12px;
-  transition: all 0.3s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .copy-button:hover {
-  background-color: #3e4451;
-  color: #61afef;
+  background-color: #f3f4f6;
+  border-color: #8c959f;
 }
 
 .copy-button.copied {
-  background-color: #98c379;
-  color: #21252b;
-  border-color: #98c379;
+  background-color: #dcfce7;
+  color: #166534;
+  border-color: #86efac;
 }
 
-pre {
+.code-pre {
   margin: 0;
-  padding: 16px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
-code {
-  font-family: 'Monaco', 'Menlo', monospace;
-  font-size: 14px;
-  line-height: 1.6;
-  color: #abb2bf;
+.code-pre code {
+  font-family: ui-monospace, 'Monaco', 'Menlo', monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  display: block;
+  max-width: 100%;
+  word-break: break-word;
+  white-space: pre-wrap;
 }
 </style>

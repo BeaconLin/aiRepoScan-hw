@@ -49,52 +49,14 @@
         </div>
       </el-form-item>
 
-      <el-form-item label="扫描助手版本" prop="assistantVersions">
-        <div class="assistant-cards-container">
-          <div
-            v-for="assistant in assistantVersions"
-            :key="assistant.value"
-            class="assistant-card"
-            :class="{ 'selected': formData.assistantVersions.includes(assistant.value) }"
-            @click="toggleAssistant(assistant.value)"
-          >
-            <div class="card-header">
-              <div class="card-title">{{ assistant.label }}</div>
-              <div class="card-checkbox" :class="{ 'checked': formData.assistantVersions.includes(assistant.value) }">
-                <span v-if="formData.assistantVersions.includes(assistant.value)">✓</span>
-              </div>
-            </div>
-            <div class="card-description">{{ assistant.description }}</div>
-          </div>
-        </div>
-        <div class="form-hint">
-          提示：可选择多个扫描助手版本
-        </div>
-      </el-form-item>
-
       <el-form-item label="代码语言" prop="codeLanguage">
         <el-select
           v-model="formData.codeLanguage"
-          placeholder="请选择主要代码语言（对应接口 codeLanguage）"
-          clearable
+          placeholder="C/C++"
           style="width: 100%"
         >
-          <el-option label="Java" value="Java" />
-          <el-option label="C++" value="C++" />
-          <el-option label="JavaScript" value="JavaScript" />
-          <el-option label="TypeScript" value="TypeScript" />
-          <el-option label="Python" value="Python" />
-          <el-option label="Go" value="Go" />
-          <el-option label="未知 / 混合" value="Unknown" />
+          <el-option label="C/C++" value="C++" />
         </el-select>
-      </el-form-item>
-
-      <el-form-item label="代码量(万行)" prop="lineNum">
-        <el-input
-          v-model="formData.lineNum"
-          placeholder="请填写数字（可选）"
-          clearable
-        />
       </el-form-item>
 
       <el-form-item label="创建人">
@@ -128,27 +90,6 @@
           clearable
         />
       </el-form-item>
-
-      <el-form-item label="扫描结果文件">
-        <el-upload
-          ref="uploadRef"
-          :auto-upload="false"
-          :limit="1"
-          :on-change="handleFileChange"
-          :on-remove="handleFileRemove"
-          :file-list="fileList"
-          accept=".json"
-        >
-          <template #trigger>
-            <el-button type="primary">选择文件</el-button>
-          </template>
-          <template #tip>
-            <div class="el-upload__tip">
-              支持上传JSON格式的扫描结果文件（可选），可在创建任务后单独上传
-            </div>
-          </template>
-        </el-upload>
-      </el-form-item>
       </el-form>
     </div>
 
@@ -169,7 +110,6 @@ import { ref, reactive, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useProfileStore } from '@/stores/userProfile'
 import { createTaskApi } from '@/api/task'
-import taskManagementService from '@/api/services/taskManagementService'
 
 const props = defineProps({
   modelValue: {
@@ -182,41 +122,24 @@ const emit = defineEmits(['update:modelValue', 'success'])
 
 const dialogVisible = ref(false)
 const formRef = ref(null)
-const uploadRef = ref(null)
 const submitting = ref(false)
 const userStore = useProfileStore()
 
-// 文件上传相关
-const fileList = ref([])
-const selectedFile = ref(null)
+/** 与接口一致传 C++；界面展示为 C/C++ */
+const DEFAULT_CODE_LANGUAGE = 'C++'
 
-// 扫描助手版本选项（示例数据，实际应该从接口获取）
-const assistantVersions = ref([
-  { 
-    label: '内存安全扫描', 
-    value: 'v1.0.0',
-    description: '基础版本，支持常见代码规范检查和安全漏洞扫描'
-  },
-
-])
-
-// 表单数据
 const formData = reactive({
   taskName: '',
   repoUrl: '',
   branch: '',
-  assistantVersions:
-    assistantVersions.value.length > 0
-      ? [assistantVersions.value[0].value]
-      : [],
+  assistantVersions: [],
   scanPaths: '',
   creator: '', // 从用户信息获取
   productName: '', // 默认值
   deptName: '', // 可选
   pduName: '', // 可选
-  /** 接口字段 codeLanguage */
-  codeLanguage: 'Java',
-  lineNum: '', // 单位k
+  codeLanguage: DEFAULT_CODE_LANGUAGE,
+  lineNum: '',
   createTime: '' // 实际应该自动填充当前时间
 })
 
@@ -236,20 +159,6 @@ const rules = {
   ],
   branch: [
     { required: true, message: '请输入扫描分支', trigger: 'blur' }
-  ],
-  assistantVersions: [
-    { 
-      required: true, 
-      message: '请至少选择一个扫描助手版本', 
-      trigger: 'change',
-      validator: (rule, value, callback) => {
-        if (!value || value.length === 0) {
-          callback(new Error('请至少选择一个扫描助手版本'))
-        } else {
-          callback()
-        }
-      }
-    }
   ],
   scanPaths: [
     {
@@ -274,28 +183,6 @@ const rules = {
   productName: [
     { required: true, message: '请输入产品名称', trigger: 'blur' }
   ],
-  lineNum: [
-    {
-      validator: (rule, value, callback) => {
-        const raw = String(value ?? '').trim()
-        if (raw === '') {
-          callback()
-          return
-        }
-        const n = Number(raw)
-        if (!Number.isFinite(n)) {
-          callback(new Error('请输入有效数字'))
-          return
-        }
-        if (n < 0) {
-          callback(new Error('代码量不能为负数'))
-          return
-        }
-        callback()
-      },
-      trigger: 'blur',
-    },
-  ],
 }
 
 // 监听 modelValue 变化
@@ -314,58 +201,24 @@ watch(dialogVisible, (newVal) => {
   emit('update:modelValue', newVal)
 })
 
-// 切换扫描助手选择
-const toggleAssistant = (value) => {
-  const index = formData.assistantVersions.indexOf(value)
-  if (index > -1) {
-    formData.assistantVersions.splice(index, 1)
-  } else {
-    formData.assistantVersions.push(value)
-  }
-  // 触发验证
-  if (formRef.value) {
-    formRef.value.validateField('assistantVersions')
-  }
-}
-
-// 文件变化处理
-const handleFileChange = (file) => {
-  selectedFile.value = file.raw
-}
-
-// 文件移除处理
-const handleFileRemove = () => {
-  selectedFile.value = null
-}
-
 // 初始化表单
 const initForm = () => {
   // 重置表单
   formData.taskName = ''
   formData.repoUrl = ''
   formData.branch = ''
-  formData.assistantVersions =
-    assistantVersions.value.length > 0
-      ? [assistantVersions.value[0].value]
-      : []
+  formData.assistantVersions = []
   formData.scanPaths = ''
   formData.productName = ''
   formData.deptName = ''
   formData.pduName = ''
-  formData.codeLanguage = 'Java'
+  formData.codeLanguage = DEFAULT_CODE_LANGUAGE
   formData.lineNum = ''
 
   // 从用户信息获取创建人
   const userInfo = userStore.getUserInfo()
   formData.creator = userInfo.w3Id || ''
   formData.createTime = '' // 提交时再获取
-  
-  // 重置文件上传
-  fileList.value = []
-  selectedFile.value = null
-  if (uploadRef.value) {
-    uploadRef.value.clearFiles()
-  }
   
   // 清除验证状态
   if (formRef.value) {
@@ -445,7 +298,6 @@ const handleSubmit = async () => {
 
     let createResponse
     try {
-      // createResponse = await taskManagementService.createTaskApi(createTaskPayload)
       createResponse = await createTaskApi(createTaskPayload)
     } catch (e) {
       console.error('创建任务请求失败:', e)
@@ -460,38 +312,7 @@ const handleSubmit = async () => {
 
     const data = createResponse.data
 
-    let s3Path = null
-
-    // 若选择了扫描结果文件，在创建成功后上传
-    if (selectedFile.value) {
-      try {
-        // const uploadResponse = await taskManagementService.uploadScanResultFile(
-        //   data.taskId,
-        //   selectedFile.value,
-        //   userInfo.w3Id || formData.creator,
-        // )
-        const uploadResponse = await uploadScanResultFile(
-          data.taskId,
-          selectedFile.value,
-          userInfo.w3Id || formData.creator,
-        )
-        const inner = uploadResponse.data
-        if (inner.meta.success && inner.data) {
-          s3Path = inner.data
-          ElMessage.success('任务创建成功，扫描结果文件已上传！')
-        } else {
-          ElMessage.warning(
-            inner.meta.message ||
-              '任务已创建，但扫描结果文件上传失败，可在任务详情中重新上传',
-          )
-        }
-      } catch (uploadError) {
-        console.error('文件上传失败:', uploadError)
-        ElMessage.warning('任务已创建，但文件上传失败，您可以在任务详情中重新上传')
-      }
-    } else {
-      ElMessage.success('任务创建成功！')
-    }
+    ElMessage.success('任务创建成功！')
 
     // 构建返回给父组件的数据（用于更新任务列表）
     const submitData = {
@@ -504,14 +325,14 @@ const handleSubmit = async () => {
       creator: formData.creator || userInfo.w3Id,
       nameCn: data.nameCn ?? userInfo.nameCn ?? '',
       createTime: data.createTime,
-      codeLanguage: formData.codeLanguage || 'Unknown',
+      codeLanguage: formData.codeLanguage || DEFAULT_CODE_LANGUAGE,
       lineNum: lineNumForApi ?? 0,
       productName: data.productName,
       deptName: formData.deptName,
       pduName: formData.pduName,
       taskStatus: data.taskStatus || '未开始',
       scanResults: [],
-      s3Path,
+      s3Path: null,
     }
     
     // 触发成功事件
@@ -555,78 +376,6 @@ const handleSubmit = async () => {
 
 .dialog-body-scroll::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
-}
-
-.assistant-cards-container {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 12px;
-  width: 100%;
-}
-
-.assistant-card {
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 16px;
-  background: #ffffff;
-  cursor: pointer;
-  transition: all 0.3s;
-  position: relative;
-}
-
-.assistant-card:hover {
-  border-color: #3b82f6;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
-  transform: translateY(-2px);
-}
-
-.assistant-card.selected {
-  border-color: #3b82f6;
-  background: #eff6ff;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
-}
-
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.card-title {
-  font-weight: 600;
-  font-size: 16px;
-  color: #1f2937;
-}
-
-.card-checkbox {
-  width: 20px;
-  height: 20px;
-  border: 2px solid #d1d5db;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #ffffff;
-  transition: all 0.2s;
-}
-
-.card-checkbox.checked {
-  background: #3b82f6;
-  border-color: #3b82f6;
-  color: #ffffff;
-}
-
-.card-checkbox.checked span {
-  font-size: 14px;
-  font-weight: bold;
-}
-
-.card-description {
-  font-size: 12px;
-  color: #6b7280;
-  line-height: 1.5;
-  margin-top: 4px;
 }
 
 .form-hint {

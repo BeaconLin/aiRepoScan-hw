@@ -529,7 +529,7 @@
                     </div>
                   </div>
                 </div>
-                <div class="list-content">
+                <div ref="scanResultListContentRef" class="list-content">
                   <div v-if="filteredScanResultsList.length === 0" class="empty-results">
                     <el-empty description="暂无扫描结果"/>
                   </div>
@@ -549,59 +549,77 @@
                       >{{ result.issue_result }}、
                         {{ getIssueResultLabel(result.issue_result) }}
                       </el-tag>
-                      <el-tag v-if="result.confidence" size="small" type="info" style="margin-left: 8px">
-                        置信度: {{ result.confidence }}
-                      </el-tag>
+                      <!-- 置信度标签暂不展示 -->
                     </div>
                     <div class="result-body">
-                      <div class="result-field">
-                        <span class="field-label">文件名称：</span>
-                        <!--                        <span class="field-value">{{ result.file_name || result.fileName }}</span>-->
+                      <div class="result-file-row">
+                        <span class="result-file-row__icon" aria-hidden="true" title="打开链接">
+                          <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 24 24"
+                              width="1.1em"
+                              height="1.1em"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                          >
+                            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                          </svg>
+                        </span>
                         <a
                             :href="assembleFileName(result)"
                             target="_blank"
-                            class="file-link">{{ assembleFileNameShow(result) }}</a>
+                            rel="noopener noreferrer"
+                            class="result-file-row__link"
+                        >{{ assembleFileNameShow(result) }}</a>
+                        <span class="result-file-row__lineno">第 {{ result.warn_line || result.line }} 行</span>
                       </div>
-                      <div class="result-field">
-                        <span class="field-label">问题行号：</span>
-                        <span class="field-value">第 {{ result.warn_line || result.line }} 行</span>
+                      <div class="result-field--plain result-field--desc">
+                        <span class="field-label field-label--emphasis">问题说明</span>
+                        <span class="field-value field-value--emphasis">{{ result.warn }}</span>
                       </div>
-                      <div class="result-field">
-                        <span class="field-label">代码行范围：</span>
-                        <span class="field-value">{{ result.start_line }} - {{ result.end_line }}</span>
-                      </div>
-                      <div class="result-field full-width">
-                        <span class="field-label">问题说明：</span>
-                        <span class="field-value">{{ result.warn }}</span>
-                      </div>
-                      <div class="result-field full-width">
-                        <span class="field-label">问题代码块：</span>
+                      <div class="result-field--plain result-field--code">
+                        <span class="field-label field-label--emphasis">问题代码</span>
                         <CodeBlock
+                            class="result-item-code-block"
                             :code="result.warn_code_block || result.code_block || result.code_snippet || ''"
                             :language="getCodeLanguage()"
-                            style="max-height: 200px; overflow-y: auto;"
+                            style="max-height: 240px; overflow-y: auto;"
                         />
                       </div>
-                      <div class="result-field full-width">
-                        <span class="field-label">切片代码块：</span>
-                        <CodeBlock
-                            :code="result.code_snippet || result.warn_code_block || result.code_block || ''"
-                            :language="getCodeLanguage()"
-                            style="max-height: 200px; overflow-y: auto;"
-                        />
-                      </div>
-                      <div class="result-field full-width">
-                        <span class="field-label">上下文代码：</span>
-                        <CodeBlock
-                            :code="result.context || ''"
-                            :language="getCodeLanguage()"
-                            style="max-height: 200px; overflow-y: auto;"
-                        />
+                      <div class="result-field--snippet-collapse">
+                        <el-collapse
+                            class="snippet-context-collapse"
+                            :model-value="snippetContextCollapseOpen[snippetContextCollapseKey(result, rIdx)] ?? []"
+                            @update:model-value="(v) => handleSnippetCollapseChange(snippetContextCollapseKey(result, rIdx), v)"
+                        >
+                          <el-collapse-item name="snippet-context" title="切片代码块与上下文代码">
+                            <div class="snippet-context-block">
+                              <div class="snippet-context-block__label">切片代码块</div>
+                              <CodeBlock
+                                  class="result-item-code-block snippet-context-code-block"
+                                  :code="result.code_snippet || result.warn_code_block || result.code_block || ''"
+                                  :language="getCodeLanguage()"
+                              />
+                            </div>
+                            <div class="snippet-context-block">
+                              <div class="snippet-context-block__label">上下文代码</div>
+                              <CodeBlock
+                                  class="result-item-code-block snippet-context-code-block"
+                                  :code="result.context || ''"
+                                  :language="getCodeLanguage()"
+                              />
+                            </div>
+                          </el-collapse-item>
+                        </el-collapse>
                       </div>
                     </div>
                     <div class="result-actions">
                       <div class="annotation-section">
-                        <div class="annotation-label">缺陷标注：</div>
+                        <div class="annotation-label annotation-label--emphasis">缺陷标注</div>
                         <el-radio-group
                             :model-value="getAnnotationIssueResult(result)"
                             @update:model-value="(v) => setAnnotationIssueResult(result, v)"
@@ -623,7 +641,7 @@
                               @update:model-value="(v) => setAnnotationReason(result, v)"
                               type="textarea"
                               :rows="2"
-                              placeholder="请填写选择当前选项的原因（可选）"
+                              placeholder="选择上方选项将自动保存标注（不含原因）；填写原因后请点击「提交」保存"
                               resize="none"
                           />
 
@@ -753,6 +771,29 @@
         </template>
       </div>
     </div>
+
+    <Teleport to="body">
+      <Transition name="annotation-back-to-top-fade">
+        <button
+            v-if="showAnnotationBackToTop && activeView === 'annotation'"
+            type="button"
+            class="annotation-back-to-top"
+            aria-label="回到顶部"
+            @click="scrollAnnotationViewToTop"
+        >
+          <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              width="1.25em"
+              height="1.25em"
+              fill="currentColor"
+              aria-hidden="true"
+          >
+            <path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/>
+          </svg>
+        </button>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -781,6 +822,8 @@ import {
   ElUpload,
   ElInputNumber,
   ElTooltip,
+  ElCollapse,
+  ElCollapseItem,
 } from 'element-plus'
 import type { UploadFile, UploadFiles } from 'element-plus'
 import { TASK_STATUS, TASK_STATUS_MAP } from '@/constants/scanTaskConst'
@@ -1173,6 +1216,66 @@ function normalizeApiDocScanRowForList(row: TaskScanResultApiDocRow): Record<str
 
 // 当前激活的视图
 const activeView = ref<string>('info')
+
+/** 扫描结果列表滚动容器（标注视图左侧） */
+const scanResultListContentRef = ref<HTMLElement | null>(null)
+const showAnnotationBackToTop = ref(false)
+let annotationScrollCleanup: (() => void) | null = null
+
+/** 每条扫描结果「切片 + 上下文」折叠面板独立展开状态（默认折叠） */
+const snippetContextCollapseOpen = reactive<Record<string, string[]>>({})
+
+function snippetContextCollapseKey(result: ScanResult, rIdx: number): string {
+  const id = String(result.warn_uuid || result.id || '')
+  return `${id}-p${pagination.value.currentPage}-i${rIdx}`
+}
+
+function handleSnippetCollapseChange(
+    key: string,
+    value: string | number | Array<string | number>
+): void {
+  const values = Array.isArray(value) ? value : [value]
+  snippetContextCollapseOpen[key] = values.map(v => String(v))
+}
+
+function updateAnnotationBackToTop(): void {
+  if (activeView.value !== 'annotation') {
+    showAnnotationBackToTop.value = false
+    return
+  }
+  const container = scanResultListContentRef.value
+  if (!container) {
+    showAnnotationBackToTop.value = false
+    return
+  }
+  showAnnotationBackToTop.value = container.scrollTop > container.clientHeight
+}
+
+function scrollAnnotationViewToTop(): void {
+  scanResultListContentRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+function attachAnnotationScrollListener(): void {
+  annotationScrollCleanup?.()
+  annotationScrollCleanup = null
+  const container = scanResultListContentRef.value
+  if (!container) {
+    showAnnotationBackToTop.value = false
+    return
+  }
+  const onScroll = (): void => {
+    updateAnnotationBackToTop()
+  }
+  container.addEventListener('scroll', onScroll, { passive: true })
+  annotationScrollCleanup = () => {
+    container.removeEventListener('scroll', onScroll)
+  }
+}
+
+function detachAnnotationScrollListener(): void {
+  annotationScrollCleanup?.()
+  annotationScrollCleanup = null
+}
 
 // 筛选表单
 const filterForm = ref<FilterForm>({
@@ -1875,6 +1978,9 @@ const getAnnotationIssueResult = (result: ScanResult): IssueResult => {
   return annotation.issueResult
 }
 
+/** 单选切换：仅保存标注结果，reason 传空；提交按钮：保存标注结果 + 原因 */
+type AnnotationSaveMode = 'issueOnly' | 'withReason'
+
 // 设置annotation的issueResult（兼容 el-radio-group 等组件的 update 值类型）
 const setAnnotationIssueResult = (result: ScanResult, value: unknown): void => {
   const annotation = getOrInitAnnotation(result)
@@ -1889,6 +1995,11 @@ const setAnnotationIssueResult = (result: ScanResult, value: unknown): void => {
   }
   annotation.issueResult = parsed as IssueResult
   result.issue_result = parsed as IssueResult
+
+  if (parsed === null || parsed === undefined) {
+    return
+  }
+  void saveAnnotationHandler(result, parsed as IssueResult, 'issueOnly')
 }
 
 // 获取annotation的reason（用于v-model）
@@ -1915,11 +2026,15 @@ const submitAnnotation = async (result: ScanResult): Promise<void> => {
     return
   }
 
-  await saveAnnotationHandler(result, issueResult)
+  await saveAnnotationHandler(result, issueResult, 'withReason')
 }
 
 // 标注处理（内部函数）
-const saveAnnotationHandler = async (result: ScanResult, value: IssueResult): Promise<void> => {
+const saveAnnotationHandler = async (
+    result: ScanResult,
+    value: IssueResult,
+    mode: AnnotationSaveMode = 'withReason'
+): Promise<void> => {
   const taskId = route.params.id as string
   if (!taskId) {
     ElMessage.error('缺少任务ID')
@@ -1966,13 +2081,17 @@ const saveAnnotationHandler = async (result: ScanResult, value: IssueResult): Pr
 
       ElMessage.success('已取消标注')
     } else {
+      const reasonForRequest =
+          mode === 'issueOnly'
+              ? ''
+              : String(result.annotation?.reason ?? result.reason ?? '').trim()
       const reqBody: SaveAnnotationReqBody = {
         taskId,
         warnUuid: uuid,
         issueResult: value,
         userId: currentUser,
         userName: userNameCn,
-        reason: result.annotation?.reason ?? result.reason ?? ''
+        reason: reasonForRequest
       }
       // const saveRes = await taskManagementService.saveAnnotationApi(reqBody)
       const saveRes = await saveAnnotationApi(reqBody)
@@ -1986,7 +2105,7 @@ const saveAnnotationHandler = async (result: ScanResult, value: IssueResult): Pr
 
       // 更新 result 对象的标注信息（标注时间以服务端返回为准）
       result.issue_result = value
-      result.reason = result.annotation?.reason || null
+      result.reason = saved.reason != null && saved.reason !== '' ? saved.reason : null
       result.annotator = currentUser
       result.annotationTime = saved.updateTime
 
@@ -1994,7 +2113,7 @@ const saveAnnotationHandler = async (result: ScanResult, value: IssueResult): Pr
       const annotation = getOrInitAnnotation(result)
       annotation.issueResult = value
       annotation.userId = saved.userId || currentUser
-      annotation.reason = annotation.reason || null
+      annotation.reason = saved.reason != null && saved.reason !== '' ? saved.reason : null
       annotation.annotationStatus = saved.annotationStatus
       annotation.id = saved.id
       annotation.createTime = saved.createTime
@@ -2242,6 +2361,10 @@ const handleResize = (): void => {
 
 // 更新所有图表
 const updateAllCharts = async (): Promise<void> => {
+  if (activeView.value !== 'info') {
+    return
+  }
+
   // 等待 DOM 更新
   await nextTick()
 
@@ -2286,11 +2409,56 @@ watch(
 watch(
     () => [annotationStatistics.value, scanResultsList.value.length],
     () => {
-      if (task.value?.taskStatus === TASK_STATUS.COMPLETED && scanResultsList.value.length > 0) {
+      if (
+          activeView.value === 'info' &&
+          task.value?.taskStatus === TASK_STATUS.COMPLETED &&
+          scanResultsList.value.length > 0
+      ) {
         updateAllCharts()
       }
     },
     {deep: true, immediate: false}
+)
+
+watch(activeView, () => {
+  nextTick(() => {
+    attachAnnotationScrollListener()
+    updateAnnotationBackToTop()
+    if (
+        activeView.value === 'info' &&
+        task.value?.taskStatus === TASK_STATUS.COMPLETED &&
+        scanResultsList.value.length > 0
+    ) {
+      updateAllCharts()
+      setTimeout(() => {
+        ruleDistributionChart?.resize()
+      }, 80)
+    }
+  })
+})
+
+watch(
+    () => [loading.value, task.value?.taskStatus, pagedScanResultsList.value.length],
+    () => {
+      nextTick(() => {
+        attachAnnotationScrollListener()
+        updateAnnotationBackToTop()
+      })
+    },
+    {immediate: false}
+)
+
+watch(
+    () => [
+      pagination.value.currentPage,
+      pagination.value.pageSize,
+      pagination.value.total,
+    ],
+    () => {
+      nextTick(() => {
+        updateAnnotationBackToTop()
+      })
+    },
 )
 
 // 组件挂载时加载数据
@@ -2302,10 +2470,17 @@ onMounted(() => {
     error.value = '缺少任务ID参数'
     ElMessage.error('缺少任务ID参数')
   }
+  nextTick(() => {
+    attachAnnotationScrollListener()
+    updateAnnotationBackToTop()
+  })
+  window.addEventListener('resize', updateAnnotationBackToTop, { passive: true })
 })
 
 // 组件卸载时清理图表实例
 onUnmounted(() => {
+  detachAnnotationScrollListener()
+  window.removeEventListener('resize', updateAnnotationBackToTop)
   window.removeEventListener('resize', handleResize)
   if ((window as any)._chartResizeHandlerAdded) {
     delete (window as any)._chartResizeHandlerAdded
@@ -2398,6 +2573,48 @@ onUnmounted(() => {
 .view-content--with-fixed-pagination {
   padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
+}
+
+.annotation-back-to-top-fade-enter-active,
+.annotation-back-to-top-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.annotation-back-to-top-fade-enter-from,
+.annotation-back-to-top-fade-leave-to {
+  opacity: 0;
+}
+
+.annotation-back-to-top {
+  position: fixed;
+  right: 24px;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  z-index: 120;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #3b82f6;
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.45);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.annotation-back-to-top:hover {
+  background: #2563eb;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.5);
+}
+
+.annotation-back-to-top:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
 }
 
 .header-left {
@@ -3044,6 +3261,9 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  max-height: calc(100vh - 360px);
+  overflow-y: auto;
+  padding-right: 8px;
 }
 
 .empty-results {
@@ -3086,6 +3306,12 @@ onUnmounted(() => {
   font-weight: 500;
   color: #374151;
   white-space: nowrap;
+}
+
+.annotation-label.annotation-label--emphasis {
+  font-size: 16px;
+  font-weight: 700;
+  color: #4b5563;
 }
 
 .annotation-info {
@@ -3168,14 +3394,57 @@ onUnmounted(() => {
 }
 
 .result-title {
-  font-size: 15px;
-  color: #1f2937;
+  font-size: 16px;
+  font-weight: 600;
+  color: #2a4d7a;
 }
 
 .result-body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.result-file-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  border: none;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.result-file-row__icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: #3b82f6;
+}
+
+.result-file-row__link {
+  color: #2563eb;
+  font-weight: 500;
+  text-decoration: none;
+  word-break: break-all;
+  min-width: 0;
+}
+
+.result-file-row__link:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+.result-file-row__lineno {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
 }
 
 .result-field {
@@ -3191,6 +3460,89 @@ onUnmounted(() => {
 .result-field.full-width {
   flex-direction: column;
   gap: 8px;
+}
+
+.result-field--plain {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+.result-item-code-block {
+  width: 100%;
+  align-self: stretch;
+  min-width: 0;
+}
+
+.result-field--plain .field-label.field-label--emphasis {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.field-value--emphasis {
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+.result-field--snippet-collapse {
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+.result-field--snippet-collapse .snippet-context-collapse {
+  width: 100%;
+}
+
+.snippet-context-collapse :deep(.el-collapse) {
+  border: none;
+}
+
+.snippet-context-collapse :deep(.el-collapse-item__header) {
+  height: auto;
+  line-height: 1.45;
+  padding: 10px 12px;
+  font-weight: 600;
+  color: #374151;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.snippet-context-collapse :deep(.el-collapse-item__wrap) {
+  border-bottom: none;
+}
+
+.snippet-context-collapse :deep(.el-collapse-item__arrow) {
+  margin: 0 6px 0 0;
+}
+
+.snippet-context-collapse :deep(.el-collapse-item__content) {
+  padding: 12px 0 0;
+}
+
+.snippet-context-block + .snippet-context-block {
+  margin-top: 16px;
+}
+
+.snippet-context-block__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+
+/* 切片 / 上下文代码区：限制代码区域高度，超出在代码区滚动（保留顶部语言与复制栏） */
+.snippet-context-block :deep(.snippet-context-code-block .code-pre) {
+  max-height: 220px;
+  overflow-y: auto;
 }
 
 .field-label {
@@ -3289,6 +3641,10 @@ onUnmounted(() => {
 
   .result-list-container {
     flex-direction: column;
+  }
+
+  .list-content {
+    max-height: calc(100vh - 280px);
   }
 
   .rule-tree-section {
