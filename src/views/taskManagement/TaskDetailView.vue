@@ -4,7 +4,8 @@
     <div class="page-header">
       <div class="header-left">
         <el-button @click="handleBack">← 返回任务列表</el-button>
-        <h1 v-if="task?.taskName">{{ task.taskName }}</h1>
+        <h1 v-if="isEditing && task">{{ editForm.taskName || '任务详情' }}</h1>
+        <h1 v-else-if="task?.taskName">{{ task.taskName }}</h1>
         <h1 v-else>任务详情</h1>
         <el-tag v-if="task?.taskStatus" :type="taskStatusToElTagType(task.taskStatus)" size="large" class="status-tag">
           {{ task.taskStatus }}
@@ -16,7 +17,8 @@
     </div>
 
     <!-- 视图切换标签页（加载时也展示） -->
-    <el-tabs v-model="activeView" class="view-tabs">
+    <div class="view-tabs-row">
+      <el-tabs v-model="activeView" class="view-tabs">
       <!-- 任务基本信息统计视图 -->
       <el-tab-pane label="任务信息" name="info">
         <div class="view-content">
@@ -70,22 +72,92 @@
                     <span class="task-detail-card-title">任务基本信息</span>
                   </template>
                   <div class="task-detail-fields">
-                    <div class="task-detail-field-line">
+                    <div
+                        class="task-detail-field-line"
+                        :class="{ 'task-detail-field-line--edit': isEditing }"
+                    >
+                      <span>任务名称：</span>
+                      <template v-if="isEditing">
+                        <el-input
+                            v-model="editForm.taskName"
+                            placeholder="任务名称"
+                            clearable
+                            class="task-detail-field-input"
+                        />
+                      </template>
+                      <template v-else>
+                        <span>{{ task.taskName || '—' }}</span>
+                      </template>
+                    </div>
+                    <div
+                        class="task-detail-field-line"
+                        :class="{ 'task-detail-field-line--edit': isEditing }"
+                    >
                       <span>代码仓地址：</span>
-                      <a
-                          v-if="task.repoUrl"
-                          :href="task.repoUrl"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          class="task-detail-link"
-                      >{{ task.repoUrl }}</a>
-                      <span v-else class="task-detail-muted">未提供地址</span>
+                      <template v-if="isEditing">
+                        <el-input
+                            v-model="editForm.repoUrl"
+                            placeholder="https://..."
+                            clearable
+                            class="task-detail-field-input"
+                        />
+                      </template>
+                      <template v-else>
+                        <a
+                            v-if="task.repoUrl"
+                            :href="task.repoUrl"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="task-detail-link"
+                        >{{ task.repoUrl }}</a>
+                        <span v-else class="task-detail-muted">未提供地址</span>
+                      </template>
                     </div>
-                    <div class="task-detail-field-line">
-                      <span>代码行数：</span><span>{{ task.lineNum ?? '--' }}k</span>
+                    <div
+                        class="task-detail-field-line"
+                        :class="{ 'task-detail-field-line--edit': isEditing }"
+                    >
+                      <span>代码行数（k）：</span>
+                      <template v-if="isEditing">
+                        <el-input-number
+                            v-model="editForm.lineNum"
+                            :min="0"
+                            :step="0.1"
+                            :precision="2"
+                            controls-position="right"
+                            class="task-detail-field-input"
+                        />
+                      </template>
+                      <template v-else>
+                        <span>{{ task.lineNum ?? '--' }}k</span>
+                      </template>
                     </div>
-                    <div class="task-detail-field-line">
-                      <span>代码语言：</span><span>{{ task.codeLanguage || '未知' }}</span>
+                    <div
+                        class="task-detail-field-line"
+                        :class="{ 'task-detail-field-line--edit': isEditing }"
+                    >
+                      <span>代码语言：</span>
+                      <template v-if="isEditing">
+                        <el-select
+                            v-model="editForm.codeLanguage"
+                            placeholder="请选择"
+                            clearable
+                            class="task-detail-field-input"
+                        >
+                          <el-option label="Java" value="Java" />
+                          <el-option label="C++" value="C++" />
+                          <el-option label="JavaScript" value="JavaScript" />
+                          <el-option label="TypeScript" value="TypeScript" />
+                          <el-option label="Python" value="Python" />
+                          <el-option label="Go" value="Go" />
+                          <el-option label="Swift" value="Swift" />
+                          <el-option label="Shell" value="Shell" />
+                          <el-option label="未知 / 混合" value="Unknown" />
+                        </el-select>
+                      </template>
+                      <template v-else>
+                        <span>{{ task.codeLanguage || '未知' }}</span>
+                      </template>
                     </div>
                     <div class="task-detail-field-line">
                       <span>创建人：</span><span>{{ formatTaskCreatorDisplay(task) }}</span>
@@ -93,17 +165,93 @@
                     <div class="task-detail-field-line">
                       <span>创建时间：</span><span>{{ task.createTime || '未知' }}</span>
                     </div>
-                    <div class="task-detail-field-line">
-                      <span>所属部门/开发部：</span><span>{{ task.dept_name || '-' }}</span>
+                    <div
+                        class="task-detail-field-line"
+                        :class="{ 'task-detail-field-line--edit': isEditing }"
+                    >
+                      <span>任务状态：</span>
+                      <template v-if="isEditing">
+                        <el-select v-model="editForm.taskStatus" class="task-detail-field-input">
+                          <el-option
+                              v-for="s in taskStatusSelectOptions"
+                              :key="s"
+                              :label="s"
+                              :value="s"
+                          />
+                        </el-select>
+                      </template>
+                      <template v-else>
+                        <span>{{ task.taskStatus || '—' }}</span>
+                      </template>
                     </div>
-                    <div class="task-detail-field-line">
-                      <span>所属PDU：</span><span>{{ task.pdu_name || '-' }}</span>
+                    <div
+                        class="task-detail-field-line"
+                        :class="{ 'task-detail-field-line--edit': isEditing }"
+                    >
+                      <span>所属部门/开发部：</span>
+                      <template v-if="isEditing">
+                        <el-input
+                            v-model="editForm.deptName"
+                            placeholder="可选"
+                            clearable
+                            class="task-detail-field-input"
+                        />
+                      </template>
+                      <template v-else>
+                        <span>{{ task.dept_name || '-' }}</span>
+                      </template>
                     </div>
-                    <div class="task-detail-field-line">
-                      <span>产品名称：</span><span>{{ task.productName || '-' }}</span>
+                    <div
+                        class="task-detail-field-line"
+                        :class="{ 'task-detail-field-line--edit': isEditing }"
+                    >
+                      <span>所属PDU：</span>
+                      <template v-if="isEditing">
+                        <el-input
+                            v-model="editForm.pduName"
+                            placeholder="可选"
+                            clearable
+                            class="task-detail-field-input"
+                        />
+                      </template>
+                      <template v-else>
+                        <span>{{ task.pdu_name || '-' }}</span>
+                      </template>
                     </div>
-                    <div v-if="task.warnCount != null" class="task-detail-field-line">
-                      <span>告警总数：</span><span>{{ task.warnCount }}</span>
+                    <div
+                        class="task-detail-field-line"
+                        :class="{ 'task-detail-field-line--edit': isEditing }"
+                    >
+                      <span>产品名称：</span>
+                      <template v-if="isEditing">
+                        <el-input
+                            v-model="editForm.productName"
+                            placeholder="产品名称"
+                            clearable
+                            class="task-detail-field-input"
+                        />
+                      </template>
+                      <template v-else>
+                        <span>{{ task.productName || '-' }}</span>
+                      </template>
+                    </div>
+                    <div
+                        class="task-detail-field-line"
+                        :class="{ 'task-detail-field-line--edit': isEditing }"
+                    >
+                      <span>告警总数：</span>
+                      <template v-if="isEditing">
+                        <el-input-number
+                            v-model="editForm.warnCount"
+                            :min="0"
+                            :step="1"
+                            controls-position="right"
+                            class="task-detail-field-input"
+                        />
+                      </template>
+                      <template v-else>
+                        <span>{{ task.warnCount != null ? task.warnCount : '—' }}</span>
+                      </template>
                     </div>
                   </div>
                 </el-card>
@@ -113,20 +261,71 @@
                     <span class="task-detail-card-title">扫描设置</span>
                   </template>
                   <div class="task-detail-fields">
-                    <div class="task-detail-field-line">
-                      <span>扫描分支：</span><span>{{ task.branch || '未设置' }}</span>
+                    <div
+                        class="task-detail-field-line"
+                        :class="{ 'task-detail-field-line--edit': isEditing }"
+                    >
+                      <span>扫描分支：</span>
+                      <template v-if="isEditing">
+                        <el-input
+                            v-model="editForm.branch"
+                            placeholder="如 main、master"
+                            clearable
+                            class="task-detail-field-input"
+                        />
+                      </template>
+                      <template v-else>
+                        <span>{{ task.branch || '未设置' }}</span>
+                      </template>
                     </div>
-                    <div class="task-detail-field-line">
-                      <span>助手版本：</span><span>{{ assistantVersionsDisplay }}</span>
+                    <div
+                        class="task-detail-field-line"
+                        :class="{ 'task-detail-field-line--edit': isEditing }"
+                    >
+                      <span>助手版本：</span>
+                      <template v-if="isEditing">
+                        <el-input
+                            v-model="editForm.assistantVersions"
+                            placeholder="多个版本用英文逗号分隔，如 v1.0.0,v2.0.0"
+                            clearable
+                            class="task-detail-field-input"
+                        />
+                      </template>
+                      <template v-else>
+                        <span>{{ assistantVersionsDisplay }}</span>
+                      </template>
                     </div>
-                    <div class="task-detail-field-line">
-                      <span>扫描路径：</span><span>{{ pathListDisplay }}</span>
+                    <div
+                        class="task-detail-field-line"
+                        :class="{ 'task-detail-field-line--edit': isEditing }"
+                    >
+                      <span>扫描路径：</span>
+                      <template v-if="isEditing">
+                        <el-input
+                            v-model="editForm.pathList"
+                            placeholder="多个路径用英文逗号分隔"
+                            clearable
+                            class="task-detail-field-input"
+                        />
+                      </template>
+                      <template v-else>
+                        <span>{{ pathListDisplay }}</span>
+                      </template>
                     </div>
                     <div class="task-detail-field-line task-detail-field-line--scan-file">
                       <div class="task-detail-scan-file-main">
                         <div class="task-detail-scan-grid">
-                          <span class="task-detail-scan-label">扫描结果文件：</span>
+                          <span class="task-detail-scan-label">扫描结果文件（S3）：</span>
+                          <template v-if="isEditing">
+                            <el-input
+                                v-model="editForm.s3Path"
+                                placeholder="扫描结果存储路径"
+                                clearable
+                                class="task-detail-scan-file-value task-detail-field-input"
+                            />
+                          </template>
                           <span
+                              v-else
                               class="task-detail-scan-file-value"
                               :title="scanResultFileDisplay || undefined"
                           >{{ scanResultFileDisplay || '—' }}</span>
@@ -341,7 +540,7 @@
                       class="result-item"
                   >
                     <div class="result-header">
-                      <span class="result-title">#{{ result.self_increment_id }}、{{ result.rule_name }}</span>
+                      <span class="result-title">{{ result.self_increment_id }}、{{ result.rule_name }}</span>
                       <el-tag
                           v-if="result.issue_result !== null && false"
                           :type="getIssueResultTagType(result.issue_result)"
@@ -517,11 +716,48 @@
         </div>
       </el-tab-pane>
     </el-tabs>
+      <div
+          v-if="task && !loading && !error"
+          class="view-tabs-extra"
+      >
+        <template v-if="!isEditing">
+          <el-tooltip content="开启编辑" placement="bottom">
+            <el-button
+                type="primary"
+                plain
+                circle
+                class="edit-tab-btn"
+                @click="handleStartEdit"
+            >
+              <span class="edit-tab-icon" aria-hidden="true">
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    width="1em"
+                    height="1em"
+                    fill="currentColor"
+                >
+                  <path
+                      d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                  />
+                </svg>
+              </span>
+            </el-button>
+          </el-tooltip>
+        </template>
+        <template v-else>
+          <el-button size="small" @click="handleCancelEdit">取消</el-button>
+          <el-button type="primary" size="small" :loading="savingTask" @click="handleSaveTask">
+            保存
+          </el-button>
+        </template>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import * as echarts from 'echarts'
 import {
@@ -543,6 +779,8 @@ import {
   ElTabPane,
   ElCard,
   ElUpload,
+  ElInputNumber,
+  ElTooltip,
 } from 'element-plus'
 import type { UploadFile, UploadFiles } from 'element-plus'
 import { TASK_STATUS, TASK_STATUS_MAP } from '@/constants/scanTaskConst'
@@ -554,7 +792,9 @@ import {
   uploadScanResultFile,
   saveAnnotationApi,
   getAnnotationStatistics,
+  updateTaskInfo,
 } from '@/api/task'
+import type { UpdateTaskInfoPayload } from '@/api/types'
 import type { TaskScanResultApiDocRow } from '@/api/types/taskApiDoc'
 import type { AnnotationStatistics } from '@/api/types'
 import type { SaveAnnotationReqBody, TaskDetailPaginationInfo } from '@/api/types/saveAnnotation'
@@ -692,6 +932,121 @@ const router = useRouter()
 const route = useRoute()
 const userInfo = useProfileStore().userInfo
 
+/** 与创建任务页一致，供编辑模式下拉选择 */
+const taskStatusSelectOptions = [
+  TASK_STATUS.NOT_STARTED,
+  TASK_STATUS.RUNNING,
+  TASK_STATUS.COMPLETED,
+  TASK_STATUS.FAILED,
+]
+
+const savingTask = ref(false)
+
+/** 用户点击「编辑」后为 true；保存或取消后恢复为 false（默认查看模式） */
+const isEditing = ref(false)
+
+const editForm = reactive({
+  taskName: '',
+  repoUrl: '',
+  branch: '',
+  pathList: '',
+  s3Path: '',
+  taskStatus: TASK_STATUS.NOT_STARTED,
+  assistantVersions: '',
+  productName: '',
+  codeLanguage: 'Unknown',
+  lineNum: null as number | null,
+  deptName: '',
+  pduName: '',
+  warnCount: null as number | null,
+})
+
+function syncEditFormFromTask(t: Task): void {
+  editForm.taskName = t.taskName || ''
+  editForm.repoUrl = t.repoUrl || ''
+  editForm.branch = t.branch || ''
+  editForm.pathList = normalizePathListToString(t.pathList)
+  editForm.s3Path = (t.s3Path || '').trim()
+  editForm.taskStatus = t.taskStatus || TASK_STATUS.NOT_STARTED
+  editForm.assistantVersions = normalizeAssistantVersionsToParts(t.assistantVersions).join(',')
+  editForm.productName = (t.productName || '').trim() || ''
+  editForm.codeLanguage = t.codeLanguage || 'Unknown'
+  editForm.lineNum = typeof t.lineNum === 'number' && Number.isFinite(t.lineNum) ? t.lineNum : null
+  editForm.deptName = (t.dept_name || (t as Task & { deptName?: string }).deptName || '').trim()
+  editForm.pduName = (t.pdu_name || (t as Task & { pduName?: string }).pduName || '').trim()
+  editForm.warnCount = t.warnCount != null && typeof t.warnCount === 'number' ? t.warnCount : null
+}
+
+function handleStartEdit(): void {
+  if (!task.value) return
+  activeView.value = 'info'
+  syncEditFormFromTask(task.value)
+  isEditing.value = true
+}
+
+function handleCancelEdit(): void {
+  if (task.value) syncEditFormFromTask(task.value)
+  isEditing.value = false
+}
+
+/**
+ * 保存任务信息：当前调用 `task.ts` 中的 mock `updateTaskInfo`。
+ * 对接真实后端时，将下方 `updateTaskInfo` 替换为 `taskManagementService.updateTaskInfo`（见同文件注释）。
+ */
+async function handleSaveTask(): Promise<void> {
+  const tid = task.value?.taskId
+  if (!tid) return
+  savingTask.value = true
+  try {
+    const payload: UpdateTaskInfoPayload = {
+      taskName: editForm.taskName.trim(),
+      repoUrl: editForm.repoUrl.trim(),
+      branch: editForm.branch.trim(),
+      pathList: editForm.pathList.trim() || null,
+      s3Path: editForm.s3Path.trim(),
+      taskStatus: editForm.taskStatus,
+      assistantVersions: editForm.assistantVersions.trim(),
+      productName: editForm.productName.trim(),
+      codeLanguage: editForm.codeLanguage.trim() || null,
+      lineNum: editForm.lineNum,
+      deptName: editForm.deptName.trim() || null,
+      pduName: editForm.pduName.trim() || null,
+      warnCount: editForm.warnCount,
+    }
+    // 对接真实接口时示例：const res = await taskManagementService.updateTaskInfo(tid, payload)
+    const res = await updateTaskInfo(tid, payload)
+    if (!res.meta.isSuccess) {
+      ElMessage.error(res.meta.message || '保存失败')
+      return
+    }
+    if (task.value) {
+      task.value.taskName = payload.taskName
+      task.value.repoUrl = payload.repoUrl
+      task.value.branch = payload.branch
+      task.value.pathList = payload.pathList ?? ''
+      task.value.s3Path = payload.s3Path
+      task.value.taskStatus = payload.taskStatus
+      task.value.assistantVersions = normalizeAssistantVersionsToParts(payload.assistantVersions)
+      task.value.productName = payload.productName
+      task.value.codeLanguage = payload.codeLanguage?.trim() ? payload.codeLanguage : 'Unknown'
+      task.value.lineNum =
+          payload.lineNum != null && Number.isFinite(Number(payload.lineNum))
+              ? Number(payload.lineNum)
+              : 0
+      task.value.dept_name = payload.deptName != null ? payload.deptName : ''
+      task.value.pdu_name = payload.pduName != null ? payload.pduName : ''
+      task.value.warnCount = payload.warnCount != null ? payload.warnCount : null
+      syncEditFormFromTask(task.value)
+    }
+    ElMessage.success('任务信息已保存')
+    isEditing.value = false
+  } catch {
+    ElMessage.error('保存失败')
+  } finally {
+    savingTask.value = false
+  }
+}
+
 // 任务信息
 const task = ref<Task | null>(null)
 // 分页扫描结果
@@ -766,6 +1121,7 @@ async function handleScanResultFileChange(uploadFile: UploadFile, _uploadFiles: 
     if (uploadResponse.meta.isSuccess) {
       if (task.value) {
         task.value.s3Path = uploadResponse.data
+        editForm.s3Path = uploadResponse.data
       }
       ElMessage.success('扫描结果文件已更新')
     } else {
@@ -800,6 +1156,7 @@ function syncPaginationFromResponse(
 
 const loading = ref<boolean>(false)
 const error = ref<string>('')
+
 const annotationStatistics = ref<AnnotationStatistics | null>(null)
 
 /** 将接口文档形扫描行转为列表映射逻辑可用的行（补 issue_result、confidence 字符串等） */
@@ -1036,9 +1393,19 @@ const fetchTaskDetailPage = async (
     creator: resTask.creator ?? '',
     nameCn: resolveTaskCreatorNameCn((resTask as { nameCn?: string }).nameCn),
     warnCount: typeof d.warnCount === 'number' ? d.warnCount : null,
+    dept_name:
+        d.deptName != null && String(d.deptName).trim() !== ''
+            ? String(d.deptName).trim()
+            : '',
+    pdu_name:
+        d.pduName != null && String(d.pduName).trim() !== ''
+            ? String(d.pduName).trim()
+            : '',
     scanResults: rawScanResults,
     paginationInfo: pi ?? null,
   } as Task
+
+  syncEditFormFromTask(task.value)
 
   if (task.value.taskStatus === TASK_STATUS.COMPLETED) {
     let mapped = rawScanResults.map((item: any, idx: number) => {
@@ -1907,6 +2274,14 @@ const updateAllCharts = async (): Promise<void> => {
   }
 }
 
+// 切换任务时退出编辑态，避免沿用上一任务的未保存表单
+watch(
+    () => task.value?.taskId,
+    () => {
+      isEditing.value = false
+    },
+)
+
 // 监听统计数据变化，更新图表
 watch(
     () => [annotationStatistics.value, scanResultsList.value.length],
@@ -1955,9 +2330,46 @@ onUnmounted(() => {
   margin-bottom: 8px;
 }
 
+/* 视图切换标签页：与右侧操作按钮同一行 */
+.view-tabs-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.view-tabs-row .view-tabs {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.view-tabs-extra {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  box-sizing: border-box;
+  position: absolute;
+  right: 20px;
+}
+
+.edit-tab-btn {
+  padding: 8px;
+}
+
+.edit-tab-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  line-height: 1;
+}
+
 /* 视图切换标签页样式 */
 .view-tabs {
-  margin-bottom: 24px;
+  margin-bottom: 0;
 }
 
 .view-tabs :deep(.el-tabs__item) {
@@ -2008,6 +2420,23 @@ onUnmounted(() => {
 
 .task-info-section {
   margin-bottom: 16px;
+}
+
+.task-detail-field-line--edit {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.task-detail-field-line--edit > span:first-child {
+  flex-shrink: 0;
+  min-width: 7em;
+}
+
+.task-detail-field-input {
+  flex: 1;
+  min-width: 160px;
 }
 
 .task-info-cards-row {
@@ -2886,6 +3315,18 @@ onUnmounted(() => {
 }
 
 @media (max-width: 768px) {
+  .view-tabs-row {
+    flex-wrap: wrap;
+  }
+
+  .view-tabs-extra {
+    width: 100%;
+    justify-content: flex-end;
+    height: auto;
+    min-height: 44px;
+    padding-top: 4px;
+  }
+
   .task-info-cards-row {
     flex-direction: column;
   }

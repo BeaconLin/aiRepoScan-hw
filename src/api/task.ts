@@ -26,6 +26,7 @@ import type {
     TaskScanResultsApiDocData,
     TaskScanResultsApiDocResponse,
     UploadScanResultFileResponse,
+    UpdateTaskInfoPayload,
 } from './types'
 
 /** 与历史 task store 一致，用于任务列表持久化 */
@@ -41,6 +42,7 @@ export type {
     TaskListApiRow,
     TaskListPageData,
     CreateTaskPayload,
+    UpdateTaskInfoPayload,
     TaskDetailAnnotationStatusFilter,
     ApiDocHttpMeta,
     TaskInfoApiDocData,
@@ -148,7 +150,7 @@ const normalizeStoredTask = (raw: Record<string, unknown>): TaskDetail => {
     if (!Array.isArray(av)) {
         av = []
     }
-    return {
+    const base: TaskDetail = {
         taskId: String(raw.taskId ?? ''),
         taskName: String(raw.taskName ?? ''),
         repoUrl: String(raw.repoUrl ?? ''),
@@ -168,6 +170,18 @@ const normalizeStoredTask = (raw: Record<string, unknown>): TaskDetail => {
         s3Path: String(raw.s3Path ?? ''),
         scanResults: []
     }
+    const ext = base as TaskDetail & {
+        deptName?: string | null
+        pduName?: string | null
+        warnCountOverride?: number | null
+    }
+    const dn = raw.deptName ?? raw.dept_name
+    const pn = raw.pduName ?? raw.pdu_name
+    if (dn != null && String(dn).trim() !== '') ext.deptName = String(dn).trim()
+    if (pn != null && String(pn).trim() !== '') ext.pduName = String(pn).trim()
+    const wo = raw.warnCountOverride
+    if (wo != null && Number.isFinite(Number(wo))) ext.warnCountOverride = Number(wo)
+    return base
 }
 
 // Mock 任务详情数据（基于 defaultTasks）
@@ -699,6 +713,56 @@ export const queryTaskList = async (
 /**
  * 创建任务（Mock：写入内存并持久化到 localStorage）
  */
+/**
+ * 更新任务信息（Mock：写入 mockTaskDetails 并持久化 localStorage）
+ * 与接口文档 1.8 响应 `{ meta, data: null }` 一致；不修改 creator / createTime / nameCn。
+ *
+ * 注意：接口文档 1.8 中 URL 误写为 `/api/tasks/{taskId}/annotation-statistics`，实际应为 `PUT /api/tasks/{taskId}`（见 taskManagementService 注释）。
+ */
+export const updateTaskInfo = async (
+    taskId: string,
+    payload: UpdateTaskInfoPayload,
+): Promise<ApiEnvelope<null>> => {
+    await new Promise((r) => setTimeout(r, 0))
+    const t = mockTaskDetails[taskId]
+    if (!t) {
+        return envelopeFail(null, 404, '未找到任务')
+    }
+    const avStr = (payload.assistantVersions ?? '').trim()
+    const avParts = avStr.split(',').map((s) => s.trim()).filter(Boolean)
+    t.taskName = (payload.taskName ?? '').trim() || t.taskName
+    t.repoUrl = (payload.repoUrl ?? '').trim() || t.repoUrl
+    t.branch = (payload.branch ?? '').trim() || t.branch
+    t.pathList = payload.pathList == null ? '' : String(payload.pathList).trim()
+    t.s3Path = (payload.s3Path ?? '').trim() || t.s3Path
+    t.taskStatus = (payload.taskStatus as TaskStatus) || t.taskStatus
+    t.assistantVersions = avParts.length > 0 ? avParts : ['v1.0.0']
+    t.productName = (payload.productName ?? '').trim() || t.productName
+    t.codeLanguage =
+        payload.codeLanguage == null || String(payload.codeLanguage).trim() === ''
+            ? 'Unknown'
+            : String(payload.codeLanguage).trim()
+    t.lineNum =
+        payload.lineNum == null || !Number.isFinite(Number(payload.lineNum))
+            ? 0
+            : Number(payload.lineNum)
+    const ext = t as TaskDetail & {
+        deptName?: string | null
+        pduName?: string | null
+        warnCountOverride?: number | null
+    }
+    ext.deptName = payload.deptName == null ? null : String(payload.deptName).trim() || null
+    ext.pduName = payload.pduName == null ? null : String(payload.pduName).trim() || null
+    if (payload.warnCount == null) {
+        delete ext.warnCountOverride
+    } else {
+        const w = Number(payload.warnCount)
+        ext.warnCountOverride = Number.isFinite(w) ? w : null
+    }
+    persistTasksToStorage()
+    return envelopeOk(null)
+}
+
 export const createTaskApi = async (payload: CreateTaskPayload): Promise<ApiEnvelope<TaskDetail>> => {
     const taskId = generateTaskId()
     const now = new Date().toLocaleString('zh-CN', {
@@ -863,6 +927,15 @@ export async function getTaskInfo(taskId: string): Promise<TaskInfoApiDocRespons
         return { meta: metaDocFail(404, '未找到任务'), data: null }
     }
     const warnN = (mockScanResults[taskId]?.length ?? 0) || 0
+    const ext = t as TaskDetail & {
+        deptName?: string | null
+        pduName?: string | null
+        warnCountOverride?: number | null
+    }
+    const warnCountDisplay =
+        typeof ext.warnCountOverride === 'number' && Number.isFinite(ext.warnCountOverride)
+            ? ext.warnCountOverride
+            : warnN
     const data: TaskInfoApiDocData = {
         taskId: t.taskId,
         taskName: t.taskName,
@@ -877,7 +950,9 @@ export async function getTaskInfo(taskId: string): Promise<TaskInfoApiDocRespons
         lineNum: t.lineNum,
         productName: t.productName,
         s3Path: t.s3Path,
-        warnCount: warnN,
+        warnCount: warnCountDisplay,
+        deptName: ext.deptName ?? null,
+        pduName: ext.pduName ?? null,
         scanResults: null,
         paginationInfo: null,
     }

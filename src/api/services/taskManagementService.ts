@@ -1,5 +1,6 @@
 // import axios from 'axios';
-// import service from '@/api/http'; // 
+// import service from '@/api/http';
+// import type { UpdateTaskInfoPayload } from '@/api/types';
 
 // const VITE_API_REPO_SCAN = import.meta.env.VITE_API_REPO_SCAN
 // const VITE_API_REPO_SCAN = 'http://localhost:8662'
@@ -71,6 +72,14 @@ const taskManagementService = {
   // deleteTaskById: (taskId: string): any => {
   //   return service.delete(`${REPO_SCAN_URL}/api/tasks/${taskId}`)
   // },
+
+  /**
+   * 更新任务信息（接口文档 1.8；请求体为 UpdateTaskInfoPayload）
+   * 注意：文档 1.8 中 URL 误写为 `/api/tasks/{taskId}/annotation-statistics`，实际应为：
+   * `PUT ${REPO_SCAN_URL}/api/tasks/{taskId}`
+   */
+  // updateTaskInfo: (taskId: string, body: UpdateTaskInfoPayload): any =>
+  //   service.put(`${REPO_SCAN_URL}/api/tasks/${taskId}`, body),
 };
 
 export default taskManagementService;

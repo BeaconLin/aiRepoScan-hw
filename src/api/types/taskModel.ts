@@ -75,6 +75,24 @@ export interface TaskDetail {
 /** 列表项（不含扫描结果明细） */
 export type TaskListItem = Omit<TaskDetail, 'scanResults'>
 
+/** 更新任务信息请求体（与接口文档 1.8 一致；pathList / codeLanguage / lineNum / deptName / pduName / warnCount 可为 null） */
+export interface UpdateTaskInfoPayload {
+    taskName: string
+    repoUrl: string
+    branch: string
+    pathList: string | null
+    s3Path: string
+    taskStatus: string
+    /** 逗号分隔或单版本，如 `v1.0.0` 或 `v1.0.0,v2.0.0` */
+    assistantVersions: string
+    productName: string
+    codeLanguage: string | null
+    lineNum: number | null
+    deptName: string | null
+    pduName: string | null
+    warnCount: number | null
+}
+
 /** 创建任务入参（与创建表单 / 接口字段对齐） */
 export interface CreateTaskPayload {
     taskName: string

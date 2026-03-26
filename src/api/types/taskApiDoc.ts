@@ -35,6 +35,9 @@ export interface TaskInfoApiDocData {
     productName: string
     s3Path: string
     warnCount: number
+    /** 可选；mock/部分环境返回 */
+    deptName?: string | null
+    pduName?: string | null
     scanResults: null
     paginationInfo: null
 }

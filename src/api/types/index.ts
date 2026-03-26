@@ -16,6 +16,7 @@ export type {
     TaskDetail,
     TaskListItem,
     CreateTaskPayload,
+    UpdateTaskInfoPayload,
     AnnotationStatistics,
 } from './taskModel'
 export type { TaskListApiRow, TaskListPageData } from './taskList'
