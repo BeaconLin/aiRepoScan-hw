@@ -18,6 +18,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import hljs from 'highlight.js/lib/core'
+import type { LanguageFn } from 'highlight.js'
 import cpp from 'highlight.js/lib/languages/cpp'
 import c from 'highlight.js/lib/languages/c'
 import java from 'highlight.js/lib/languages/java'
@@ -30,23 +31,27 @@ import php from 'highlight.js/lib/languages/php'
 import ruby from 'highlight.js/lib/languages/ruby'
 import csharp from 'highlight.js/lib/languages/csharp'
 import 'highlight.js/styles/github.css'
-
+import { copyText } from '@/utils/utils'
+import { ElMessage } from "element-plus";
 interface Props {
   code: string
   language?: string
 }
 
-hljs.registerLanguage('cpp', cpp)
-hljs.registerLanguage('c', c)
-hljs.registerLanguage('java', java)
-hljs.registerLanguage('go', go)
-hljs.registerLanguage('javascript', javascript)
-hljs.registerLanguage('typescript', typescript)
-hljs.registerLanguage('python', python)
-hljs.registerLanguage('rust', rust)
-hljs.registerLanguage('php', php)
-hljs.registerLanguage('ruby', ruby)
-hljs.registerLanguage('csharp', csharp)
+/** 语言模块推断类型与 highlight.js 的 Language/LanguageFn 声明在 keywords 等处不完全一致，运行时安全 */
+const lang = (m: unknown): LanguageFn => m as LanguageFn
+
+hljs.registerLanguage('cpp', lang(cpp))
+hljs.registerLanguage('c', lang(c))
+hljs.registerLanguage('java', lang(java))
+hljs.registerLanguage('go', lang(go))
+hljs.registerLanguage('javascript', lang(javascript))
+hljs.registerLanguage('typescript', lang(typescript))
+hljs.registerLanguage('python', lang(python))
+hljs.registerLanguage('rust', lang(rust))
+hljs.registerLanguage('php', lang(php))
+hljs.registerLanguage('ruby', lang(ruby))
+hljs.registerLanguage('csharp', lang(csharp))
 
 const props = withDefaults(defineProps<Props>(), {
   language: 'cpp',
@@ -87,11 +92,8 @@ const highlightedCode = computed<string>(() => {
 })
 
 const copyCode = async (): Promise<void> => {
-  await navigator.clipboard.writeText(props.code)
-  isCopied.value = true
-  setTimeout(() => {
-    isCopied.value = false
-  }, 2000)
+  copyText(props.code)
+  ElMessage.success(`复制成功`)
 }
 </script>
 

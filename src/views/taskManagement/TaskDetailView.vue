@@ -19,438 +19,404 @@
     <!-- 视图切换标签页（加载时也展示） -->
     <div class="view-tabs-row">
       <el-tabs v-model="activeView" class="view-tabs">
-      <!-- 任务基本信息统计视图 -->
-      <el-tab-pane label="任务信息" name="info">
-        <div class="view-content">
-          <template v-if="loading">
-            <div class="tab-content-skeleton loading-container">
-              <el-skeleton :rows="10" animated/>
-            </div>
-          </template>
-          <template v-else-if="error">
-            <div class="error-container">
-              <el-alert
-                  :title="error"
-                  type="error"
-                  :closable="false"
-                  show-icon
-              />
-              <div class="error-actions">
-                <el-button type="primary" @click="handleRetry">
-                  重试
-                </el-button>
-                <el-button @click="handleBack">
-                  返回任务首页
-                </el-button>
+        <!-- 任务基本信息统计视图 -->
+        <el-tab-pane label="任务信息" name="info">
+          <div class="view-content">
+            <template v-if="loading">
+              <div class="tab-content-skeleton loading-container">
+                <el-skeleton :rows="10" animated/>
               </div>
-            </div>
-          </template>
-          <template v-else-if="!task">
-            <div class="error-container">
-              <el-alert
-                  :title="error || '未找到该任务信息'"
-                  :type="error ? 'error' : 'info'"
-                  :closable="false"
-                  show-icon
-              />
-              <div class="error-actions">
-                <el-button type="primary" @click="handleRetry">
-                  重试
-                </el-button>
-                <el-button @click="handleBack">
-                  返回任务首页
-                </el-button>
+            </template>
+            <template v-else-if="error">
+              <div class="error-container">
+                <el-alert
+                    :title="error"
+                    type="error"
+                    :closable="false"
+                    show-icon
+                />
+                <div class="error-actions">
+                  <el-button type="primary" @click="handleRetry">
+                    重试
+                  </el-button>
+                  <el-button @click="handleBack">
+                    返回任务首页
+                  </el-button>
+                </div>
               </div>
-            </div>
-          </template>
-          <template v-else>
-            <!-- 任务信息区域 -->
-            <div v-if="task" class="task-info-section">
-              <div class="task-info-cards-row">
-                <el-card class="task-detail-field-card" shadow="never">
-                  <template #header>
-                    <span class="task-detail-card-title">任务基本信息</span>
-                  </template>
-                  <div class="task-detail-fields">
-                    <div
-                        class="task-detail-field-line"
-                        :class="{ 'task-detail-field-line--edit': isEditing }"
-                    >
-                      <span>任务名称：</span>
-                      <template v-if="isEditing">
-                        <el-input
-                            v-model="editForm.taskName"
-                            placeholder="任务名称"
-                            clearable
-                            class="task-detail-field-input"
-                        />
-                      </template>
-                      <template v-else>
-                        <span>{{ task.taskName || '—' }}</span>
-                      </template>
-                    </div>
-                    <div
-                        class="task-detail-field-line"
-                        :class="{ 'task-detail-field-line--edit': isEditing }"
-                    >
-                      <span>代码仓地址：</span>
-                      <template v-if="isEditing">
-                        <el-input
-                            v-model="editForm.repoUrl"
-                            placeholder="https://..."
-                            clearable
-                            class="task-detail-field-input"
-                        />
-                      </template>
-                      <template v-else>
-                        <a
-                            v-if="task.repoUrl"
-                            :href="task.repoUrl"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="task-detail-link"
-                        >{{ task.repoUrl }}</a>
-                        <span v-else class="task-detail-muted">未提供地址</span>
-                      </template>
-                    </div>
-                    <div
-                        class="task-detail-field-line"
-                        :class="{ 'task-detail-field-line--edit': isEditing }"
-                    >
-                      <span>代码行数（k）：</span>
-                      <template v-if="isEditing">
-                        <el-input-number
-                            v-model="editForm.lineNum"
-                            :min="0"
-                            :step="0.1"
-                            :precision="2"
-                            controls-position="right"
-                            class="task-detail-field-input"
-                        />
-                      </template>
-                      <template v-else>
-                        <span>{{ task.lineNum ?? '--' }}k</span>
-                      </template>
-                    </div>
-                    <div
-                        class="task-detail-field-line"
-                        :class="{ 'task-detail-field-line--edit': isEditing }"
-                    >
-                      <span>代码语言：</span>
-                      <template v-if="isEditing">
-                        <el-select
-                            v-model="editForm.codeLanguage"
-                            placeholder="请选择"
-                            clearable
-                            class="task-detail-field-input"
-                        >
-                          <el-option label="Java" value="Java" />
-                          <el-option label="C++" value="C++" />
-                          <el-option label="JavaScript" value="JavaScript" />
-                          <el-option label="TypeScript" value="TypeScript" />
-                          <el-option label="Python" value="Python" />
-                          <el-option label="Go" value="Go" />
-                          <el-option label="Swift" value="Swift" />
-                          <el-option label="Shell" value="Shell" />
-                          <el-option label="未知 / 混合" value="Unknown" />
-                        </el-select>
-                      </template>
-                      <template v-else>
-                        <span>{{ task.codeLanguage || '未知' }}</span>
-                      </template>
-                    </div>
-                    <div class="task-detail-field-line">
-                      <span>创建人：</span><span>{{ formatTaskCreatorDisplay(task) }}</span>
-                    </div>
-                    <div class="task-detail-field-line">
-                      <span>创建时间：</span><span>{{ task.createTime || '未知' }}</span>
-                    </div>
-                    <div
-                        class="task-detail-field-line"
-                        :class="{ 'task-detail-field-line--edit': isEditing }"
-                    >
-                      <span>任务状态：</span>
-                      <template v-if="isEditing">
-                        <el-select v-model="editForm.taskStatus" class="task-detail-field-input">
-                          <el-option
-                              v-for="s in taskStatusSelectOptions"
-                              :key="s"
-                              :label="s"
-                              :value="s"
+            </template>
+            <template v-else-if="!task">
+              <div class="error-container">
+                <el-alert
+                    :title="error || '未找到该任务信息'"
+                    :type="error ? 'error' : 'info'"
+                    :closable="false"
+                    show-icon
+                />
+                <div class="error-actions">
+                  <el-button type="primary" @click="handleRetry">
+                    重试
+                  </el-button>
+                  <el-button @click="handleBack">
+                    返回任务首页
+                  </el-button>
+                </div>
+              </div>
+            </template>
+            <template v-else>
+              <!-- 任务信息区域 -->
+              <div v-if="task" class="task-info-section">
+                <div class="task-info-cards-row">
+                  <el-card class="task-detail-field-card" shadow="never">
+                    <template #header>
+                      <span class="task-detail-card-title">任务基本信息</span>
+                    </template>
+                    <div class="task-detail-fields">
+                      <div
+                          class="task-detail-field-line"
+                          :class="{ 'task-detail-field-line--edit': isEditing }"
+                      >
+                        <span>任务名称：</span>
+                        <template v-if="isEditing">
+                          <el-input
+                              v-model="editForm.taskName"
+                              placeholder="任务名称"
+                              clearable
+                              class="task-detail-field-input"
                           />
-                        </el-select>
-                      </template>
-                      <template v-else>
-                        <span>{{ task.taskStatus || '—' }}</span>
-                      </template>
+                        </template>
+                        <template v-else>
+                          <span>{{ task.taskName || '—' }}</span>
+                        </template>
+                      </div>
+                      <div
+                          class="task-detail-field-line"
+                          :class="{ 'task-detail-field-line--edit': isEditing }"
+                      >
+                        <span>代码仓地址：</span>
+                        <template v-if="isEditing">
+                          <el-input
+                              v-model="editForm.repoUrl"
+                              placeholder="https://..."
+                              clearable
+                              class="task-detail-field-input"
+                          />
+                        </template>
+                        <template v-else>
+                          <a
+                              v-if="task.repoUrl"
+                              :href="task.repoUrl"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              class="task-detail-link"
+                          >{{ task.repoUrl }}</a>
+                          <span v-else class="task-detail-muted">未提供地址</span>
+                        </template>
+                      </div>
+                      <div
+                          class="task-detail-field-line"
+                          :class="{ 'task-detail-field-line--edit': isEditing }"
+                      >
+                        <span>代码行数：</span>
+                        <template v-if="isEditing">
+                          <el-input-number
+                              v-model="editForm.lineNum"
+                              :min="0"
+                              :step="0.1"
+                              :precision="2"
+                              controls-position="right"
+                              class="task-detail-field-input"
+                          />
+                        </template>
+                        <template v-else>
+                          <span>{{ task.lineNum ?? '--' }}k</span>
+                        </template>
+                      </div>
+                      <div
+                          class="task-detail-field-line"
+                          :class="{ 'task-detail-field-line--edit': isEditing }"
+                      >
+                        <span>代码语言：</span>
+                        <template v-if="isEditing">
+                          <el-select
+                              v-model="editForm.codeLanguage"
+                              placeholder="请选择"
+                              clearable
+                              class="task-detail-field-input"
+                          >
+                            <el-option label="C/C++" value="C/C++"/>
+                          </el-select>
+                        </template>
+                        <template v-else>
+                          <span>{{ task.codeLanguage || '未知' }}</span>
+                        </template>
+                      </div>
+                      <div class="task-detail-field-line">
+                        <span>创建人：</span><span>{{ formatTaskCreatorDisplay(task) }}</span>
+                      </div>
+                      <div
+                          class="task-detail-field-line"
+                          :class="{ 'task-detail-field-line--edit': isEditing }"
+                      >
+                        <span>任务状态：</span>
+                        <template v-if="isEditing">
+                          <el-select v-model="editForm.taskStatus" class="task-detail-field-input">
+                            <el-option
+                                v-for="s in taskStatusSelectOptions"
+                                :key="s"
+                                :label="s"
+                                :value="s"
+                            />
+                          </el-select>
+                        </template>
+                        <template v-else>
+                          <span>{{ task.taskStatus || '—' }}</span>
+                        </template>
+                      </div>
+                      <div
+                          class="task-detail-field-line"
+                          :class="{ 'task-detail-field-line--edit': isEditing }"
+                      >
+                        <span>所属部门/开发部：</span>
+                        <template v-if="isEditing">
+                          <el-input
+                              v-model="editForm.deptName"
+                              placeholder="可选"
+                              clearable
+                              class="task-detail-field-input"
+                          />
+                        </template>
+                        <template v-else>
+                          <span>{{ task.dept_name || '-' }}</span>
+                        </template>
+                      </div>
+                      <div
+                          class="task-detail-field-line"
+                          :class="{ 'task-detail-field-line--edit': isEditing }"
+                      >
+                        <span>所属PDU：</span>
+                        <template v-if="isEditing">
+                          <el-input
+                              v-model="editForm.pduName"
+                              placeholder="可选"
+                              clearable
+                              class="task-detail-field-input"
+                          />
+                        </template>
+                        <template v-else>
+                          <span>{{ task.pdu_name || '-' }}</span>
+                        </template>
+                      </div>
+                      <div
+                          class="task-detail-field-line"
+                          :class="{ 'task-detail-field-line--edit': isEditing }"
+                      >
+                        <span>产品名称：</span>
+                        <template v-if="isEditing">
+                          <el-input
+                              v-model="editForm.productName"
+                              placeholder="产品名称"
+                              clearable
+                              class="task-detail-field-input"
+                          />
+                        </template>
+                        <template v-else>
+                          <span>{{ task.productName || '-' }}</span>
+                        </template>
+                      </div>
+                      <div class="task-detail-field-line">
+                        <span>创建时间：</span><span>{{ task.createTime || '未知' }}</span>
+                      </div>
                     </div>
-                    <div
-                        class="task-detail-field-line"
-                        :class="{ 'task-detail-field-line--edit': isEditing }"
-                    >
-                      <span>所属部门/开发部：</span>
-                      <template v-if="isEditing">
-                        <el-input
-                            v-model="editForm.deptName"
-                            placeholder="可选"
-                            clearable
-                            class="task-detail-field-input"
-                        />
-                      </template>
-                      <template v-else>
-                        <span>{{ task.dept_name || '-' }}</span>
-                      </template>
+                  </el-card>
+
+                  <el-card class="task-detail-field-card" shadow="never">
+                    <template #header>
+                      <span class="task-detail-card-title">扫描设置</span>
+                    </template>
+                    <div class="task-detail-fields">
+                      <div
+                          class="task-detail-field-line"
+                          :class="{ 'task-detail-field-line--edit': isEditing }"
+                      >
+                        <span>扫描分支：</span>
+                        <template v-if="isEditing">
+                          <el-input
+                              v-model="editForm.branch"
+                              placeholder="如 main、master"
+                              clearable
+                              class="task-detail-field-input"
+                          />
+                        </template>
+                        <template v-else>
+                          <span>{{ task.branch || '未设置' }}</span>
+                        </template>
+                      </div>
+                      <div
+                          class="task-detail-field-line"
+                          :class="{ 'task-detail-field-line--edit': isEditing }"
+                      >
+                        <span>助手版本：</span>
+                        <template v-if="isEditing">
+                          <el-input
+                              v-model="editForm.assistantVersions"
+                              disabled
+                              placeholder="多个版本用英文逗号分隔，如 v1.0.0,v2.0.0"
+                              class="task-detail-field-input"
+                              title="编辑时暂不可修改扫描助手版本"
+                          />
+                        </template>
+                        <template v-else>
+                          <span>{{ assistantVersionsDisplay }}</span>
+                        </template>
+                      </div>
+                      <div
+                          class="task-detail-field-line"
+                          :class="{ 'task-detail-field-line--edit': isEditing }"
+                      >
+                        <span>扫描路径：</span>
+                        <template v-if="isEditing">
+                          <el-input
+                              v-model="editForm.pathList"
+                              placeholder="多个路径用英文逗号分隔"
+                              clearable
+                              class="task-detail-field-input"
+                          />
+                        </template>
+                        <template v-else>
+                          <span>{{ pathListDisplay }}</span>
+                        </template>
+                      </div>
+                      <div class="task-detail-field-line task-detail-field-line--scan-file">
+                        <div class="task-detail-scan-file-main">
+                          <div class="task-detail-scan-grid">
+                            <span class="task-detail-scan-label">扫描结果文件S3路径：</span>
+                            <span
+                                class="task-detail-scan-file-value"
+                                :title="scanResultFileDisplay || undefined"
+                            >{{ scanResultFileDisplay || '暂未上传' }}</span>
+                            <span
+                                class="task-detail-scan-hint">仅支持 JSON 格式；上传后将替换当前任务关联的扫描结果文件。</span>
+                          </div>
+                        </div>
+                        <el-upload
+                            ref="scanResultUploadRef"
+                            class="task-detail-scan-upload"
+                            :auto-upload="false"
+                            :show-file-list="false"
+                            :limit="1"
+                            accept=".json"
+                            :on-change="handleScanResultFileChange"
+                        >
+                          <template #trigger>
+                            <el-button type="primary" size="small">{{ scanResultFileButtonText }}</el-button>
+                          </template>
+                        </el-upload>
+                      </div>
                     </div>
-                    <div
-                        class="task-detail-field-line"
-                        :class="{ 'task-detail-field-line--edit': isEditing }"
-                    >
-                      <span>所属PDU：</span>
-                      <template v-if="isEditing">
-                        <el-input
-                            v-model="editForm.pduName"
-                            placeholder="可选"
-                            clearable
-                            class="task-detail-field-input"
-                        />
-                      </template>
-                      <template v-else>
-                        <span>{{ task.pdu_name || '-' }}</span>
-                      </template>
-                    </div>
-                    <div
-                        class="task-detail-field-line"
-                        :class="{ 'task-detail-field-line--edit': isEditing }"
-                    >
-                      <span>产品名称：</span>
-                      <template v-if="isEditing">
-                        <el-input
-                            v-model="editForm.productName"
-                            placeholder="产品名称"
-                            clearable
-                            class="task-detail-field-input"
-                        />
-                      </template>
-                      <template v-else>
-                        <span>{{ task.productName || '-' }}</span>
-                      </template>
-                    </div>
-                    <div
-                        class="task-detail-field-line"
-                        :class="{ 'task-detail-field-line--edit': isEditing }"
-                    >
-                      <span>告警总数：</span>
-                      <template v-if="isEditing">
-                        <el-input-number
-                            v-model="editForm.warnCount"
-                            :min="0"
-                            :step="1"
-                            controls-position="right"
-                            class="task-detail-field-input"
-                        />
-                      </template>
-                      <template v-else>
-                        <span>{{ task.warnCount != null ? task.warnCount : '—' }}</span>
-                      </template>
+                  </el-card>
+                </div>
+              </div>
+
+              <!-- 未找到任务提示 -->
+              <div v-else class="empty-section">
+                <el-empty description="未找到该任务信息"/>
+              </div>
+
+              <!-- 统计看板区域 - 仅当任务状态为已完成时显示 -->
+              <div
+                  v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && scanResultsList && scanResultsList.length > 0"
+                  class="dashboard-section">
+                <div class="section-label">任务扫描结果统计看板</div>
+                <div class="dashboard-content">
+                  <!-- 总缺陷数统计卡片 -->
+                  <div class="stat-summary-card">
+                    <div class="summary-icon">📊</div>
+                    <div class="summary-content">
+                      <div class="summary-label">总缺陷数</div>
+                      <div class="summary-value">{{ totalWarnCountDisplay }}</div>
+                      <div class="summary-desc">扫描发现的全部缺陷</div>
                     </div>
                   </div>
-                </el-card>
 
-                <el-card class="task-detail-field-card" shadow="never">
-                  <template #header>
-                    <span class="task-detail-card-title">扫描设置</span>
-                  </template>
-                  <div class="task-detail-fields">
-                    <div
-                        class="task-detail-field-line"
-                        :class="{ 'task-detail-field-line--edit': isEditing }"
-                    >
-                      <span>扫描分支：</span>
-                      <template v-if="isEditing">
-                        <el-input
-                            v-model="editForm.branch"
-                            placeholder="如 main、master"
-                            clearable
-                            class="task-detail-field-input"
-                        />
-                      </template>
-                      <template v-else>
-                        <span>{{ task.branch || '未设置' }}</span>
-                      </template>
-                    </div>
-                    <div
-                        class="task-detail-field-line"
-                        :class="{ 'task-detail-field-line--edit': isEditing }"
-                    >
-                      <span>助手版本：</span>
-                      <template v-if="isEditing">
-                        <el-input
-                            v-model="editForm.assistantVersions"
-                            placeholder="多个版本用英文逗号分隔，如 v1.0.0,v2.0.0"
-                            clearable
-                            class="task-detail-field-input"
-                        />
-                      </template>
-                      <template v-else>
-                        <span>{{ assistantVersionsDisplay }}</span>
-                      </template>
-                    </div>
-                    <div
-                        class="task-detail-field-line"
-                        :class="{ 'task-detail-field-line--edit': isEditing }"
-                    >
-                      <span>扫描路径：</span>
-                      <template v-if="isEditing">
-                        <el-input
-                            v-model="editForm.pathList"
-                            placeholder="多个路径用英文逗号分隔"
-                            clearable
-                            class="task-detail-field-input"
-                        />
-                      </template>
-                      <template v-else>
-                        <span>{{ pathListDisplay }}</span>
-                      </template>
-                    </div>
-                    <div class="task-detail-field-line task-detail-field-line--scan-file">
-                      <div class="task-detail-scan-file-main">
-                        <div class="task-detail-scan-grid">
-                          <span class="task-detail-scan-label">扫描结果文件（S3）：</span>
-                          <template v-if="isEditing">
-                            <el-input
-                                v-model="editForm.s3Path"
-                                placeholder="扫描结果存储路径"
-                                clearable
-                                class="task-detail-scan-file-value task-detail-field-input"
-                            />
-                          </template>
-                          <span
-                              v-else
-                              class="task-detail-scan-file-value"
-                              :title="scanResultFileDisplay || undefined"
-                          >{{ scanResultFileDisplay || '—' }}</span>
-                          <span
-                              class="task-detail-scan-hint">仅支持 JSON 格式；上传后将替换当前任务关联的扫描结果文件。</span>
+                  <!-- 标注完成度（数字指标） -->
+                  <div class="chart-card metric-panel">
+                    <div class="chart-title">标注完成度</div>
+                    <div class="metric-panel-body">
+                      <div class="metric-hero">
+                        <span class="metric-hero-value">{{ annotationCompletionHeroText }}</span>
+                        <span class="metric-hero-unit">%</span>
+                        <div class="metric-hero-caption">标注完成率</div>
+                      </div>
+                      <div class="metric-split">
+                        <div class="metric-cell metric-cell--annotated">
+                          <div class="metric-cell-value">{{ annotationRatioCounts.annotated }}</div>
+                          <div class="metric-cell-label">已标注（条）</div>
+                          <div class="metric-cell-sub">占 {{ annotationCompletionPct.annotated }}%</div>
+                        </div>
+                        <div class="metric-cell metric-cell--unannotated">
+                          <div class="metric-cell-value">{{ annotationRatioCounts.unannotated }}</div>
+                          <div class="metric-cell-label">未标注（条）</div>
+                          <div class="metric-cell-sub">占 {{ annotationCompletionPct.unannotated }}%</div>
                         </div>
                       </div>
-                      <el-upload
-                          ref="scanResultUploadRef"
-                          class="task-detail-scan-upload"
-                          :auto-upload="false"
-                          :show-file-list="false"
-                          :limit="1"
-                          accept=".json"
-                          :on-change="handleScanResultFileChange"
-                      >
-                        <template #trigger>
-                          <el-button type="primary" size="small">{{ scanResultFileButtonText }}</el-button>
-                        </template>
-                      </el-upload>
                     </div>
                   </div>
-                </el-card>
-              </div>
-            </div>
 
-            <!-- 未找到任务提示 -->
-            <div v-else class="empty-section">
-              <el-empty description="未找到该任务信息"/>
-            </div>
-
-            <!-- 统计看板区域 - 仅当任务状态为已完成时显示 -->
-            <div
-                v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && scanResultsList && scanResultsList.length > 0"
-                class="dashboard-section">
-              <div class="section-label">任务扫描结果统计看板</div>
-              <div class="dashboard-content">
-                <!-- 总缺陷数统计卡片 -->
-                <div class="stat-summary-card">
-                  <div class="summary-icon">📊</div>
-                  <div class="summary-content">
-                    <div class="summary-label">总缺陷数</div>
-                    <div class="summary-value">{{ totalWarnCountDisplay }}</div>
-                    <div class="summary-desc">扫描发现的全部缺陷</div>
-                  </div>
-                </div>
-
-                <!-- 标注完成度（数字指标） -->
-                <div class="chart-card metric-panel">
-                  <div class="chart-title">标注完成度</div>
-                  <div class="metric-panel-body">
-                    <div class="metric-hero">
-                      <span class="metric-hero-value">{{ annotationCompletionHeroText }}</span>
-                      <span class="metric-hero-unit">%</span>
-                      <div class="metric-hero-caption">标注完成率</div>
-                    </div>
-                    <div class="metric-split">
-                      <div class="metric-cell metric-cell--annotated">
-                        <div class="metric-cell-value">{{ annotationRatioCounts.annotated }}</div>
-                        <div class="metric-cell-label">已标注（条）</div>
-                        <div class="metric-cell-sub">占 {{ annotationCompletionPct.annotated }}%</div>
+                  <!-- 标注状态分布（数字指标） -->
+                  <div class="chart-card metric-panel">
+                    <div class="chart-title">标注状态分布</div>
+                    <div class="metric-grid-4">
+                      <div class="metric-cell metric-cell--need-modify">
+                        <div class="metric-cell-value">{{ annotationStatusDisplay.needModify }}</div>
+                        <div class="metric-cell-label">需要修改</div>
+                        <div class="metric-cell-sub">{{ annotationStatusDisplay.pct.needModify }}%</div>
                       </div>
-                      <div class="metric-cell metric-cell--unannotated">
-                        <div class="metric-cell-value">{{ annotationRatioCounts.unannotated }}</div>
-                        <div class="metric-cell-label">未标注（条）</div>
-                        <div class="metric-cell-sub">占 {{ annotationCompletionPct.unannotated }}%</div>
+                      <div class="metric-cell metric-cell--no-need-modify">
+                        <div class="metric-cell-value">{{ annotationStatusDisplay.noNeedModify }}</div>
+                        <div class="metric-cell-label">无需修改的问题</div>
+                        <div class="metric-cell-sub">{{ annotationStatusDisplay.pct.noNeedModify }}%</div>
+                      </div>
+                      <div class="metric-cell metric-cell--false-positive">
+                        <div class="metric-cell-value">{{ annotationStatusDisplay.falsePositive }}</div>
+                        <div class="metric-cell-label">问题误报</div>
+                        <div class="metric-cell-sub">{{ annotationStatusDisplay.pct.falsePositive }}%</div>
+                      </div>
+                      <div class="metric-cell metric-cell--unmarked">
+                        <div class="metric-cell-value">{{ annotationStatusDisplay.unmarked }}</div>
+                        <div class="metric-cell-label">未标注</div>
+                        <div class="metric-cell-sub">{{ annotationStatusDisplay.pct.unmarked }}%</div>
                       </div>
                     </div>
                   </div>
-                </div>
 
-                <!-- 标注状态分布（数字指标） -->
-                <div class="chart-card metric-panel">
-                  <div class="chart-title">标注状态分布</div>
-                  <div class="metric-grid-4">
-                    <div class="metric-cell metric-cell--need-modify">
-                      <div class="metric-cell-value">{{ annotationStatusDisplay.needModify }}</div>
-                      <div class="metric-cell-label">需要修改</div>
-                      <div class="metric-cell-sub">{{ annotationStatusDisplay.pct.needModify }}%</div>
-                    </div>
-                    <div class="metric-cell metric-cell--no-need-modify">
-                      <div class="metric-cell-value">{{ annotationStatusDisplay.noNeedModify }}</div>
-                      <div class="metric-cell-label">无需修改</div>
-                      <div class="metric-cell-sub">{{ annotationStatusDisplay.pct.noNeedModify }}%</div>
-                    </div>
-                    <div class="metric-cell metric-cell--false-positive">
-                      <div class="metric-cell-value">{{ annotationStatusDisplay.falsePositive }}</div>
-                      <div class="metric-cell-label">问题误报</div>
-                      <div class="metric-cell-sub">{{ annotationStatusDisplay.pct.falsePositive }}%</div>
-                    </div>
-                    <div class="metric-cell metric-cell--unmarked">
-                      <div class="metric-cell-value">{{ annotationStatusDisplay.unmarked }}</div>
-                      <div class="metric-cell-label">未标注</div>
-                      <div class="metric-cell-sub">{{ annotationStatusDisplay.pct.unmarked }}%</div>
-                    </div>
+                  <!-- 规则名称分布柱状图 -->
+                  <div class="chart-card full-width">
+                    <div class="chart-title">规则名称分布（Top 10）</div>
+                    <div ref="ruleDistributionChartRef" class="chart-container-large"></div>
                   </div>
                 </div>
-
-                <!-- 规则名称分布柱状图 -->
-                <div class="chart-card full-width">
-                  <div class="chart-title">规则名称分布（Top 10）</div>
-                  <div ref="ruleDistributionChartRef" class="chart-container-large"></div>
-                </div>
               </div>
-            </div>
 
-            <!-- 任务未完成提示 -->
-            <div v-if="task && task.taskStatus !== TASK_STATUS.COMPLETED" class="status-tip-section">
-              <el-alert
-                  :title="getStatusTipTitle()"
-                  :description="getStatusTipDescription()"
-                  type="info"
-                  :closable="false"
-                  show-icon
-              />
-            </div>
-          </template>
-        </div>
-      </el-tab-pane>
+              <!-- 任务未完成提示 -->
+              <div v-if="task && task.taskStatus !== TASK_STATUS.COMPLETED" class="status-tip-section">
+                <el-alert
+                    :title="getStatusTipTitle()"
+                    :description="getStatusTipDescription()"
+                    type="info"
+                    :closable="false"
+                    show-icon
+                />
+              </div>
+            </template>
+          </div>
+        </el-tab-pane>
 
-      <!-- 标注视图 -->
-      <el-tab-pane label="标注视图" name="annotation">
-        <div
-            class="view-content"
-            :class="{
+        <!-- 标注视图 -->
+        <el-tab-pane label="标注视图" name="annotation">
+          <div
+              class="view-content"
+              :class="{
               'view-content--with-fixed-pagination':
                 !loading &&
                 !error &&
@@ -458,101 +424,101 @@
                 task.taskStatus === TASK_STATUS.COMPLETED &&
                 pagination.total > 0
             }"
-        >
-          <template v-if="loading">
-            <div class="tab-content-skeleton loading-container">
-              <el-skeleton :rows="10" animated/>
-            </div>
-          </template>
-          <template v-else-if="error">
-            <div class="error-container">
-              <el-alert
-                  :title="error"
-                  type="error"
-                  :closable="false"
-                  show-icon
-              />
-              <div class="error-actions">
-                <el-button type="primary" @click="handleRetry">
-                  重试
-                </el-button>
-                <el-button @click="handleBack">
-                  返回任务首页
-                </el-button>
+          >
+            <template v-if="loading">
+              <div class="tab-content-skeleton loading-container">
+                <el-skeleton :rows="10" animated/>
               </div>
-            </div>
-          </template>
-          <template v-else-if="!task">
-            <div class="error-container">
-              <el-alert
-                  :title="error || '未找到该任务信息'"
-                  :type="error ? 'error' : 'info'"
-                  :closable="false"
-                  show-icon
-              />
-              <div class="error-actions">
-                <el-button type="primary" @click="handleRetry">
-                  重试
-                </el-button>
-                <el-button @click="handleBack">
-                  返回任务首页
-                </el-button>
-              </div>
-            </div>
-          </template>
-          <template v-else>
-            <!-- 扫描结果列表和规则树区域 - 仅当任务状态为已完成时显示 -->
-            <div v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && scanResultsList"
-                 class="result-list-container">
-              <!-- 左侧：扫描结果列表 -->
-              <div class="result-list-section">
-                <div class="list-header-with-filter">
-                  <div class="section-label">扫描结果列表</div>
-                  <!-- 标注结果筛选 -->
-                  <div class="annotation-filter">
-                    <div class="filter-label">标注结果筛选：</div>
-                    <div class="filter-options">
-                      <el-select
-                          v-model="filterForm.issueResult"
-                          @change="handleScanFilterRefetch"
-                          placeholder="请选择标注结果"
-                          clearable
-                          class="annotation-filter-select"
-                          style="width: 200px"
-                      >
-                        <el-option label="全部" value=""/>
-                        <el-option label="需要修改" value="0"/>
-                        <el-option label="无需修改的问题" value="1"/>
-                        <el-option label="问题误报" value="2"/>
-                        <el-option label="未标注" value="unmarked"/>
-                      </el-select>
-                    </div>
-                  </div>
+            </template>
+            <template v-else-if="error">
+              <div class="error-container">
+                <el-alert
+                    :title="error"
+                    type="error"
+                    :closable="false"
+                    show-icon
+                />
+                <div class="error-actions">
+                  <el-button type="primary" @click="handleRetry">
+                    重试
+                  </el-button>
+                  <el-button @click="handleBack">
+                    返回任务首页
+                  </el-button>
                 </div>
-                <div ref="scanResultListContentRef" class="list-content">
-                  <div v-if="filteredScanResultsList.length === 0" class="empty-results">
-                    <el-empty description="暂无扫描结果"/>
-                  </div>
-                  <!-- key 使用「筛选后列表」中的全局下标，避免多条告警共享同一 warn_uuid/id 时 Vue 复用节点导致「同一规则只显示一条」 -->
-                  <div
-                      v-for="(result, rIdx) in pagedScanResultsList"
-                      :key="(pagination.currentPage - 1) * pagination.pageSize + rIdx"
-                      class="result-item"
-                  >
-                    <div class="result-header">
-                      <span class="result-title">{{ result.self_increment_id }}、{{ result.rule_name }}</span>
-                      <el-tag
-                          v-if="result.issue_result !== null && false"
-                          :type="getIssueResultTagType(result.issue_result)"
-                          size="small"
-                          style="margin-left: 8px"
-                      >{{ result.issue_result }}、
-                        {{ getIssueResultLabel(result.issue_result) }}
-                      </el-tag>
-                      <!-- 置信度标签暂不展示 -->
+              </div>
+            </template>
+            <template v-else-if="!task">
+              <div class="error-container">
+                <el-alert
+                    :title="error || '未找到该任务信息'"
+                    :type="error ? 'error' : 'info'"
+                    :closable="false"
+                    show-icon
+                />
+                <div class="error-actions">
+                  <el-button type="primary" @click="handleRetry">
+                    重试
+                  </el-button>
+                  <el-button @click="handleBack">
+                    返回任务首页
+                  </el-button>
+                </div>
+              </div>
+            </template>
+            <template v-else>
+              <!-- 扫描结果列表和规则树区域 - 仅当任务状态为已完成时显示 -->
+              <div v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && scanResultsList"
+                   class="result-list-container">
+                <!-- 左侧：扫描结果列表 -->
+                <div class="result-list-section">
+                  <div class="list-header-with-filter">
+                    <div class="section-label">扫描结果列表</div>
+                    <!-- 标注结果筛选 -->
+                    <div class="annotation-filter">
+                      <div class="filter-label">标注结果筛选：</div>
+                      <div class="filter-options">
+                        <el-select
+                            v-model="filterForm.issueResult"
+                            @change="handleScanFilterRefetch"
+                            placeholder="请选择标注结果"
+                            clearable
+                            class="annotation-filter-select"
+                            style="width: 200px"
+                        >
+                          <el-option label="全部" value=""/>
+                          <el-option label="需要修改" value="0"/>
+                          <el-option label="无需修改的问题" value="1"/>
+                          <el-option label="问题误报" value="2"/>
+                          <el-option label="未标注" value="unmarked"/>
+                        </el-select>
+                      </div>
                     </div>
-                    <div class="result-body">
-                      <div class="result-file-row">
+                  </div>
+                  <div ref="scanResultListContentRef" class="list-content">
+                    <div v-if="filteredScanResultsList.length === 0" class="empty-results">
+                      <el-empty description="暂无扫描结果"/>
+                    </div>
+                    <!-- key 使用「筛选后列表」中的全局下标，避免多条告警共享同一 warn_uuid/id 时 Vue 复用节点导致「同一规则只显示一条」 -->
+                    <div
+                        v-for="(result, rIdx) in pagedScanResultsList"
+                        :key="(pagination.currentPage - 1) * pagination.pageSize + rIdx"
+                        class="result-item"
+                    >
+                      <div class="result-header">
+                        <span class="result-title">{{ result.self_increment_id }}、{{ result.rule_name }}</span>
+                        <el-tag
+                            v-if="result.issue_result !== null && false"
+                            :type="getIssueResultTagType(result.issue_result)"
+                            size="small"
+                            style="margin-left: 8px"
+                        >{{ result.issue_result }}、
+                          {{ getIssueResultLabel(result.issue_result) }}
+                        </el-tag>
+                        <!-- 置信度标签暂不展示 -->
+                      </div>
+                      <div class="result-body">
+                        <div class="result-file-row">
                         <span class="result-file-row__icon" aria-hidden="true" title="打开链接">
                           <svg
                               xmlns="http://www.w3.org/2000/svg"
@@ -569,86 +535,86 @@
                             <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
                           </svg>
                         </span>
-                        <a
-                            :href="assembleFileName(result)"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="result-file-row__link"
-                        >{{ assembleFileNameShow(result) }}</a>
-                        <span class="result-file-row__lineno">第 {{ result.warn_line || result.line }} 行</span>
-                      </div>
-                      <div class="result-field--plain result-field--desc">
-                        <span class="field-label field-label--emphasis">问题说明</span>
-                        <span class="field-value field-value--emphasis">{{ result.warn }}</span>
-                      </div>
-                      <div class="result-field--plain result-field--code">
-                        <span class="field-label field-label--emphasis">问题代码</span>
-                        <CodeBlock
-                            class="result-item-code-block"
-                            :code="result.warn_code_block || result.code_block || result.code_snippet || ''"
-                            :language="getCodeLanguage()"
-                            style="max-height: 240px; overflow-y: auto;"
-                        />
-                      </div>
-                      <div class="result-field--snippet-collapse">
-                        <el-collapse
-                            class="snippet-context-collapse"
-                            :model-value="snippetContextCollapseOpen[snippetContextCollapseKey(result, rIdx)] ?? []"
-                            @update:model-value="(v) => handleSnippetCollapseChange(snippetContextCollapseKey(result, rIdx), v)"
-                        >
-                          <el-collapse-item name="snippet-context" title="切片代码块与上下文代码">
-                            <div class="snippet-context-block">
-                              <div class="snippet-context-block__label">切片代码块</div>
-                              <CodeBlock
-                                  class="result-item-code-block snippet-context-code-block"
-                                  :code="result.code_snippet || result.warn_code_block || result.code_block || ''"
-                                  :language="getCodeLanguage()"
-                              />
-                            </div>
-                            <div class="snippet-context-block">
-                              <div class="snippet-context-block__label">上下文代码</div>
-                              <CodeBlock
-                                  class="result-item-code-block snippet-context-code-block"
-                                  :code="result.context || ''"
-                                  :language="getCodeLanguage()"
-                              />
-                            </div>
-                          </el-collapse-item>
-                        </el-collapse>
-                      </div>
-                    </div>
-                    <div class="result-actions">
-                      <div class="annotation-section">
-                        <div class="annotation-label annotation-label--emphasis">缺陷标注</div>
-                        <el-radio-group
-                            :model-value="getAnnotationIssueResult(result)"
-                            @update:model-value="(v) => setAnnotationIssueResult(result, v)"
-                        >
-                          <el-radio :key="0" :value="0" class="option-item">
-                            需要修改
-                          </el-radio>
-                          <el-radio :key="1" :value="1" class="option-item">
-                            无需修改的问题
-                          </el-radio>
-                          <el-radio :key="2" :value="2" class="option-item">
-                            问题误报
-                          </el-radio>
-                        </el-radio-group>
-                        <!-- 原因说明输入框 -->
-                        <div class="reason-section">
-                          <el-input
-                              :model-value="getAnnotationReason(result)"
-                              @update:model-value="(v) => setAnnotationReason(result, v)"
-                              type="textarea"
-                              :rows="2"
-                              placeholder="选择上方选项将自动保存标注（不含原因）；填写原因后请点击「提交」保存"
-                              resize="none"
-                          />
-
+                          <a
+                              :href="assembleFileName(result)"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              class="result-file-row__link"
+                          >{{ assembleFileNameShow(result) }}</a>
+                          <span class="result-file-row__lineno">第 {{ result.warn_line || result.line }} 行</span>
                         </div>
-                        <el-button @click="submitAnnotation(result)">提交</el-button>
-                        <!-- 标注信息显示 -->
-                        <div v-if="result.annotation?.annotationStatus" class="annotation-info">
+                        <div class="result-field--plain result-field--desc">
+                          <span class="field-label field-label--emphasis">问题说明</span>
+                          <span class="field-value field-value--emphasis">{{ result.warn }}</span>
+                        </div>
+                        <div class="result-field--plain result-field--code">
+                          <span class="field-label field-label--emphasis">问题代码</span>
+                          <CodeBlock
+                              class="result-item-code-block"
+                              :code="result.warn_code_block || result.code_block || result.code_snippet || ''"
+                              :language="getCodeLanguage()"
+                              style="max-height: 240px; overflow-y: auto;"
+                          />
+                        </div>
+                        <div class="result-field--snippet-collapse">
+                          <el-collapse
+                              class="snippet-context-collapse"
+                              :model-value="snippetContextCollapseOpen[snippetContextCollapseKey(result, rIdx)] ?? []"
+                              @update:model-value="(v) => handleSnippetCollapseChange(snippetContextCollapseKey(result, rIdx), v)"
+                          >
+                            <el-collapse-item name="snippet-context" title="切片代码块与上下文代码">
+                              <div class="snippet-context-block">
+                                <div class="snippet-context-block__label">切片代码块</div>
+                                <CodeBlock
+                                    class="result-item-code-block snippet-context-code-block"
+                                    :code="result.code_snippet || result.warn_code_block || result.code_block || ''"
+                                    :language="getCodeLanguage()"
+                                />
+                              </div>
+                              <div class="snippet-context-block">
+                                <div class="snippet-context-block__label">上下文代码</div>
+                                <CodeBlock
+                                    class="result-item-code-block snippet-context-code-block"
+                                    :code="result.context || ''"
+                                    :language="getCodeLanguage()"
+                                />
+                              </div>
+                            </el-collapse-item>
+                          </el-collapse>
+                        </div>
+                      </div>
+                      <div class="result-actions">
+                        <div class="annotation-section">
+                          <div class="annotation-label annotation-label--emphasis">缺陷标注</div>
+                          <el-radio-group
+                              :model-value="getAnnotationIssueResult(result)"
+                              @update:model-value="(v) => setAnnotationIssueResult(result, v)"
+                          >
+                            <el-radio :key="0" :value="0" class="option-item">
+                              需要修改
+                            </el-radio>
+                            <el-radio :key="1" :value="1" class="option-item">
+                              无需修改的问题
+                            </el-radio>
+                            <el-radio :key="2" :value="2" class="option-item">
+                              问题误报
+                            </el-radio>
+                          </el-radio-group>
+                          <!-- 原因说明输入框 -->
+                          <div class="reason-section">
+                            <el-input
+                                :model-value="getAnnotationReason(result)"
+                                @update:model-value="(v) => setAnnotationReason(result, v)"
+                                type="textarea"
+                                :rows="2"
+                                placeholder="选择上方选项将自动保存标注（不含原因）；填写原因后请点击「提交」保存"
+                                resize="none"
+                            />
+
+                          </div>
+                          <el-button @click="submitAnnotation(result)">提交</el-button>
+                          <!-- 标注信息显示 -->
+                          <div v-if="result.annotation?.annotationStatus" class="annotation-info">
                           <span class="annotation-info-text">
                             <span class="annotation-user">{{ result.annotation?.userId }}</span>
                             <span
@@ -656,84 +622,84 @@
                                 result.annotation?.createTime || result.annotation?.updateTime
                               }}</span>
                           </span>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              <!-- 右侧：规则名称树形结构 -->
-              <div class="rule-tree-section">
-                <div class="section-label">规则名称分布</div>
-                <!-- 搜索框 -->
-                <div class="search-box">
-                  <el-input
-                      v-model="filterForm.keyword"
-                      placeholder="搜索文件名称、规则名称或问题说明"
-                      clearable
-                  >
-                    <template #prefix>
-                      <span style="color: #909399">🔍</span>
-                    </template>
-                  </el-input>
-                </div>
-                <div class="tree-container">
-                  <el-tree
-                      ref="ruleTreeRef"
-                      :data="ruleTreeData"
-                      :props="treeProps"
-                      node-key="id"
-                      default-expand-all
-                      highlight-current
-                      :current-node-key="selectedRuleNodeId"
-                      @node-click="handleRuleNodeClick"
-                      class="rule-tree"
-                  >
-                    <template #default="{ node, data }">
-                      <div class="tree-node-content">
-                        <span class="tree-node-label">{{ node.label }}</span>
-                        <span class="tree-node-count">({{ data.count }}个)</span>
-                      </div>
-                    </template>
-                  </el-tree>
-                  <div v-if="selectedRuleNodeId" class="tree-action">
-                    <el-button size="small" @click="handleClearRuleFilter">清除筛选</el-button>
+                <!-- 右侧：规则名称树形结构 -->
+                <div class="rule-tree-section">
+                  <div class="section-label">规则名称分布</div>
+                  <!-- 搜索框 -->
+                  <div class="search-box">
+                    <el-input
+                        v-model="filterForm.keyword"
+                        placeholder="搜索文件名称、规则名称或问题说明"
+                        clearable
+                    >
+                      <template #prefix>
+                        <span style="color: #909399">🔍</span>
+                      </template>
+                    </el-input>
+                  </div>
+                  <div class="tree-container">
+                    <el-tree
+                        ref="ruleTreeRef"
+                        :data="ruleTreeData"
+                        :props="treeProps"
+                        node-key="id"
+                        default-expand-all
+                        highlight-current
+                        :current-node-key="selectedRuleNodeId"
+                        @node-click="handleRuleNodeClick"
+                        class="rule-tree"
+                    >
+                      <template #default="{ node, data }">
+                        <div class="tree-node-content">
+                          <span class="tree-node-label">{{ node.label }}</span>
+                          <span class="tree-node-count">({{ data.count }}个)</span>
+                        </div>
+                      </template>
+                    </el-tree>
+                    <div v-if="selectedRuleNodeId" class="tree-action">
+                      <el-button size="small" @click="handleClearRuleFilter">清除筛选</el-button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <!-- 分页区域 - 仅当任务状态为已完成时显示；固定底部悬浮 -->
-            <div
-                v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && pagination.total > 0"
-                class="pagination-section pagination-bar-fixed"
-            >
-              <el-pagination
-                  v-model:current-page="pagination.currentPage"
-                  v-model:page-size="pagination.pageSize"
-                  :page-sizes="[5, 10, 20, 50]"
-                  :total="pagination.total"
-                  layout="total, sizes, prev, pager, next, jumper"
-                  @size-change="handleSizeChange"
-                  @current-change="handleCurrentChange"
-              />
-            </div>
+              <!-- 分页区域 - 仅当任务状态为已完成时显示；固定底部悬浮 -->
+              <div
+                  v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && pagination.total > 0"
+                  class="pagination-section pagination-bar-fixed"
+              >
+                <el-pagination
+                    v-model:current-page="pagination.currentPage"
+                    v-model:page-size="pagination.pageSize"
+                    :page-sizes="[5, 10, 20]"
+                    :total="pagination.total"
+                    layout="total, sizes, prev, pager, next, jumper"
+                    @size-change="handleSizeChange"
+                    @current-change="handleCurrentChange"
+                />
+              </div>
 
-            <!-- 任务未完成提示 -->
-            <div v-if="task && task.taskStatus !== TASK_STATUS.COMPLETED" class="status-tip-section">
-              <el-alert
-                  :title="getStatusTipTitle()"
-                  :description="getStatusTipDescription()"
-                  type="info"
-                  :closable="false"
-                  show-icon
-              />
-            </div>
-          </template>
-        </div>
-      </el-tab-pane>
-    </el-tabs>
+              <!-- 任务未完成提示 -->
+              <div v-if="task && task.taskStatus !== TASK_STATUS.COMPLETED" class="status-tip-section">
+                <el-alert
+                    :title="getStatusTipTitle()"
+                    :description="getStatusTipDescription()"
+                    type="info"
+                    :closable="false"
+                    show-icon
+                />
+              </div>
+            </template>
+          </div>
+        </el-tab-pane>
+      </el-tabs>
       <div
           v-if="task && !loading && !error"
           class="view-tabs-extra"
@@ -876,9 +842,7 @@ interface Task {
   taskName: string
   repoUrl: string
   branch: string
-  /** 扫描路径，逗号分隔字符串（与接口文档一致） */
   pathList: string
-  /** 接口多为英文逗号分隔字符串；兼容 string[] */
   assistantVersions?: string | string[]
   creator: string
   createTime: string
@@ -889,13 +853,11 @@ interface Task {
   dept_name?: string
   pdu_name?: string
   s3Path?: string
-  /** 接口 getTaskInfo 返回的 warnCount，组装后用于展示 */
   warnCount?: number | null
   scanResults: any[]
   // 兼容旧数据格式
   id?: string
   status?: string
-  /** 兼容旧数据：曾为数组 */
   scanPaths?: string | string[]
   language?: string
   codeLines?: number
@@ -935,7 +897,6 @@ interface ScanResult {
   end_line: number
   func_uuid: string
   index: number
-  /** 列表展示序号 */
   self_increment_id?: number
   reason: string | null
   issue_result: IssueResult
@@ -961,12 +922,6 @@ interface RuleTreeNode {
   ruleName?: string // 叶子节点才有规则名称
   count: number
   children?: RuleTreeNode[]
-}
-
-/** 与接口文档 2.1 一致：YYYY-MM-DD HH:mm:ss */
-function formatAnnotationTimeForApi(d: Date = new Date()): string {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
 type TagType = 'success' | 'info' | 'warning' | 'danger'
@@ -1014,10 +969,10 @@ function syncEditFormFromTask(t: Task): void {
   editForm.assistantVersions = normalizeAssistantVersionsToParts(t.assistantVersions).join(',')
   editForm.productName = (t.productName || '').trim() || ''
   editForm.codeLanguage = t.codeLanguage || 'Unknown'
-  editForm.lineNum = typeof t.lineNum === 'number' && Number.isFinite(t.lineNum) ? t.lineNum : null
+  editForm.lineNum = Number.isFinite(t.lineNum) ? t.lineNum : null
   editForm.deptName = (t.dept_name || (t as Task & { deptName?: string }).deptName || '').trim()
   editForm.pduName = (t.pdu_name || (t as Task & { pduName?: string }).pduName || '').trim()
-  editForm.warnCount = t.warnCount != null && typeof t.warnCount === 'number' ? t.warnCount : null
+  editForm.warnCount = t.warnCount != null && true ? t.warnCount : null
 }
 
 function handleStartEdit(): void {
@@ -1167,6 +1122,11 @@ async function handleScanResultFileChange(uploadFile: UploadFile, _uploadFiles: 
         editForm.s3Path = uploadResponse.data
       }
       ElMessage.success('扫描结果文件已更新')
+      // 上传成功后，重新查询任务基本信息、统计数据以及标注视图
+      const taskId = task.value?.taskId
+      if (taskId) {
+        await fetchTaskDetailPage(taskId, 1, pagination.value.pageSize, {fetchAnnotationStats: true})
+      }
     } else {
       ElMessage.error(uploadResponse.meta.message || '上传失败')
     }
@@ -1188,7 +1148,7 @@ function syncPaginationFromResponse(
     pInfo: TaskDetailPaginationInfo | null | undefined,
     fallbackCount: number
 ): void {
-  if (pInfo && typeof pInfo.totalCount === 'number') {
+  if (pInfo && true) {
     pagination.value.currentPage = pInfo.currentPage
     pagination.value.pageSize = pInfo.pageSize
     pagination.value.total = pInfo.totalCount
@@ -1205,7 +1165,7 @@ const annotationStatistics = ref<AnnotationStatistics | null>(null)
 /** 将接口文档形扫描行转为列表映射逻辑可用的行（补 issue_result、confidence 字符串等） */
 function normalizeApiDocScanRowForList(row: TaskScanResultApiDocRow): Record<string, unknown> {
   const conf = row.confidence
-  const confidenceStr = typeof conf === 'number' ? String(conf) : String(conf ?? '')
+  const confidenceStr = String(conf)
   return {
     ...row,
     issue_result: row.annotation?.issueResult ?? null,
@@ -1252,7 +1212,7 @@ function updateAnnotationBackToTop(): void {
 }
 
 function scrollAnnotationViewToTop(): void {
-  scanResultListContentRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
+  scanResultListContentRef.value?.scrollTo({top: 0, behavior: 'smooth'})
 }
 
 function attachAnnotationScrollListener(): void {
@@ -1266,7 +1226,7 @@ function attachAnnotationScrollListener(): void {
   const onScroll = (): void => {
     updateAnnotationBackToTop()
   }
-  container.addEventListener('scroll', onScroll, { passive: true })
+  container.addEventListener('scroll', onScroll, {passive: true})
   annotationScrollCleanup = () => {
     container.removeEventListener('scroll', onScroll)
   }
@@ -1424,7 +1384,7 @@ function augmentScanResultsWithRepeatedRules(results: ScanResult[]): ScanResult[
 }
 
 /**
- * 拉取任务详情某一页扫描结果；底部分页与接口返回的 `paginationInfo` 同步（字段与接口文档 1.1 中 list 项内 `paginationInfo` 一致：currentPage、hasNext、hasPrevious、pageSize、totalCount、totalPages）。
+ * 拉取任务详情某一页扫描结果
  */
 const fetchTaskDetailPage = async (
     taskId: string,
@@ -1435,40 +1395,35 @@ const fetchTaskDetailPage = async (
   const ruleName = filterForm.value.ruleName?.trim()
   const annotation = filterForm.value.issueResult?.trim()
 
-  //  const [infoRes, scanRes] = await Promise.all([
-  //   taskManagementService.getTaskInfo(taskId),
-  //   taskManagementService.getTaskScanResults(
-  //     taskId,
-  //     pageNum,
-  //     pageSize,
-  //     ruleName || undefined,
-  //     annotation || undefined,
-  //   ),
-  // ])
-  const [infoRes, scanRes] = await Promise.all([
-    getTaskInfo(taskId),
-    getTaskScanResults(
-      taskId,
-      pageNum,
-      pageSize,
-      ruleName || undefined,
-      annotation || undefined,
-    ),
-  ])
+  // const infoRes = await taskManagementService.getTaskInfo(taskId)
+  const infoRes = await getTaskInfo(taskId)
 
   if (!infoRes.meta.isSuccess || !infoRes.data) {
     throw new Error(infoRes.meta.message || '获取任务基本信息失败')
   }
-  if (!scanRes.meta.isSuccess || !scanRes.data) {
-    throw new Error(scanRes.meta.message || '获取任务扫描结果失败')
+
+  let scanRes
+  try {
+    // scanRes = await taskManagementService.getTaskScanResults(taskId, pageNum, pageSize, ruleName || undefined, annotation || undefined)
+    scanRes = await getTaskScanResults(
+        taskId,
+        pageNum,
+        pageSize,
+        ruleName || undefined,
+        annotation || undefined,
+    )
+  } catch (e) {
+    console.error('获取扫描结果失败:', e)
+    scanRes = null
   }
 
   const d = infoRes.data
-  const scanData = scanRes.data
-  const rawScanResults: any[] = Array.isArray(scanData.scanResults)
-      ? scanData.scanResults.map((row) => normalizeApiDocScanRowForList(row))
-      : []
-  const pi = scanData.paginationInfo as TaskDetailPaginationInfo | null | undefined
+  const scanData = scanRes?.data
+  const rawScanResults: any[] =
+      scanData && Array.isArray(scanData.scanResults)
+          ? scanData.scanResults.map((row) => normalizeApiDocScanRowForList(row))
+          : []
+  const pi = scanData?.paginationInfo as TaskDetailPaginationInfo | null | undefined
   syncPaginationFromResponse(pi, rawScanResults.length)
 
   const resTask = {
@@ -1492,18 +1447,14 @@ const fetchTaskDetailPage = async (
         resTask.lineNum ??
         (resTask.codeLines != null ? Number(resTask.codeLines) / 1000 : 0),
     productName: resTask.productName || resTask.product_name || '-',
-    s3Path: resTask.s3Path || `s3://ai-repo-scan/results/${resTask.taskId || resTask.id}`,
+    s3Path: resTask.s3Path,
     creator: resTask.creator ?? '',
     nameCn: resolveTaskCreatorNameCn((resTask as { nameCn?: string }).nameCn),
     warnCount: typeof d.warnCount === 'number' ? d.warnCount : null,
-    dept_name:
-        d.deptName != null && String(d.deptName).trim() !== ''
-            ? String(d.deptName).trim()
-            : '',
-    pdu_name:
-        d.pduName != null && String(d.pduName).trim() !== ''
-            ? String(d.pduName).trim()
-            : '',
+    dept_name: (d.deptName != null && String(d.deptName).trim() !== '')
+        ? String(d.deptName).trim() : '',
+    pdu_name: (d.pduName != null && String(d.pduName).trim() !== '')
+        ? String(d.pduName).trim() : '',
     scanResults: rawScanResults,
     paginationInfo: pi ?? null,
   } as Task
@@ -1555,7 +1506,7 @@ const fetchTaskDetailPage = async (
       return result
     }) as ScanResult[]
 
-    mapped = augmentScanResultsWithRepeatedRules(mapped)
+    // 注释掉重复规则填充功能，使页面显示数量与接口返回一致
     mapped = renumberScanResultIncrementIds(mapped, offset + 1)
     scanResultsList.value = mapped
     task.value = {...task.value, scanResults: mapped as any}
@@ -1592,7 +1543,7 @@ const handleScanFilterRefetch = async (): Promise<void> => {
   pagination.value.currentPage = 1
   loading.value = true
   try {
-    await fetchTaskDetailPage(taskId, 1, pagination.value.pageSize, { fetchAnnotationStats: false })
+    await fetchTaskDetailPage(taskId, 1, pagination.value.pageSize, {fetchAnnotationStats: false})
   } catch (err) {
     ElMessage.error(err instanceof Error ? err.message : '加载失败')
   } finally {
@@ -1607,7 +1558,7 @@ const loadTaskData = async (taskId: string): Promise<void> => {
   pagination.value.currentPage = 1
   annotationStatistics.value = null
   try {
-    await fetchTaskDetailPage(taskId, 1, pagination.value.pageSize, { fetchAnnotationStats: true })
+    await fetchTaskDetailPage(taskId, 1, pagination.value.pageSize, {fetchAnnotationStats: true})
   } catch (err) {
     error.value = err instanceof Error ? err.message : '加载数据失败'
     ElMessage.error(error.value)
@@ -1685,14 +1636,14 @@ const annotationStatusDisplay = computed(() => {
   const map = new Map((api.annotationDistribution ?? []).map(d => [d.resultCode, d]))
   const unPct = total > 0 ? Number(((api.unannotatedCount / total) * 100).toFixed(2)) : 0
   return {
-    needModify: map.get(2)?.annotationCount ?? 0,
+    needModify: map.get(0)?.annotationCount ?? 0,
     noNeedModify: map.get(1)?.annotationCount ?? 0,
-    falsePositive: map.get(0)?.annotationCount ?? 0,
+    falsePositive: map.get(2)?.annotationCount ?? 0,
     unmarked: api.unannotatedCount,
     pct: {
-      needModify: formatPercentText(map.get(2)?.percentage ?? 0),
+      needModify: formatPercentText(map.get(0)?.percentage ?? 0),
       noNeedModify: formatPercentText(map.get(1)?.percentage ?? 0),
-      falsePositive: formatPercentText(map.get(0)?.percentage ?? 0),
+      falsePositive: formatPercentText(map.get(2)?.percentage ?? 0),
       unmarked: formatPercentText(unPct),
     },
   }
@@ -1860,39 +1811,6 @@ const handleClearRuleFilter = (): void => {
   }
 }
 
-// 处理下拉框规则选择变化
-const handleRuleSelectChange = (): void => {
-  // 同步选中树节点
-  if (filterForm.value.ruleName) {
-    // 查找对应的树节点
-    const findNodeByRuleName = (nodes: RuleTreeNode[]): RuleTreeNode | null => {
-      for (const node of nodes) {
-        if (node.ruleName === filterForm.value.ruleName) {
-          return node
-        }
-        if (node.children) {
-          const found = findNodeByRuleName(node.children)
-          if (found) {
-            return found
-          }
-        }
-      }
-      return null
-    }
-    const node = findNodeByRuleName(ruleTreeData.value)
-    if (node) {
-      selectedRuleNodeId.value = node.id
-    }
-  } else {
-    selectedRuleNodeId.value = null
-    // 清除树形组件的选中状态
-    if (ruleTreeRef.value) {
-      ruleTreeRef.value.setCurrentKey(null)
-    }
-  }
-  handleScanFilterRefetch()
-}
-
 /** 标注状态由 getTaskScanResults 的 annotation 在服务端筛选；关键词与规则树选中的规则名为当前页本地筛选（规则树不走高亮 ruleName 接口，以免右侧树统计被筛窄） */
 const filteredScanResultsList = computed<ScanResult[]>(() => {
   let results = scanResultsList.value
@@ -1924,20 +1842,6 @@ const filteredScanResultsList = computed<ScanResult[]>(() => {
 
 /** 接口已按页返回 scanResults；total/currentPage/pageSize 来自 paginationInfo */
 const pagedScanResultsList = computed<ScanResult[]>(() => filteredScanResultsList.value)
-
-// 获取规则名称标签类型
-const getRuleNameTagType = (ruleName: string): TagType => {
-  // 根据规则名称关键词判断类型
-  if (ruleName.includes('安全') || ruleName.includes('XSS') || ruleName.includes('注入')) {
-    return 'danger'
-  } else if (ruleName.includes('性能') || ruleName.includes('性能问题')) {
-    return 'warning'
-  } else if (ruleName.includes('规范') || ruleName.includes('命名')) {
-    return 'info'
-  } else {
-    return 'warning'
-  }
-}
 
 // 获取标注状态标签类型
 const getIssueResultTagType = (issueResult: number): TagType => {
@@ -2197,7 +2101,7 @@ const getStatusTipDescription = (): string => {
 // 获取代码语言类型（映射到 highlight.js 支持的语言）
 const getCodeLanguage = (): string => {
   if (!task.value || !task.value.codeLanguage) {
-    return 'cpp' // 默认使用 cpp
+    return 'C/C++' // 默认使用 C/C++
   }
 
   const languageMap: Record<string, string> = {
@@ -2212,7 +2116,7 @@ const getCodeLanguage = (): string => {
     'PHP': 'php',
     'Ruby': 'ruby',
     'C#': 'csharp',
-    'cpp': 'cpp',
+    'C/C++': 'C/C++',
     'c': 'c',
     'java': 'java',
     'python': 'python',
@@ -2222,7 +2126,7 @@ const getCodeLanguage = (): string => {
   }
 
   const normalizedLang = task.value.codeLanguage.trim()
-  return languageMap[normalizedLang] || 'cpp' // 如果找不到映射，默认使用 cpp
+  return languageMap[normalizedLang]
 }
 
 // 返回任务列表
@@ -2474,7 +2378,7 @@ onMounted(() => {
     attachAnnotationScrollListener()
     updateAnnotationBackToTop()
   })
-  window.addEventListener('resize', updateAnnotationBackToTop, { passive: true })
+  window.addEventListener('resize', updateAnnotationBackToTop, {passive: true})
 })
 
 // 组件卸载时清理图表实例

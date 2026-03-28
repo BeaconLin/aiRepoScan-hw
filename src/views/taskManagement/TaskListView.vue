@@ -306,8 +306,7 @@ const openCreateDialog = () => {
 const handleCreateSuccess = async () => {
   loading.value = true
   try {
-    await loadTasks()
-    ElMessage.success('任务创建成功！')
+    await loadTasksData()
     if (taskType.value === 'my') {
       taskType.value = 'all'
     }
@@ -364,11 +363,11 @@ const handleDelete = async (taskId) => {
     const res = await deleteTaskById(taskId)
     // const res = await taskManagementService.deleteTaskById(taskId)
     const success = res.meta.isSuccess && !!res.data
-    if (success) await loadTasks()
+    if (success) {
+      await loadTasksData()
+    }
     if (success) {
       ElMessage.success('任务删除成功！')
-      // 如果当前页没有数据了，返回上一页
-
     } else {
       ElMessage.error(res.meta.message || '任务删除失败！')
     }
