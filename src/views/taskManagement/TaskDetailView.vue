@@ -129,7 +129,7 @@
                           />
                         </template>
                         <template v-else>
-                          <span>{{ task.lineNum ?? '--' }}k</span>
+                          <span>{{ task.lineNum === 0 ? '0' : (task.lineNum ? task.lineNum + 'k' : '--') }}</span>
                         </template>
                       </div>
                       <div
@@ -153,6 +153,9 @@
                       </div>
                       <div class="task-detail-field-line">
                         <span>创建人：</span><span>{{ formatTaskCreatorDisplay(task) }}</span>
+                      </div>
+                      <div class="task-detail-field-line">
+                        <span>创建时间：</span><span>{{ task.createTime || '未知' }}</span>
                       </div>
                       <div
                           class="task-detail-field-line"
@@ -224,9 +227,6 @@
                           <span>{{ task.productName || '-' }}</span>
                         </template>
                       </div>
-                      <div class="task-detail-field-line">
-                        <span>创建时间：</span><span>{{ task.createTime || '未知' }}</span>
-                      </div>
                     </div>
                   </el-card>
 
@@ -260,10 +260,9 @@
                         <template v-if="isEditing">
                           <el-input
                               v-model="editForm.assistantVersions"
-                              disabled
                               placeholder="多个版本用英文逗号分隔，如 v1.0.0,v2.0.0"
+                              clearable
                               class="task-detail-field-input"
-                              title="编辑时暂不可修改扫描助手版本"
                           />
                         </template>
                         <template v-else>
@@ -632,17 +631,27 @@
                 <!-- 右侧：规则名称树形结构 -->
                 <div class="rule-tree-section">
                   <div class="section-label">规则名称分布</div>
-                  <!-- 搜索框 -->
-                  <div class="search-box">
-                    <el-input
-                        v-model="filterForm.keyword"
-                        placeholder="搜索文件名称、规则名称或问题说明"
-                        clearable
+                  <!-- 搜索框和清除筛选按钮 -->
+                  <div class="search-box-row">
+                    <div class="search-box">
+                      <el-input
+                          v-model="filterForm.keyword"
+                          placeholder="搜索文件名称、规则名称或问题说明"
+                          clearable
+                      >
+                        <template #prefix>
+                          <span style="color: #909399">🔍</span>
+                        </template>
+                      </el-input>
+                    </div>
+                    <el-button
+                        v-if="selectedRuleNodeId"
+                        size="small"
+                        @click="handleClearRuleFilter"
+                        class="clear-filter-btn"
                     >
-                      <template #prefix>
-                        <span style="color: #909399">🔍</span>
-                      </template>
-                    </el-input>
+                      清除筛选
+                    </el-button>
                   </div>
                   <div class="tree-container">
                     <el-tree
@@ -658,14 +667,17 @@
                     >
                       <template #default="{ node, data }">
                         <div class="tree-node-content">
-                          <span class="tree-node-label">{{ node.label }}</span>
+                          <el-tooltip
+                              :content="node.label"
+                              placement="top"
+                              :show-after="500"
+                          >
+                            <span class="tree-node-label">{{ node.label }}</span>
+                          </el-tooltip>
                           <span class="tree-node-count">({{ data.count }}个)</span>
                         </div>
                       </template>
                     </el-tree>
-                    <div v-if="selectedRuleNodeId" class="tree-action">
-                      <el-button size="small" @click="handleClearRuleFilter">清除筛选</el-button>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -802,13 +814,12 @@ import {
   saveAnnotationApi,
   getAnnotationStatistics,
   updateTaskInfo,
-} from '@/api/task'
+} from '@/api/taskManagementApi'
 import type { UpdateTaskInfoPayload } from '@/api/types'
 import type { TaskScanResultApiDocRow } from '@/api/types/taskApiDoc'
 import type { AnnotationStatistics } from '@/api/types'
 import type { SaveAnnotationReqBody, TaskDetailPaginationInfo } from '@/api/types/saveAnnotation'
 import CodeBlock from '@/views/taskManagement/components/CodeBlock.vue'
-import taskManagementService from '@/api/services/taskManagementService'
 
 type ElTagType = 'success' | 'info' | 'warning' | 'danger'
 
@@ -987,10 +998,6 @@ function handleCancelEdit(): void {
   isEditing.value = false
 }
 
-/**
- * 保存任务信息：当前调用 `task.ts` 中的 mock `updateTaskInfo`。
- * 对接真实后端时，将下方 `updateTaskInfo` 替换为 `taskManagementService.updateTaskInfo`（见同文件注释）。
- */
 async function handleSaveTask(): Promise<void> {
   const tid = task.value?.taskId
   if (!tid) return
@@ -1011,7 +1018,6 @@ async function handleSaveTask(): Promise<void> {
       pduName: editForm.pduName.trim() || null,
       warnCount: editForm.warnCount,
     }
-    // 对接真实接口时示例：const res = await taskManagementService.updateTaskInfo(tid, payload)
     const res = await updateTaskInfo(tid, payload)
     if (!res.meta.isSuccess) {
       ElMessage.error(res.meta.message || '保存失败')
@@ -1113,7 +1119,6 @@ async function handleScanResultFileChange(uploadFile: UploadFile, _uploadFiles: 
   }
 
   try {
-    // const res = await taskManagementService.uploadScanResultFile(tid, raw, userInfo.w3Id || '')
     const res = await uploadScanResultFile(tid, raw, userInfo.w3Id || '')
     const uploadResponse = res.data
     if (uploadResponse.meta.isSuccess) {
@@ -1395,7 +1400,6 @@ const fetchTaskDetailPage = async (
   const ruleName = filterForm.value.ruleName?.trim()
   const annotation = filterForm.value.issueResult?.trim()
 
-  // const infoRes = await taskManagementService.getTaskInfo(taskId)
   const infoRes = await getTaskInfo(taskId)
 
   if (!infoRes.meta.isSuccess || !infoRes.data) {
@@ -1404,7 +1408,6 @@ const fetchTaskDetailPage = async (
 
   let scanRes
   try {
-    // scanRes = await taskManagementService.getTaskScanResults(taskId, pageNum, pageSize, ruleName || undefined, annotation || undefined)
     scanRes = await getTaskScanResults(
         taskId,
         pageNum,
@@ -1518,7 +1521,6 @@ const fetchTaskDetailPage = async (
     if (options.fetchAnnotationStats) {
       try {
         const statisticsResponse = await getAnnotationStatistics(taskId)
-        // const statisticsResponse = await taskManagementService.getAnnotationStatistics(taskId)
         if (statisticsResponse.meta.isSuccess && statisticsResponse.data) {
           annotationStatistics.value = statisticsResponse.data
         }
@@ -1793,9 +1795,14 @@ const ruleTreeData = computed<RuleTreeNode[]>(() => {
   return buildRuleTree(dist)
 })
 
-// 处理规则树节点点击：高亮当前节点；列表侧在 filteredScanResultsList 中按选中规则（含父节点下全部叶子）做本地筛选，不请求 ruleName 以免树统计被服务端筛窄
+// 处理规则树节点点击：高亮当前节点；设置 filterForm.ruleName 并触发服务端过滤
 const handleRuleNodeClick = (data: RuleTreeNode): void => {
   selectedRuleNodeId.value = data.id
+  // 只有叶子节点才有完整的 ruleName，设置后触发服务端过滤
+  if (data.ruleName?.trim()) {
+    filterForm.value.ruleName = data.ruleName.trim()
+    handleScanFilterRefetch()
+  }
 }
 
 // 清除规则树选中高亮（若曾通过其它入口设置了 ruleName 服务端筛选，一并清除并重新拉取）
@@ -1811,7 +1818,7 @@ const handleClearRuleFilter = (): void => {
   }
 }
 
-/** 标注状态由 getTaskScanResults 的 annotation 在服务端筛选；关键词与规则树选中的规则名为当前页本地筛选（规则树不走高亮 ruleName 接口，以免右侧树统计被筛窄） */
+/** 标注状态由 getTaskScanResults 的 annotation 在服务端筛选；关键词为当前页本地筛选；规则名通过点击规则树触发服务端过滤 */
 const filteredScanResultsList = computed<ScanResult[]>(() => {
   let results = scanResultsList.value
 
@@ -1825,16 +1832,6 @@ const filteredScanResultsList = computed<ScanResult[]>(() => {
           warn.toLowerCase().includes(keyword) ||
           ruleName.toLowerCase().includes(keyword)
     })
-  }
-
-  if (selectedRuleNodeId.value) {
-    const node = findRuleTreeNodeById(ruleTreeData.value, selectedRuleNodeId.value)
-    if (node) {
-      const allowed = new Set(collectLeafRuleNamesUnderNode(node))
-      if (allowed.size > 0) {
-        results = results.filter(r => allowed.has((r.rule_name || '').trim()))
-      }
-    }
   }
 
   return results
@@ -1964,7 +1961,6 @@ const saveAnnotationHandler = async (
         userName: '',
         reason: ''
       }
-      // const cancelRes = await taskManagementService.saveAnnotationApi(reqBody)
       const cancelRes = await saveAnnotationApi(reqBody)
       if (!cancelRes.meta.isSuccess) {
         throw new Error(cancelRes.meta.message || '取消标注失败')
@@ -1997,7 +1993,6 @@ const saveAnnotationHandler = async (
         userName: userNameCn,
         reason: reasonForRequest
       }
-      // const saveRes = await taskManagementService.saveAnnotationApi(reqBody)
       const saveRes = await saveAnnotationApi(reqBody)
       if (!saveRes.meta.isSuccess) {
         throw new Error(saveRes.meta.message || '保存标注失败')
@@ -2159,7 +2154,7 @@ const initRuleDistributionChart = (): void => {
     const ruleEntries: [string, number][] =
         rs && rs.length > 0
             ? [...rs]
-                .sort((a, b) => b.ruleCount - a.ruleCount)
+                .sort((a, b) => a.ruleCount - b.ruleCount)
                 .slice(0, 10)
                 .map((r) => [r.ruleName, r.ruleCount])
             : []
@@ -2703,8 +2698,8 @@ onUnmounted(() => {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   position: fixed;
   right: 24px; /* 距离右侧24px */
-  top: 220px; /* header高度64px + 24px间距 */
-  max-height: calc(100vh - 112px); /* 视口高度减去header和间距 */
+  top: 198px; /* header高度64px + 24px间距 */
+  max-height: calc(100vh - 216px); /* 视口高度减去header和间距 */
   display: flex;
   flex-direction: column;
   z-index: 100;
@@ -2932,12 +2927,23 @@ onUnmounted(() => {
 }
 
 /* 规则树形结构样式 */
-.search-box {
+.search-box-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 16px;
+}
+
+.search-box {
+  flex: 1;
 }
 
 .search-box :deep(.el-input__wrapper) {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.clear-filter-btn {
+  flex-shrink: 0;
 }
 
 .tree-container {
@@ -2970,12 +2976,22 @@ onUnmounted(() => {
   border: 1px solid #3b82f6;
 }
 
+.rule-tree :deep(.el-tree-node__content > .el-tree-node__expand-icon + .el-tree-node__label) {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .tree-node-content {
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .tree-node-label {
@@ -2983,6 +2999,10 @@ onUnmounted(() => {
   color: #374151;
   font-weight: 500;
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tree-node-count {

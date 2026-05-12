@@ -169,11 +169,10 @@ import {
 import {
   queryTaskList,
   deleteTaskById,
-} from '@/api/task'
+} from '@/api/taskManagementApi'
 import CreateTaskDialog from '@/views/taskManagement/components/CreateTaskDialog.vue'
 import { TASK_STATUS_MAP, TASK_STATUS } from '@/constants/scanTaskConst'
 import { useProfileStore } from '@/stores/userProfile'
-import taskManagementService from '@/api/services/taskManagementService'
 
 type TaskStatus = (typeof TASK_STATUS)[keyof typeof TASK_STATUS]
 
@@ -236,7 +235,6 @@ const router = useRouter()
  * @param taskName 任务名称筛选条件，可选
  */
 const loadTasksData = async (creator?: string, taskStatus?: string, taskName?: string) => {
-  // const res = await taskManagementService.queryTaskList(currentPage.value, pageSize.value, creator, taskStatus, taskName)
   const res = await queryTaskList(currentPage.value, pageSize.value, creator, taskStatus, taskName)
 
   if (res.meta.isSuccess) {
@@ -285,7 +283,7 @@ const createDialogVisible = ref(false)
 const loading = ref(false)
 const taskType = ref('all') // 'all' | 'my'
 const currentPage = ref(1)
-const pageSize = ref(8) // 减少每页显示数量
+const pageSize = ref(12)
 const pageTotal = ref(0)
 
 // 筛选表单
@@ -306,7 +304,7 @@ const openCreateDialog = () => {
 const handleCreateSuccess = async () => {
   loading.value = true
   try {
-    await loadTasksData()
+    await loadTasks()
     if (taskType.value === 'my') {
       taskType.value = 'all'
     }
@@ -361,13 +359,14 @@ const handleDelete = async (taskId) => {
     )
 
     const res = await deleteTaskById(taskId)
-    // const res = await taskManagementService.deleteTaskById(taskId)
     const success = res.meta.isSuccess && !!res.data
     if (success) {
-      await loadTasksData()
+      await loadTasks()
     }
     if (success) {
       ElMessage.success('任务删除成功！')
+      // 如果当前页没有数据了，返回上一页
+
     } else {
       ElMessage.error(res.meta.message || '任务删除失败！')
     }
