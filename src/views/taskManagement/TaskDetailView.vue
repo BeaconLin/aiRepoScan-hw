@@ -14,36 +14,6 @@
           {{ task.status }}
         </el-tag>
       </div>
-      <div v-if="routeTaskId" class="header-actions">
-        <el-tooltip :content="refreshTaskDetailTooltip" placement="bottom">
-          <span class="header-action-wrap">
-            <el-button
-                type="primary"
-                plain
-                circle
-                class="edit-tab-btn"
-                aria-label="刷新任务信息"
-                :disabled="refreshTaskDetailDisabled"
-                :loading="loading"
-                @click="handleRefreshTaskDetail"
-            >
-              <span class="edit-tab-icon" aria-hidden="true">
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    width="1em"
-                    height="1em"
-                    fill="currentColor"
-                >
-                  <path
-                      d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-8 3.58-8 8s3.58 8 8 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"
-                  />
-                </svg>
-              </span>
-            </el-button>
-          </span>
-        </el-tooltip>
-      </div>
     </div>
 
     <!-- 视图切换标签页（加载时也展示） -->
@@ -828,18 +798,18 @@
           </div>
         </el-tab-pane>
       </el-tabs>
-      <div
-          v-if="task && !loading && !error"
-          class="view-tabs-extra"
-      >
-        <template v-if="!isEditing">
-          <el-tooltip content="开启编辑" placement="bottom">
+      <div v-if="routeTaskId" class="view-tabs-extra">
+        <el-tooltip :content="refreshTaskDetailTooltip" placement="bottom">
+          <span class="view-tabs-extra-tooltip-host">
             <el-button
                 type="primary"
                 plain
                 circle
                 class="edit-tab-btn"
-                @click="handleStartEdit"
+                aria-label="刷新任务信息"
+                :disabled="refreshTaskDetailDisabled"
+                :loading="loading"
+                @click="handleRefreshTaskDetail"
             >
               <span class="edit-tab-icon" aria-hidden="true">
                 <svg
@@ -850,18 +820,45 @@
                     fill="currentColor"
                 >
                   <path
-                      d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                      d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-8 3.58-8 8s3.58 8 8 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"
                   />
                 </svg>
               </span>
             </el-button>
-          </el-tooltip>
-        </template>
-        <template v-else>
-          <el-button size="small" @click="handleCancelEdit">取消</el-button>
-          <el-button type="primary" size="small" :loading="savingTask" @click="handleSaveTask">
-            保存
-          </el-button>
+          </span>
+        </el-tooltip>
+        <template v-if="task && !loading && !error">
+          <template v-if="!isEditing">
+            <el-tooltip content="开启编辑" placement="bottom">
+              <el-button
+                  type="primary"
+                  plain
+                  circle
+                  class="edit-tab-btn"
+                  @click="handleStartEdit"
+              >
+                <span class="edit-tab-icon" aria-hidden="true">
+                  <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      width="1em"
+                      height="1em"
+                      fill="currentColor"
+                  >
+                    <path
+                        d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                    />
+                  </svg>
+                </span>
+              </el-button>
+            </el-tooltip>
+          </template>
+          <template v-else>
+            <el-button size="small" @click="handleCancelEdit">取消</el-button>
+            <el-button type="primary" size="small" :loading="savingTask" @click="handleSaveTask">
+              保存
+            </el-button>
+          </template>
         </template>
       </div>
     </div>
@@ -1347,7 +1344,7 @@ const routeTaskId = computed(() => {
 const refreshTaskDetailDisabled = computed(() => isEditing.value || loading.value)
 
 const refreshTaskDetailTooltip = computed(() =>
-    isEditing.value ? '请先保存或取消编辑后再刷新' : '重新加载任务信息与扫描结果',
+    isEditing.value ? '请先保存或取消编辑后再刷新' : '重新加载',
 )
 
 /** 最近一次扫描结果列表接口是否成功（用于区分「零缺陷」与请求失败） */
@@ -2675,20 +2672,9 @@ onUnmounted(() => {
 
 .page-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
-  gap: 12px;
   margin-bottom: 8px;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.header-action-wrap {
-  display: inline-flex;
 }
 
 /* 视图切换标签页：与右侧操作按钮同一行 */
@@ -2697,6 +2683,7 @@ onUnmounted(() => {
   align-items: flex-start;
   gap: 12px;
   margin-bottom: 24px;
+  position: relative;
 }
 
 .view-tabs-row .view-tabs {
@@ -2714,6 +2701,10 @@ onUnmounted(() => {
   box-sizing: border-box;
   position: absolute;
   right: 20px;
+}
+
+.view-tabs-extra-tooltip-host {
+  display: inline-flex;
 }
 
 .edit-tab-btn {
@@ -3979,15 +3970,6 @@ onUnmounted(() => {
   .header-left {
     flex-direction: column;
     align-items: flex-start;
-  }
-
-  .page-header {
-    flex-wrap: wrap;
-  }
-
-  .header-actions {
-    width: 100%;
-    justify-content: flex-end;
   }
 
   .status-tag {
