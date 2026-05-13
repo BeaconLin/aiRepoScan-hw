@@ -14,6 +14,36 @@
           {{ task.status }}
         </el-tag>
       </div>
+      <div v-if="routeTaskId" class="header-actions">
+        <el-tooltip :content="refreshTaskDetailTooltip" placement="bottom">
+          <span class="header-action-wrap">
+            <el-button
+                type="primary"
+                plain
+                circle
+                class="edit-tab-btn"
+                aria-label="刷新任务信息"
+                :disabled="refreshTaskDetailDisabled"
+                :loading="loading"
+                @click="handleRefreshTaskDetail"
+            >
+              <span class="edit-tab-icon" aria-hidden="true">
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    width="1em"
+                    height="1em"
+                    fill="currentColor"
+                >
+                  <path
+                      d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-8 3.58-8 8s3.58 8 8 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"
+                  />
+                </svg>
+              </span>
+            </el-button>
+          </span>
+        </el-tooltip>
+      </div>
     </div>
 
     <!-- 视图切换标签页（加载时也展示） -->
@@ -1198,13 +1228,19 @@ const persistedScanParamsReady = computed(() => {
   return (t.hostUrl || '').trim() !== '' && (t.modelName || '').trim() !== ''
 })
 
-/** 启动扫描：未开始且参数齐全可点一次；失败可重试；进行中/已完成不可点 */
+/** 启动扫描：未开始/失败/已完成且参数齐全可点；进行中不可点 */
 const startScanButtonDisabled = computed(() => {
   if (!task.value || startingTaskScan.value) return true
   if (isEditing.value) return true
   const st = task.value.taskStatus
-  if (st === TASK_STATUS.RUNNING || st === TASK_STATUS.COMPLETED) return true
-  if (st !== TASK_STATUS.NOT_STARTED && st !== TASK_STATUS.FAILED) return true
+  if (st === TASK_STATUS.RUNNING) return true
+  if (
+    st !== TASK_STATUS.NOT_STARTED &&
+    st !== TASK_STATUS.FAILED &&
+    st !== TASK_STATUS.COMPLETED
+  ) {
+    return true
+  }
   return !persistedScanParamsReady.value
 })
 
@@ -1213,8 +1249,9 @@ const startScanDisabledHint = computed(() => {
   if (isEditing.value) return '请先保存任务信息后再启动扫描'
   const st = task.value.taskStatus
   if (st === TASK_STATUS.RUNNING) return '任务进行中，无法再次启动'
-  if (st === TASK_STATUS.COMPLETED) return '任务已完成，无法再次启动'
-  if (st !== TASK_STATUS.NOT_STARTED && st !== TASK_STATUS.FAILED) return '当前状态不允许启动扫描'
+  if (st !== TASK_STATUS.NOT_STARTED && st !== TASK_STATUS.FAILED && st !== TASK_STATUS.COMPLETED) {
+    return '当前状态不允许启动扫描'
+  }
   if (!persistedScanParamsReady.value) return '请先填写并保存本机启动URL与模型名称'
   return ''
 })
@@ -1301,6 +1338,17 @@ function syncPaginationFromResponse(
 
 const loading = ref<boolean>(false)
 const error = ref<string>('')
+
+const routeTaskId = computed(() => {
+  const id = route.params.id
+  return typeof id === 'string' && id.trim() !== '' ? id : ''
+})
+
+const refreshTaskDetailDisabled = computed(() => isEditing.value || loading.value)
+
+const refreshTaskDetailTooltip = computed(() =>
+    isEditing.value ? '请先保存或取消编辑后再刷新' : '重新加载任务信息与扫描结果',
+)
 
 /** 最近一次扫描结果列表接口是否成功（用于区分「零缺陷」与请求失败） */
 const scanResultsQuerySucceeded = ref(false)
@@ -1703,7 +1751,25 @@ async function handleStartTaskScan(): Promise<void> {
     return
   }
   const st = task.value.taskStatus
-  if (st !== TASK_STATUS.NOT_STARTED && st !== TASK_STATUS.FAILED) {
+  if (
+    st !== TASK_STATUS.NOT_STARTED &&
+    st !== TASK_STATUS.FAILED &&
+    st !== TASK_STATUS.COMPLETED
+  ) {
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+        '启动任务不可中止，请确认任务信息正确',
+        '确认启动扫描',
+        {
+          confirmButtonText: '确认启动',
+          cancelButtonText: '取消',
+          type: 'warning',
+          distinguishCancelAndClose: true,
+        },
+    )
+  } catch {
     return
   }
   startingTaskScan.value = true
@@ -1758,6 +1824,12 @@ const loadTaskData = async (taskId: string): Promise<void> => {
   } finally {
     loading.value = false
   }
+}
+
+function handleRefreshTaskDetail(): void {
+  const taskId = routeTaskId.value
+  if (!taskId || isEditing.value || loading.value) return
+  loadTaskData(taskId)
 }
 
 /** 任务已完成且接口确认扫描结果总数为 0（非筛选、非请求失败） */
@@ -2603,9 +2675,20 @@ onUnmounted(() => {
 
 .page-header {
   display: flex;
-  justify-content: flex-start;
+  justify-content: space-between;
   align-items: center;
+  gap: 12px;
   margin-bottom: 8px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.header-action-wrap {
+  display: inline-flex;
 }
 
 /* 视图切换标签页：与右侧操作按钮同一行 */
@@ -3896,6 +3979,15 @@ onUnmounted(() => {
   .header-left {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .page-header {
+    flex-wrap: wrap;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: flex-end;
   }
 
   .status-tag {

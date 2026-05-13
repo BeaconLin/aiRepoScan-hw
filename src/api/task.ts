@@ -771,7 +771,7 @@ export const updateTaskInfo = async (
 }
 
 /**
- * 启动扫描（Mock：仅「未开始」「失败」可启动；校验 hostUrl / modelName 非空；成功后置为进行中）
+ * 启动扫描（Mock：「未开始」「失败」「已完成」可启动；进行中不可；校验 hostUrl / modelName 非空；成功后置为进行中）
  */
 export const startTaskScan = async (taskId: string): Promise<ApiEnvelope<null>> => {
     await new Promise((r) => setTimeout(r, 0))
@@ -780,10 +780,10 @@ export const startTaskScan = async (taskId: string): Promise<ApiEnvelope<null>> 
         return envelopeFail(null, 404, '未找到任务')
     }
     const st = t.taskStatus
-    if (st === TASK_STATUS.RUNNING || st === TASK_STATUS.COMPLETED) {
-        return envelopeFail(null, 400, '进行中或已完成的任务不能再次启动扫描')
+    if (st === TASK_STATUS.RUNNING) {
+        return envelopeFail(null, 400, '任务进行中，无法再次启动扫描')
     }
-    if (st !== TASK_STATUS.NOT_STARTED && st !== TASK_STATUS.FAILED) {
+    if (st !== TASK_STATUS.NOT_STARTED && st !== TASK_STATUS.FAILED && st !== TASK_STATUS.COMPLETED) {
         return envelopeFail(null, 400, '当前任务状态不允许启动扫描')
     }
     const host = (t.hostUrl || '').trim()
