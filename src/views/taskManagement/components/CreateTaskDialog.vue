@@ -25,9 +25,15 @@
         <el-form-item label="代码仓URL" prop="repoUrl">
           <el-input
               v-model="formData.repoUrl"
-              placeholder="请输入代码仓URL，例如：https://github.com/user/repo.git"
+              placeholder="请输入代码仓地址"
               clearable
           />
+          <div class="form-hint">
+            支持两种形式，1、git地址，例如：ssh://git@地址:端口/组织/项目.git'
+          </div>
+          <div class="form-hint">
+            2、CodeHub的url地址 ，例如：https://open.codehub.huawei.com/xxxx/cc_clone/files?ref=dev_tech
+          </div>
         </el-form-item>
 
         <el-form-item label="扫描分支" prop="branch">
@@ -45,7 +51,7 @@
               clearable
           />
           <div class="form-hint">
-            可选；填写时多个路径用英文逗号拼接，例如：src,view,utils；不填则不传 pathList
+            可选参数，填写相对项目根目录的路径，多个路径用英文逗号拼接，例如：src,view,utils，不填则默认全部扫描
           </div>
         </el-form-item>
 
@@ -55,7 +61,7 @@
               placeholder="C/C++"
               style="width: 100%"
           >
-            <el-option label="C/C++" value="C++" />
+            <el-option label="C/C++" value="C++"/>
           </el-select>
         </el-form-item>
 
@@ -106,11 +112,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, onMounted } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useProfileStore } from '@/stores/userProfile'
-import { createTaskApi } from '@/api/task'
-import taskManagementService from '@/api/services/taskManagementService'
+import { createTaskApi } from '@/api/taskManagementApi'
 
 const props = defineProps({
   modelValue: {
@@ -126,12 +131,13 @@ const formRef = ref(null)
 const submitting = ref(false)
 
 const DEFAULT_CODE_LANGUAGE = 'C/C++'
+const DEFAULT_ASSISTANT_VERSION = '内存安全v1.0.0'
 
 const formData = reactive({
   taskName: '',
   repoUrl: '',
   branch: '',
-  assistantVersions: [],
+  assistantVersions: [DEFAULT_ASSISTANT_VERSION],
   scanPaths: '',
   creator: '', // 从用户信息获取
   productName: '', // 默认值
@@ -145,19 +151,19 @@ const formData = reactive({
 // 表单验证规则
 const rules = {
   taskName: [
-    { required: true, message: '请输入任务名称', trigger: 'blur' },
-    { min: 2, max: 50, message: '任务名称长度在 2 到 50 个字符', trigger: 'blur' }
+    {required: true, message: '请输入任务名称', trigger: 'blur'},
+    {min: 2, max: 50, message: '任务名称长度在 2 到 50 个字符', trigger: 'blur'}
   ],
   repoUrl: [
-    { required: true, message: '请输入代码仓URL', trigger: 'blur' },
+    {required: true, message: '请输入代码仓地址', trigger: 'blur'},
     {
-      pattern: /^(https?|git):\/\/.+/,
-      message: '请输入有效的代码仓URL',
+      pattern: /^(ssh:\/\/git@|https?:\/\/)[^\s]+$/,
+      message: '请输入有效的代码仓地址，支持SSH格式：ssh://git@地址:端口/组织/项目.git 或HTTP(S)格式：https://地址/组织/项目.git',
       trigger: 'blur'
     }
   ],
   branch: [
-    { required: true, message: '请输入扫描分支', trigger: 'blur' }
+    {required: true, message: '请输入扫描分支', trigger: 'blur'}
   ],
   scanPaths: [
     {
@@ -180,7 +186,7 @@ const rules = {
     },
   ],
   productName: [
-    { required: true, message: '请输入产品名称', trigger: 'blur' }
+    {required: true, message: '请输入产品名称', trigger: 'blur'}
   ],
 }
 
@@ -206,7 +212,7 @@ const initForm = () => {
   formData.taskName = ''
   formData.repoUrl = ''
   formData.branch = ''
-  formData.assistantVersions = []
+  formData.assistantVersions = [DEFAULT_ASSISTANT_VERSION]
   formData.scanPaths = ''
   formData.productName = ''
   formData.deptName = ''
@@ -270,32 +276,26 @@ const handleSubmit = async () => {
     const lineNumForApi =
         lineNumStr === '' ? undefined : Number(lineNumStr)
 
-    // 构建创建任务的请求数据（与《接口文档》1.5 创建代码仓扫描任务一致）
-    const createTaskData = {
+    // 构建创建任务的请求数据
+    const createTaskPayload = {
       taskName: formData.taskName.trim(),
       productName: formData.productName.trim(),
       repoUrl: formData.repoUrl.trim(),
       branch: formData.branch.trim(),
       pathList:
           validScanPaths.length > 0 ? validScanPaths.join(',') : undefined,
-      creator: formData.creator || userInfo.w3Id,
+      creator: formData.creator || userInfo.w3Id || '',
       assistantVersions: formData.assistantVersions.join(','),
       codeLanguage: formData.codeLanguage || undefined,
       lineNum: lineNumForApi,
       deptName: formData.deptName?.trim() || undefined,
       pduName: formData.pduName?.trim() || undefined,
-    }
-
-    const createTaskPayload = {
-      ...createTaskData,
-      creator: createTaskData.creator || userInfo.w3Id || '',
       nameCn: userInfo.nameCn || undefined,
     }
 
     let createResponse
     try {
       createResponse = await createTaskApi(createTaskPayload)
-      // createResponse = await taskManagementService.createTaskApi(createTaskPayload)
     } catch (e) {
       console.error('创建任务请求失败:', e)
       ElMessage.error(e?.message || '创建任务失败，请稍后重试')
@@ -379,6 +379,7 @@ const handleSubmit = async () => {
   font-size: 12px;
   color: #909399;
   margin-top: 8px;
+  line-height: 10px;
 }
 
 .dialog-footer {

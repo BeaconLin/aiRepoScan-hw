@@ -1,5 +1,5 @@
 import axios from 'axios';
-import service from '@/api/http.ts';
+import service from '@/api/https.ts';
 import type { UpdateTaskInfoPayload } from '@/api/types';
 
 // const VITE_API_REPO_SCAN = import.meta.env.VITE_API_REPO_SCAN
