@@ -117,25 +117,6 @@
                           class="task-detail-field-line"
                           :class="{ 'task-detail-field-line--edit': isEditing }"
                       >
-                        <span>代码行数：</span>
-                        <template v-if="isEditing">
-                          <el-input-number
-                              v-model="editForm.lineNum"
-                              :min="0"
-                              :step="0.1"
-                              :precision="2"
-                              controls-position="right"
-                              class="task-detail-field-input"
-                          />
-                        </template>
-                        <template v-else>
-                          <span>{{ task.lineNum === 0 ? '0' : (task.lineNum ? task.lineNum + 'k' : '--') }}</span>
-                        </template>
-                      </div>
-                      <div
-                          class="task-detail-field-line"
-                          :class="{ 'task-detail-field-line--edit': isEditing }"
-                      >
                         <span>代码语言：</span>
                         <template v-if="isEditing">
                           <el-select
@@ -286,6 +267,54 @@
                           <span>{{ pathListDisplay }}</span>
                         </template>
                       </div>
+                      <div
+                          class="task-detail-field-line"
+                          :class="{ 'task-detail-field-line--edit': isEditing }"
+                      >
+                        <span>本机启动URL：</span>
+                        <template v-if="isEditing">
+                          <el-input
+                              v-model="editForm.hostUrl"
+                              placeholder="如 http://127.0.0.1:3000"
+                              clearable
+                              class="task-detail-field-input"
+                          />
+                        </template>
+                        <template v-else>
+                          <span>{{ hostUrlDisplay }}</span>
+                        </template>
+                      </div>
+                      <div
+                          class="task-detail-field-line"
+                          :class="{ 'task-detail-field-line--edit': isEditing }"
+                      >
+                        <span>模型名称：</span>
+                        <template v-if="isEditing">
+                          <el-input
+                              v-model="editForm.modelName"
+                              placeholder="模型名称"
+                              clearable
+                              class="task-detail-field-input"
+                          />
+                        </template>
+                        <template v-else>
+                          <span>{{ modelNameDisplay }}</span>
+                        </template>
+                      </div>
+                      <div class="task-detail-field-line task-detail-field-line--start-scan">
+                        <span>扫描启动：</span>
+                        <el-button
+                            type="primary"
+                            size="small"
+                            :loading="startingTaskScan"
+                            :disabled="startScanButtonDisabled"
+                            @click="handleStartTaskScan"
+                        >启动扫描</el-button>
+                        <span
+                            v-if="startScanDisabledHint"
+                            class="task-detail-muted task-detail-start-scan-hint"
+                        >{{ startScanDisabledHint }}</span>
+                      </div>
                       <div class="task-detail-field-line task-detail-field-line--scan-file">
                         <div class="task-detail-scan-file-main">
                           <div class="task-detail-scan-grid">
@@ -397,6 +426,38 @@
                 </div>
               </div>
 
+              <!-- 扫描完成且未发现缺陷（任务信息页） -->
+              <div
+                  v-if="isCompletedScanWithZeroIssues"
+                  class="scan-zero-issues-section"
+              >
+                <div class="section-label">扫描结果</div>
+                <div class="scan-zero-issues-card">
+                  <div class="scan-zero-issues-icon" aria-hidden="true">
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        width="1.35em"
+                        height="1.35em"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.25"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    >
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                      <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                  </div>
+                  <div class="scan-zero-issues-body">
+                    <div class="scan-zero-issues-title">本次扫描未发现代码缺陷</div>
+                    <p class="scan-zero-issues-desc">
+                      任务已结束，引擎在当前扫描范围与规则下未匹配到任何告警项。若代码或规则有更新，可重新发起扫描进行确认。
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <!-- 任务未完成提示 -->
               <div v-if="task && task.taskStatus !== TASK_STATUS.COMPLETED" class="status-tip-section">
                 <el-alert
@@ -466,9 +527,28 @@
               </div>
             </template>
             <template v-else>
+              <!-- 扫描完成且无告警：单独展示结论，避免与「列表为空」混淆 -->
+              <div
+                  v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && isCompletedScanWithZeroIssues"
+                  class="scan-zero-issues-annotation-wrap"
+              >
+                <el-result
+                    icon="success"
+                    title="扫描已完成"
+                    sub-title="在当前扫描路径与规则下未产生任何告警，无需进行缺陷标注。"
+                >
+                  <template #extra>
+                    <el-button type="primary" plain @click="goToTaskInfoTab">
+                      查看任务信息
+                    </el-button>
+                  </template>
+                </el-result>
+              </div>
               <!-- 扫描结果列表和规则树区域 - 仅当任务状态为已完成时显示 -->
-              <div v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && scanResultsList"
-                   class="result-list-container">
+              <div
+                  v-else-if="task && task.taskStatus === TASK_STATUS.COMPLETED && scanResultsList"
+                  class="result-list-container"
+              >
                 <!-- 左侧：扫描结果列表 -->
                 <div class="result-list-section">
                   <div class="list-header-with-filter">
@@ -496,7 +576,13 @@
                   </div>
                   <div ref="scanResultListContentRef" class="list-content">
                     <div v-if="filteredScanResultsList.length === 0" class="empty-results">
-                      <el-empty description="暂无扫描结果"/>
+                      <el-empty
+                          :description="
+                          pagination.total > 0
+                            ? '当前筛选或搜索条件下暂无匹配结果，可尝试清除关键词或标注筛选'
+                            : '暂无扫描结果'
+                        "
+                      />
                     </div>
                     <!-- key 使用「筛选后列表」中的全局下标，避免多条告警共享同一 warn_uuid/id 时 Vue 复用节点导致「同一规则只显示一条」 -->
                     <div
@@ -802,6 +888,7 @@ import {
   ElTooltip,
   ElCollapse,
   ElCollapseItem,
+  ElResult,
 } from 'element-plus'
 import type { UploadFile, UploadFiles } from 'element-plus'
 import { TASK_STATUS, TASK_STATUS_MAP } from '@/constants/scanTaskConst'
@@ -814,6 +901,7 @@ import {
   saveAnnotationApi,
   getAnnotationStatistics,
   updateTaskInfo,
+  startTaskScan,
 } from '@/api/taskManagementApi'
 import type { UpdateTaskInfoPayload } from '@/api/types'
 import type { TaskScanResultApiDocRow } from '@/api/types/taskApiDoc'
@@ -864,6 +952,8 @@ interface Task {
   dept_name?: string
   pdu_name?: string
   s3Path?: string
+  hostUrl?: string
+  modelName?: string
   warnCount?: number | null
   scanResults: any[]
   // 兼容旧数据格式
@@ -950,6 +1040,7 @@ const taskStatusSelectOptions = [
 ]
 
 const savingTask = ref(false)
+const startingTaskScan = ref(false)
 
 /** 用户点击「编辑」后为 true；保存或取消后恢复为 false（默认查看模式） */
 const isEditing = ref(false)
@@ -968,6 +1059,8 @@ const editForm = reactive({
   deptName: '',
   pduName: '',
   warnCount: null as number | null,
+  hostUrl: '',
+  modelName: '',
 })
 
 function syncEditFormFromTask(t: Task): void {
@@ -984,6 +1077,8 @@ function syncEditFormFromTask(t: Task): void {
   editForm.deptName = (t.dept_name || (t as Task & { deptName?: string }).deptName || '').trim()
   editForm.pduName = (t.pdu_name || (t as Task & { pduName?: string }).pduName || '').trim()
   editForm.warnCount = t.warnCount != null && true ? t.warnCount : null
+  editForm.hostUrl = (t.hostUrl || '').trim()
+  editForm.modelName = (t.modelName || '').trim()
 }
 
 function handleStartEdit(): void {
@@ -1017,6 +1112,8 @@ async function handleSaveTask(): Promise<void> {
       deptName: editForm.deptName.trim() || null,
       pduName: editForm.pduName.trim() || null,
       warnCount: editForm.warnCount,
+      hostUrl: editForm.hostUrl.trim() || null,
+      modelName: editForm.modelName.trim() || null,
     }
     const res = await updateTaskInfo(tid, payload)
     if (!res.meta.isSuccess) {
@@ -1040,6 +1137,8 @@ async function handleSaveTask(): Promise<void> {
       task.value.dept_name = payload.deptName != null ? payload.deptName : ''
       task.value.pdu_name = payload.pduName != null ? payload.pduName : ''
       task.value.warnCount = payload.warnCount != null ? payload.warnCount : null
+      task.value.hostUrl = payload.hostUrl ?? ''
+      task.value.modelName = payload.modelName ?? ''
       syncEditFormFromTask(task.value)
     }
     ElMessage.success('任务信息已保存')
@@ -1080,6 +1179,44 @@ function normalizeAssistantVersionsToParts(raw: unknown): string[] {
 const pathListDisplay = computed(() => {
   const s = normalizePathListToString(task.value?.pathList)
   return s || '未设置'
+})
+
+const hostUrlDisplay = computed(() => {
+  const s = (task.value?.hostUrl || '').trim()
+  return s || '未设置'
+})
+
+const modelNameDisplay = computed(() => {
+  const s = (task.value?.modelName || '').trim()
+  return s || '未设置'
+})
+
+/** 已持久化的本机 URL 与模型名是否可用于启动扫描 */
+const persistedScanParamsReady = computed(() => {
+  const t = task.value
+  if (!t) return false
+  return (t.hostUrl || '').trim() !== '' && (t.modelName || '').trim() !== ''
+})
+
+/** 启动扫描：未开始且参数齐全可点一次；失败可重试；进行中/已完成不可点 */
+const startScanButtonDisabled = computed(() => {
+  if (!task.value || startingTaskScan.value) return true
+  if (isEditing.value) return true
+  const st = task.value.taskStatus
+  if (st === TASK_STATUS.RUNNING || st === TASK_STATUS.COMPLETED) return true
+  if (st !== TASK_STATUS.NOT_STARTED && st !== TASK_STATUS.FAILED) return true
+  return !persistedScanParamsReady.value
+})
+
+const startScanDisabledHint = computed(() => {
+  if (!task.value || startingTaskScan.value) return ''
+  if (isEditing.value) return '请先保存任务信息后再启动扫描'
+  const st = task.value.taskStatus
+  if (st === TASK_STATUS.RUNNING) return '任务进行中，无法再次启动'
+  if (st === TASK_STATUS.COMPLETED) return '任务已完成，无法再次启动'
+  if (st !== TASK_STATUS.NOT_STARTED && st !== TASK_STATUS.FAILED) return '当前状态不允许启动扫描'
+  if (!persistedScanParamsReady.value) return '请先填写并保存本机启动URL与模型名称'
+  return ''
 })
 
 const assistantVersionsDisplay = computed(() => {
@@ -1164,6 +1301,9 @@ function syncPaginationFromResponse(
 
 const loading = ref<boolean>(false)
 const error = ref<string>('')
+
+/** 最近一次扫描结果列表接口是否成功（用于区分「零缺陷」与请求失败） */
+const scanResultsQuerySucceeded = ref(false)
 
 const annotationStatistics = ref<AnnotationStatistics | null>(null)
 
@@ -1407,6 +1547,7 @@ const fetchTaskDetailPage = async (
   }
 
   let scanRes
+  scanResultsQuerySucceeded.value = false
   try {
     scanRes = await getTaskScanResults(
         taskId,
@@ -1419,6 +1560,7 @@ const fetchTaskDetailPage = async (
     console.error('获取扫描结果失败:', e)
     scanRes = null
   }
+  scanResultsQuerySucceeded.value = !!(scanRes && scanRes.meta && scanRes.meta.isSuccess)
 
   const d = infoRes.data
   const scanData = scanRes?.data
@@ -1458,6 +1600,20 @@ const fetchTaskDetailPage = async (
         ? String(d.deptName).trim() : '',
     pdu_name: (d.pduName != null && String(d.pduName).trim() !== '')
         ? String(d.pduName).trim() : '',
+    hostUrl: String(
+        (d as { hostUrl?: string }).hostUrl
+        ?? (d as { host_url?: string }).host_url
+        ?? resTask.hostUrl
+        ?? resTask.host_url
+        ?? '',
+    ).trim(),
+    modelName: String(
+        (d as { modelName?: string }).modelName
+        ?? (d as { model_name?: string }).model_name
+        ?? resTask.modelName
+        ?? resTask.model_name
+        ?? '',
+    ).trim(),
     scanResults: rawScanResults,
     paginationInfo: pi ?? null,
   } as Task
@@ -1533,6 +1689,41 @@ const fetchTaskDetailPage = async (
   }
 }
 
+async function handleStartTaskScan(): Promise<void> {
+  const tid = task.value?.taskId
+  if (!tid || !task.value) return
+  if (isEditing.value) {
+    ElMessage.warning('请先保存任务信息后再启动扫描')
+    return
+  }
+  const host = (task.value.hostUrl || '').trim()
+  const model = (task.value.modelName || '').trim()
+  if (!host || !model) {
+    ElMessage.warning('请先填写并保存本机启动URL与模型名称')
+    return
+  }
+  const st = task.value.taskStatus
+  if (st !== TASK_STATUS.NOT_STARTED && st !== TASK_STATUS.FAILED) {
+    return
+  }
+  startingTaskScan.value = true
+  try {
+    const res = await startTaskScan(tid)
+    if (!res.meta.isSuccess) {
+      ElMessage.error(res.meta.message || '启动失败')
+      return
+    }
+    ElMessage.success('扫描任务已启动')
+    await fetchTaskDetailPage(tid, pagination.value.currentPage, pagination.value.pageSize, {
+      fetchAnnotationStats: true,
+    })
+  } catch {
+    ElMessage.error('启动失败')
+  } finally {
+    startingTaskScan.value = false
+  }
+}
+
 /**
  * 标注结果或规则名称变化时：回到第一页并重新请求 getTaskInfo + getTaskScanResults，
  * 其中 getTaskScanResults 会携带 query：ruleName、annotation（与 filterForm 一致）。
@@ -1567,6 +1758,19 @@ const loadTaskData = async (taskId: string): Promise<void> => {
   } finally {
     loading.value = false
   }
+}
+
+/** 任务已完成且接口确认扫描结果总数为 0（非筛选、非请求失败） */
+const isCompletedScanWithZeroIssues = computed(
+    () =>
+        task.value?.taskStatus === TASK_STATUS.COMPLETED &&
+        !loading.value &&
+        scanResultsQuerySucceeded.value &&
+        pagination.value.total === 0,
+)
+
+function goToTaskInfoTab(): void {
+  activeView.value = 'info'
 }
 
 // 计算属性：获取所有规则名称
@@ -2615,6 +2819,20 @@ onUnmounted(() => {
   gap: 12px;
 }
 
+.task-detail-field-line--start-scan {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.task-detail-start-scan-hint {
+  flex: 1 1 220px;
+  font-size: 12px;
+  line-height: 1.5;
+  min-width: 0;
+}
+
 .task-detail-scan-file-main {
   flex: 1;
   min-width: 0;
@@ -2663,12 +2881,71 @@ onUnmounted(() => {
 
 .dashboard-section,
 .pagination-section:not(.pagination-bar-fixed),
-.status-tip-section {
+.status-tip-section,
+.scan-zero-issues-section {
   background: #ffffff;
   border-radius: 8px;
   padding: 24px;
   margin-bottom: 24px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.scan-zero-issues-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 20px 22px;
+  border-radius: 8px;
+  border: 1px solid #bbf7d0;
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+}
+
+.scan-zero-issues-icon {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #22c55e;
+  color: #ffffff;
+}
+
+.scan-zero-issues-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: #14532d;
+  margin-bottom: 8px;
+}
+
+.scan-zero-issues-desc {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.65;
+  color: #166534;
+}
+
+.scan-zero-issues-annotation-wrap {
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 48px 24px 56px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  min-height: calc(100vh - 320px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scan-zero-issues-annotation-wrap :deep(.el-result__title) {
+  margin-top: 12px;
+}
+
+.scan-zero-issues-annotation-wrap :deep(.el-result__subtitle) {
+  max-width: 420px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 /* 结果列表和规则树容器 */

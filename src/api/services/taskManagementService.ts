@@ -66,6 +66,9 @@ const taskManagementService = {
   deleteTaskById: (taskId: string): any => service.delete(`${REPO_SCAN_URL}/api/tasks/${taskId}`),
   updateTaskInfo: (taskId: string, body: UpdateTaskInfoPayload): any =>
     service.put(`${REPO_SCAN_URL}/api/tasks/${taskId}`, body),
+  /** 启动代码仓扫描任务 */
+  startTaskScan: (taskId: string): any =>
+    service.post(`${REPO_SCAN_URL}/api/tasks/${taskId}/start`, {}),
 };
 
 export default taskManagementService;

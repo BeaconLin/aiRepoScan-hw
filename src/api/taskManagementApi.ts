@@ -13,6 +13,7 @@ import {
     uploadScanResultFile as mockUploadScanResultFile,
     saveAnnotationApi as mockSaveAnnotationApi,
     getAnnotationStatistics as mockGetAnnotationStatistics,
+    startTaskScan as mockStartTaskScan,
 } from '@/api/task'
 import taskManagementService from '@/api/services/taskManagementService'
 import type {
@@ -104,4 +105,11 @@ export async function getAnnotationStatistics(
     return apiMode === 'live'
         ? taskManagementService.getAnnotationStatistics(taskId)
         : mockGetAnnotationStatistics(taskId)
+}
+
+/** 启动扫描（POST `/api/tasks/{taskId}/start`） */
+export async function startTaskScan(taskId: string): Promise<ApiEnvelope<null>> {
+    return apiMode === 'live'
+        ? taskManagementService.startTaskScan(taskId)
+        : mockStartTaskScan(taskId)
 }

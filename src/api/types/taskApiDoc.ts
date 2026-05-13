@@ -35,6 +35,10 @@ export interface TaskInfoApiDocData {
     productName: string
     s3Path: string
     warnCount: number
+    /** 本机启动 URL；可选，部分环境返回 */
+    hostUrl?: string
+    /** 模型名称；可选，部分环境返回 */
+    modelName?: string
     /** 可选；mock/部分环境返回 */
     deptName?: string | null
     pduName?: string | null

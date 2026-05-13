@@ -67,6 +67,10 @@ export interface TaskDetail {
     lineNum: number
     productName: string
     s3Path: string
+    /** 本机启动 URL */
+    hostUrl?: string
+    /** 模型名称 */
+    modelName?: string
     scanResults: ScanResult[]
     /** 扫描结果分页信息（与接口文档「查询任务详情」一致；未完成或无明细时为 null） */
     paginationInfo?: TaskDetailPaginationInfo | null
@@ -91,6 +95,8 @@ export interface UpdateTaskInfoPayload {
     deptName: string | null
     pduName: string | null
     warnCount: number | null
+    hostUrl: string | null
+    modelName: string | null
 }
 
 /** 创建任务入参（与创建表单 / 接口字段对齐） */

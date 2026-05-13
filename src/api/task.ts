@@ -181,6 +181,8 @@ const normalizeStoredTask = (raw: Record<string, unknown>): TaskDetail => {
     if (pn != null && String(pn).trim() !== '') ext.pduName = String(pn).trim()
     const wo = raw.warnCountOverride
     if (wo != null && Number.isFinite(Number(wo))) ext.warnCountOverride = Number(wo)
+    base.hostUrl = String(raw.hostUrl ?? raw.host_url ?? '').trim()
+    base.modelName = String(raw.modelName ?? raw.model_name ?? '').trim()
     return base
 }
 
@@ -256,7 +258,7 @@ const mockTaskDetails: Record<string, TaskDetail> = {
     },
     'T01020304-0506-0708-090a-0b0c0d0e0f02': {
         taskId: 'T01020304-0506-0708-090a-0b0c0d0e0f02',
-        taskName: '数据库访问层扫描',
+        taskName: '数据库访问层扫描（Mock·扫描进行中）',
         repoUrl: 'https://codehub.huawei.com/UDM/DataAccess/dal.git',
         branch: 'master',
         pathList: 'dal,orm',
@@ -264,7 +266,7 @@ const mockTaskDetails: Record<string, TaskDetail> = {
         creator: 'a00559877',
         nameCn: '李四',
         createTime: '2026-03-15 14:30:00',
-        taskStatus: TASK_STATUS.NOT_STARTED,
+        taskStatus: TASK_STATUS.RUNNING,
         codeLanguage: 'Go',
         lineNum: 1.2,
         productName: 'UDM',
@@ -273,7 +275,7 @@ const mockTaskDetails: Record<string, TaskDetail> = {
     },
     'T01020304-0506-0708-090a-0b0c0d0e0f03': {
         taskId: 'T01020304-0506-0708-090a-0b0c0d0e0f03',
-        taskName: '配置中心模块扫描',
+        taskName: '配置中心模块扫描（Mock·扫描启动失败）',
         repoUrl: 'https://codehub.huawei.com/Platform/ConfigCenter/config-server.git',
         branch: 'develop',
         pathList: 'config,plugins',
@@ -281,16 +283,18 @@ const mockTaskDetails: Record<string, TaskDetail> = {
         creator: 't00598420',
         nameCn: '田园',
         createTime: '2026-03-14 11:20:00',
-        taskStatus: TASK_STATUS.NOT_STARTED,
+        taskStatus: TASK_STATUS.FAILED,
         codeLanguage: 'Java',
         lineNum: 0.6,
         productName: 'ConfigCenter',
         s3Path: 's3://ai-repo-scan/results/T01020304-0506-0708-090a-0b0c0d0e0f03',
+        hostUrl: 'http://127.0.0.1:8765',
+        modelName: 'repo-scan-mock-model',
         scanResults: []
     },
     'T01020304-0506-0708-090a-0b0c0d0e0f04': {
         taskId: 'T01020304-0506-0708-090a-0b0c0d0e0f04',
-        taskName: '消息队列客户端扫描',
+        taskName: '消息队列客户端扫描（Mock·扫描完成零告警）',
         repoUrl: 'https://github.com/example/mq-client.git',
         branch: 'main',
         pathList: 'src',
@@ -298,7 +302,7 @@ const mockTaskDetails: Record<string, TaskDetail> = {
         creator: 'a00559876',
         nameCn: '张三',
         createTime: '2026-03-13 16:45:00',
-        taskStatus: TASK_STATUS.NOT_STARTED,
+        taskStatus: TASK_STATUS.COMPLETED,
         codeLanguage: 'C++',
         lineNum: 2.1,
         productName: 'Messaging',
@@ -754,12 +758,40 @@ export const updateTaskInfo = async (
     }
     ext.deptName = payload.deptName == null ? null : String(payload.deptName).trim() || null
     ext.pduName = payload.pduName == null ? null : String(payload.pduName).trim() || null
+    t.hostUrl = payload.hostUrl == null ? '' : String(payload.hostUrl).trim()
+    t.modelName = payload.modelName == null ? '' : String(payload.modelName).trim()
     if (payload.warnCount == null) {
         delete ext.warnCountOverride
     } else {
         const w = Number(payload.warnCount)
         ext.warnCountOverride = Number.isFinite(w) ? w : null
     }
+    persistTasksToStorage()
+    return envelopeOk(null)
+}
+
+/**
+ * 启动扫描（Mock：仅「未开始」「失败」可启动；校验 hostUrl / modelName 非空；成功后置为进行中）
+ */
+export const startTaskScan = async (taskId: string): Promise<ApiEnvelope<null>> => {
+    await new Promise((r) => setTimeout(r, 0))
+    const t = mockTaskDetails[taskId]
+    if (!t) {
+        return envelopeFail(null, 404, '未找到任务')
+    }
+    const st = t.taskStatus
+    if (st === TASK_STATUS.RUNNING || st === TASK_STATUS.COMPLETED) {
+        return envelopeFail(null, 400, '进行中或已完成的任务不能再次启动扫描')
+    }
+    if (st !== TASK_STATUS.NOT_STARTED && st !== TASK_STATUS.FAILED) {
+        return envelopeFail(null, 400, '当前任务状态不允许启动扫描')
+    }
+    const host = (t.hostUrl || '').trim()
+    const model = (t.modelName || '').trim()
+    if (!host || !model) {
+        return envelopeFail(null, 400, '请先填写并保存本机启动URL与模型名称')
+    }
+    t.taskStatus = TASK_STATUS.RUNNING
     persistTasksToStorage()
     return envelopeOk(null)
 }
@@ -954,6 +986,8 @@ export async function getTaskInfo(taskId: string): Promise<TaskInfoApiDocRespons
         warnCount: warnCountDisplay,
         deptName: ext.deptName ?? null,
         pduName: ext.pduName ?? null,
+        hostUrl: t.hostUrl ?? '',
+        modelName: t.modelName ?? '',
         scanResults: null,
         paginationInfo: null,
     }
