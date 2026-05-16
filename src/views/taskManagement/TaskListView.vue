@@ -81,9 +81,19 @@
               </div>
             </div>
             <div class="card-body">
-              <div class="card-item">
-                <span class="item-label">代码仓URL：</span>
-                <span class="item-value">{{ task.repoUrl }}</span>
+              <div class="card-item card-item--repo-url">
+                <span class="item-label">代码仓Git地址：</span>
+                <el-tooltip
+                    v-if="task.repoUrl"
+                    class="item-repo-url-tooltip"
+                    :content="task.repoUrl"
+                    placement="top"
+                    :show-after="300"
+                    popper-class="task-list-repo-url-tooltip"
+                >
+                  <span class="item-value item-value--repo-url">{{ task.repoUrl }}</span>
+                </el-tooltip>
+                <span v-else class="item-value">--</span>
               </div>
               <div class="card-item">
                 <span class="item-label">扫描分支：</span>
@@ -164,7 +174,8 @@ import {
   ElEmpty,
   ElPagination,
   ElRadioGroup,
-  ElRadioButton
+  ElRadioButton,
+  ElTooltip
 } from 'element-plus'
 import {
   queryTaskList,
@@ -549,6 +560,29 @@ onMounted(async () => {
   line-height: 1.4;
 }
 
+.card-item--repo-url .item-label {
+  min-width: 92px;
+}
+
+.card-item--repo-url .item-repo-url-tooltip {
+  flex: 1;
+  min-width: 0;
+}
+
+.card-item--repo-url .item-repo-url-tooltip :deep(.el-tooltip__trigger) {
+  display: block;
+  width: 100%;
+}
+
+.item-value--repo-url {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  word-break: break-all;
+}
+
 .card-footer {
   display: flex;
   justify-content: flex-end;
@@ -556,5 +590,12 @@ onMounted(async () => {
   padding-top: 10px;
   border-top: 1px solid #f3f4f6;
   flex-shrink: 0;
+}
+</style>
+
+<style>
+.task-list-repo-url-tooltip {
+  max-width: 480px;
+  word-break: break-all;
 }
 </style>

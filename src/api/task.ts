@@ -191,7 +191,9 @@ const mockTaskDetails: Record<string, TaskDetail> = {
     'T00112233-4455-6677-8899-aabbccddeeff': {
         taskId: 'T00112233-4455-6677-8899-aabbccddeeff',
         taskName: '前端代码扫描任务',
-        repoUrl: 'https://codehub-y.huawei.com/ServiceComponent/ComDB_ADF/files?ref=master',
+        // 较长 Git 地址，用于任务详情页「代码仓 Git 地址」换行展示验证
+        repoUrl:
+            'https://codehub-y.huawei.com/Enterprise/CloudPlatform/ServiceComponent/ComDB_ADF/SubModule/RepositoryScanningTools/LongPathSegmentForUiWrapVerification/AnotherVeryLongDirectoryNameThatShouldWrapInTaskDetailView/files?ref=master&path=src/views/taskManagement/TaskDetailView.vue&branch=feature/repo-url-line-wrap-manual-test',
         branch: 'main',
         pathList: 'src,main',
         assistantVersions: ['v2.0.0', 'v2.1.0'],

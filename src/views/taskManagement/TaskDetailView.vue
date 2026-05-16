@@ -80,7 +80,7 @@
                         <template v-if="isEditing">
                           <el-input
                               v-model="editForm.taskName"
-                              placeholder="任务名称"
+                              placeholder="请输入任务名称"
                               clearable
                               class="task-detail-field-input"
                           />
@@ -93,23 +93,48 @@
                           class="task-detail-field-line"
                           :class="{ 'task-detail-field-line--edit': isEditing }"
                       >
-                        <span>代码仓地址：</span>
+                        <span>代码仓Git地址：</span>
                         <template v-if="isEditing">
                           <el-input
                               v-model="editForm.repoUrl"
-                              placeholder="https://..."
+                              placeholder="请输入 SSH 或 HTTPS 形式的代码仓 Git 克隆地址"
                               clearable
                               class="task-detail-field-input"
                           />
                         </template>
                         <template v-else>
-                          <a
-                              v-if="task.repoUrl"
-                              :href="task.repoUrl"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              class="task-detail-link"
-                          >{{ task.repoUrl }}</a>
+                          <span v-if="task.repoUrl" class="task-detail-repo-url-inline">
+                            <span
+                                class="task-detail-repo-url-text"
+                                :title="task.repoUrl"
+                            >{{ task.repoUrl }}</span><el-tooltip
+                                content="复制"
+                                placement="top"
+                                :show-after="200"
+                            >
+                              <el-button
+                                  type="primary"
+                                  link
+                                  size="small"
+                                  class="task-detail-repo-url-copy"
+                                  aria-label="复制代码仓 Git 地址"
+                                  @click="handleCopyRepoUrl"
+                              >
+                                <svg
+                                    class="task-detail-repo-url-copy-icon"
+                                    viewBox="0 0 24 24"
+                                    width="14"
+                                    height="14"
+                                    aria-hidden="true"
+                                >
+                                  <path
+                                      fill="currentColor"
+                                      d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"
+                                  />
+                                </svg>
+                              </el-button>
+                            </el-tooltip>
+                          </span>
                           <span v-else class="task-detail-muted">未提供地址</span>
                         </template>
                       </div>
@@ -121,7 +146,7 @@
                         <template v-if="isEditing">
                           <el-select
                               v-model="editForm.codeLanguage"
-                              placeholder="请选择"
+                              placeholder="C/C++"
                               clearable
                               class="task-detail-field-input"
                           >
@@ -134,6 +159,57 @@
                       </div>
                       <div class="task-detail-field-line">
                         <span>创建人：</span><span>{{ formatTaskCreatorDisplay(task) }}</span>
+                      </div>
+                      <div
+                          class="task-detail-field-line"
+                          :class="{ 'task-detail-field-line--edit': isEditing }"
+                      >
+                        <span>产品名称：</span>
+                        <template v-if="isEditing">
+                          <el-input
+                              v-model="editForm.productName"
+                              placeholder="请输入产品名称"
+                              clearable
+                              class="task-detail-field-input"
+                          />
+                        </template>
+                        <template v-else>
+                          <span>{{ task.productName || '-' }}</span>
+                        </template>
+                      </div>
+                      <div
+                          class="task-detail-field-line"
+                          :class="{ 'task-detail-field-line--edit': isEditing }"
+                      >
+                        <span>部门名称：</span>
+                        <template v-if="isEditing">
+                          <el-input
+                              v-model="editForm.deptName"
+                              placeholder="请输入部门名称（可选）"
+                              clearable
+                              class="task-detail-field-input"
+                          />
+                        </template>
+                        <template v-else>
+                          <span>{{ task.dept_name || '-' }}</span>
+                        </template>
+                      </div>
+                      <div
+                          class="task-detail-field-line"
+                          :class="{ 'task-detail-field-line--edit': isEditing }"
+                      >
+                        <span>PDU名称：</span>
+                        <template v-if="isEditing">
+                          <el-input
+                              v-model="editForm.pduName"
+                              placeholder="请输入PDU名称（可选）"
+                              clearable
+                              class="task-detail-field-input"
+                          />
+                        </template>
+                        <template v-else>
+                          <span>{{ task.pdu_name || '-' }}</span>
+                        </template>
                       </div>
                       <div class="task-detail-field-line">
                         <span>创建时间：</span><span>{{ task.createTime || '未知' }}</span>
@@ -155,57 +231,6 @@
                         </template>
                         <template v-else>
                           <span>{{ task.taskStatus || '—' }}</span>
-                        </template>
-                      </div>
-                      <div
-                          class="task-detail-field-line"
-                          :class="{ 'task-detail-field-line--edit': isEditing }"
-                      >
-                        <span>所属部门/开发部：</span>
-                        <template v-if="isEditing">
-                          <el-input
-                              v-model="editForm.deptName"
-                              placeholder="可选"
-                              clearable
-                              class="task-detail-field-input"
-                          />
-                        </template>
-                        <template v-else>
-                          <span>{{ task.dept_name || '-' }}</span>
-                        </template>
-                      </div>
-                      <div
-                          class="task-detail-field-line"
-                          :class="{ 'task-detail-field-line--edit': isEditing }"
-                      >
-                        <span>所属PDU：</span>
-                        <template v-if="isEditing">
-                          <el-input
-                              v-model="editForm.pduName"
-                              placeholder="可选"
-                              clearable
-                              class="task-detail-field-input"
-                          />
-                        </template>
-                        <template v-else>
-                          <span>{{ task.pdu_name || '-' }}</span>
-                        </template>
-                      </div>
-                      <div
-                          class="task-detail-field-line"
-                          :class="{ 'task-detail-field-line--edit': isEditing }"
-                      >
-                        <span>产品名称：</span>
-                        <template v-if="isEditing">
-                          <el-input
-                              v-model="editForm.productName"
-                              placeholder="产品名称"
-                              clearable
-                              class="task-detail-field-input"
-                          />
-                        </template>
-                        <template v-else>
-                          <span>{{ task.productName || '-' }}</span>
                         </template>
                       </div>
                     </div>
@@ -935,6 +960,7 @@ import type { TaskScanResultApiDocRow } from '@/api/types/taskApiDoc'
 import type { AnnotationStatistics } from '@/api/types'
 import type { SaveAnnotationReqBody, TaskDetailPaginationInfo } from '@/api/types/saveAnnotation'
 import CodeBlock from '@/views/taskManagement/components/CodeBlock.vue'
+import { copyText } from '@/utils/utils'
 
 type ElTagType = 'success' | 'info' | 'warning' | 'danger'
 
@@ -2402,6 +2428,16 @@ const handleBack = (): void => {
   router.push('/tasks')
 }
 
+const handleCopyRepoUrl = (): void => {
+  const url = task.value?.repoUrl?.trim()
+  if (!url) {
+    ElMessage.warning('暂无代码仓 Git 地址可复制')
+    return
+  }
+  copyText(url)
+  ElMessage.success('复制成功')
+}
+
 // 重试加载
 const handleRetry = (): void => {
   const taskId = route.params.id as string
@@ -2873,13 +2909,33 @@ onUnmounted(() => {
   word-break: break-word;
 }
 
-.task-detail-link {
-  color: #409eff;
-  text-decoration: none;
+.task-detail-repo-url-inline {
+  word-break: break-all;
 }
 
-.task-detail-link:hover {
-  text-decoration: underline;
+.task-detail-repo-url-text {
+  color: #303133;
+}
+
+.task-detail-repo-url-inline :deep(.el-tooltip__trigger) {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 2px;
+}
+
+.task-detail-repo-url-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 2px;
+  height: auto;
+  min-height: unset;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.task-detail-repo-url-copy-icon {
+  display: block;
 }
 
 .task-detail-muted {

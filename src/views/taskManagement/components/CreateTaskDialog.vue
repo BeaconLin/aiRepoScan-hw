@@ -11,7 +11,7 @@
           ref="formRef"
           :model="formData"
           :rules="rules"
-          label-width="120px"
+          label-width="136px"
           label-position="right"
       >
         <el-form-item label="任务名称" prop="taskName">
@@ -22,18 +22,54 @@
           />
         </el-form-item>
 
-        <el-form-item label="代码仓URL" prop="repoUrl">
+        <el-form-item prop="repoUrl" class="form-item-with-help-label">
+          <template #label>
+            <span class="form-item-label-with-help">
+              <span class="form-label-text">代码仓Git地址</span>
+              <el-tooltip
+                  effect="light"
+                  placement="right"
+                  :show-after="200"
+                  popper-class="create-task-repo-url-tooltip"
+              >
+                <template #content>
+                  <div class="repo-url-help-content">
+                    <p class="repo-url-help-intro">支持 SSH、HTTPS 两种 Git 克隆地址。</p>
+                    <p class="repo-url-help-example">
+                      <span class="repo-url-help-tag">SSH</span>
+                      ssh://git@codehub-dg-y.huawei.com:2222/CoreTool/CoreMLOPS/xxxxproductName.git
+                    </p>
+                    <p class="repo-url-help-example">
+                      <span class="repo-url-help-tag">HTTPS</span>
+                      https://codehub-dg-y.huawei.com/CoreTool/CoreMLOPS/xxxxproductName.git
+                    </p>
+                    <div class="repo-url-help-diagram">
+                      <img
+                          v-if="repoUrlHelpDiagramSrc"
+                          :src="repoUrlHelpDiagramSrc"
+                          alt="代码仓 Git 地址获取示意图"
+                          class="repo-url-help-diagram__img"
+                      />
+                      <div v-else class="repo-url-help-diagram__placeholder">
+                        示意图（待补充）
+                      </div>
+                    </div>
+                  </div>
+                </template>
+                <span
+                    class="form-help-icon"
+                    role="button"
+                    tabindex="0"
+                    aria-label="代码仓 Git 地址填写说明"
+                >?</span>
+              </el-tooltip>
+            </span>
+          </template>
           <el-input
               v-model="formData.repoUrl"
-              placeholder="请输入代码仓地址"
+              placeholder="请输入 SSH 或 HTTPS 形式的代码仓 Git 克隆地址"
               clearable
           />
-          <div class="form-hint">
-            支持两种形式，1、git地址，例如：ssh://git@地址:端口/组织/项目.git'
-          </div>
-          <div class="form-hint">
-            2、CodeHub的url地址 ，例如：https://open.codehub.huawei.com/xxxx/cc_clone/files?ref=dev_tech
-          </div>
         </el-form-item>
 
         <el-form-item label="扫描分支" prop="branch">
@@ -44,15 +80,35 @@
           />
         </el-form-item>
 
-        <el-form-item label="扫描路径" prop="scanPaths">
+        <el-form-item prop="scanPaths">
+          <template #label>
+            <span class="form-item-label-with-help">
+              <span class="form-label-text">扫描路径</span>
+              <el-tooltip
+                  effect="light"
+                  placement="right"
+                  :show-after="200"
+                  popper-class="create-task-form-help-tooltip"
+              >
+                <template #content>
+                  <p class="form-help-tooltip-text">
+                    可选参数，填写相对项目根目录的路径，多个路径用英文逗号拼接，例如：src,view,utils，不填则默认全部扫描
+                  </p>
+                </template>
+                <span
+                    class="form-help-icon"
+                    role="button"
+                    tabindex="0"
+                    aria-label="扫描路径填写说明"
+                >?</span>
+              </el-tooltip>
+            </span>
+          </template>
           <el-input
               v-model="formData.scanPaths"
               placeholder="可选，多个路径使用英文逗号分隔，例如：src,view,utils"
               clearable
           />
-          <div class="form-hint">
-            可选参数，填写相对项目根目录的路径，多个路径用英文逗号拼接，例如：src,view,utils，不填则默认全部扫描
-          </div>
         </el-form-item>
 
         <el-form-item label="代码语言" prop="codeLanguage">
@@ -133,6 +189,9 @@ const submitting = ref(false)
 const DEFAULT_CODE_LANGUAGE = 'C/C++'
 const DEFAULT_ASSISTANT_VERSION = '内存安全v1.0.0'
 
+/** 代码仓 Git 地址 tooltip 示意图，替换为图片资源路径后即可展示 */
+const repoUrlHelpDiagramSrc = ''
+
 const formData = reactive({
   taskName: '',
   repoUrl: '',
@@ -148,6 +207,17 @@ const formData = reactive({
   createTime: '' // 实际应该自动填充当前时间
 })
 
+/** 仅允许 Git 克隆地址：SSH（ssh://git@主机:端口/路径.git，端口可省略）或 HTTPS（https://主机/路径.git） */
+const isValidRepoGitUrl = (raw) => {
+  const url = String(raw ?? '').trim()
+  if (!url) return false
+  const sshGit =
+      /^ssh:\/\/git@[^\s/]+(?::\d+)?\/[^\s?]+\.git$/i.test(url)
+  const httpsGit =
+      /^https:\/\/[^\s/]+\/[^\s?]+\.git$/i.test(url)
+  return sshGit || httpsGit
+}
+
 // 表单验证规则
 const rules = {
   taskName: [
@@ -155,12 +225,25 @@ const rules = {
     {min: 2, max: 50, message: '任务名称长度在 2 到 50 个字符', trigger: 'blur'}
   ],
   repoUrl: [
-    {required: true, message: '请输入代码仓地址', trigger: 'blur'},
+    {required: true, message: '请输入代码仓Git地址', trigger: 'blur'},
     {
-      pattern: /^(ssh:\/\/git@|https?:\/\/)[^\s]+$/,
-      message: '请输入有效的代码仓地址，支持SSH格式：ssh://git@地址:端口/组织/项目.git 或HTTP(S)格式：https://地址/组织/项目.git',
-      trigger: 'blur'
-    }
+      validator: (rule, value, callback) => {
+        if (!value || String(value).trim() === '') {
+          callback()
+          return
+        }
+        if (isValidRepoGitUrl(value)) {
+          callback()
+        } else {
+          callback(
+              new Error(
+                  '请输入有效的 Git 克隆地址：SSH 如 ssh://git@主机:端口/组织/项目.git，或 HTTPS 如 https://主机/组织/项目.git'
+              )
+          )
+        }
+      },
+      trigger: 'blur',
+    },
   ],
   branch: [
     {required: true, message: '请输入扫描分支', trigger: 'blur'}
@@ -375,16 +458,110 @@ const handleSubmit = async () => {
   background: #a8a8a8;
 }
 
-.form-hint {
-  font-size: 12px;
-  color: #909399;
-  margin-top: 8px;
-  line-height: 10px;
-}
-
 .dialog-footer {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+:deep(.form-item-with-help-label .el-form-item__label) {
+  white-space: nowrap;
+}
+
+.form-item-label-with-help {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.form-label-text {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.form-help-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 12px;
+  line-height: 1;
+  color: #909399;
+  border: 1px solid #c0c4cc;
+  cursor: help;
+  user-select: none;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.form-help-icon:hover,
+.form-help-icon:focus-visible {
+  color: #409eff;
+  border-color: #409eff;
+  outline: none;
+}
+</style>
+
+<style>
+.create-task-form-help-tooltip {
+  max-width: 360px;
+}
+
+.create-task-form-help-tooltip .form-help-tooltip-text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #606266;
+}
+
+.create-task-repo-url-tooltip {
+  max-width: 420px;
+}
+
+.create-task-repo-url-tooltip .repo-url-help-content {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #606266;
+}
+
+.create-task-repo-url-tooltip .repo-url-help-intro {
+  margin: 0 0 8px;
+}
+
+.create-task-repo-url-tooltip .repo-url-help-example {
+  margin: 0 0 6px;
+  word-break: break-all;
+}
+
+.create-task-repo-url-tooltip .repo-url-help-tag {
+  display: inline-block;
+  min-width: 42px;
+  margin-right: 4px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.create-task-repo-url-tooltip .repo-url-help-diagram {
+  margin-top: 10px;
+}
+
+.create-task-repo-url-tooltip .repo-url-help-diagram__img {
+  display: block;
+  max-width: 100%;
+  border-radius: 4px;
+  border: 1px solid #ebeef5;
+}
+
+.create-task-repo-url-tooltip .repo-url-help-diagram__placeholder {
+  min-height: 120px;
+  padding: 12px;
+  text-align: center;
+  color: #909399;
+  background: #f5f7fa;
+  border: 1px dashed #dcdfe6;
+  border-radius: 4px;
+  box-sizing: border-box;
 }
 </style>
