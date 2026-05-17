@@ -481,15 +481,122 @@ function normalizeMockScanResultRow(row: unknown, fallbackSelfId: number): MockS
 const normalizeMockScanResultRows = (rows: unknown[]): MockScanResultRow[] =>
     rows.map((row, idx) => normalizeMockScanResultRow(row, idx + 1))
 
-function mockRowIssueResult(r: MockScanResultRow, ann?: AnnotationData): IssueResult {
-    if (ann) return ann.issue_result
-    if (r.annotation) return r.annotation.issueResult as IssueResult
-    return null
+let mockSaveAnnotationIdSeq = 1
+
+function formatAnnotationResponseTime(d: Date = new Date()): string {
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
-function mockRowToScanResult(r: MockScanResultRow, ann?: AnnotationData): ScanResult {
+/** 无持久化 id 时按 warnUuid 生成稳定 mock id */
+function mockAnnotationIdForWarnUuid(warnUuid: string): number {
+    let h = 0
+    for (let i = 0; i < warnUuid.length; i++) {
+        h = (Math.imul(31, h) + warnUuid.charCodeAt(i)) | 0
+    }
+    return (Math.abs(h) % 900_000) + 1
+}
+
+/** 与 mockScanResults 中 w5427cb40… 行内 annotation 字段结构一致 */
+function rowAnnToAnnotation(
+    a: TaskScanResultAnnotationApiDoc,
+    warnUuid: string,
+    taskId: string,
+): Annotation {
+    const issueRaw = a.issueResult
+    const issueResult =
+        typeof issueRaw === 'number' && Number.isFinite(issueRaw) ? issueRaw : Number(issueRaw)
     return {
-        warn_uuid: r.warn_uuid,
+        id: Number(a.id) || mockAnnotationIdForWarnUuid(warnUuid),
+        warnUuid: String(a.warnUuid || warnUuid),
+        userId: String(a.userId ?? ''),
+        issueResult: Number.isFinite(issueResult) ? issueResult : 0,
+        reason: a.reason != null ? String(a.reason) : null,
+        annotationStatus: Number(a.annotationStatus) || 1,
+        createTime: String(a.createTime ?? ''),
+        updateTime: String(a.updateTime ?? a.createTime ?? ''),
+        userName: a.userName != null ? String(a.userName) : null,
+        userDepartment: a.userDepartment != null ? String(a.userDepartment) : null,
+        taskId: a.taskId != null ? String(a.taskId) : taskId,
+    }
+}
+
+function annDataToAnnotation(warnUuid: string, taskId: string, ann: AnnotationData): Annotation {
+    const time = ann.annotationTime?.trim() || formatAnnotationResponseTime()
+    return {
+        id: mockAnnotationIdForWarnUuid(warnUuid),
+        warnUuid,
+        userId: ann.annotator,
+        issueResult: ann.issue_result as number,
+        reason: ann.reason ?? null,
+        annotationStatus: 1,
+        createTime: time,
+        updateTime: time,
+        userName: null,
+        userDepartment: null,
+        taskId,
+    }
+}
+
+/**
+ * 合并行内 annotation（如 w5427cb40…）与 annotationsData 持久化标注；
+ * 以行内结构为标准，annotationsData 覆盖用户最新保存的 issueResult / userId 等。
+ */
+function buildMockScanResultAnnotation(
+    warnUuid: string,
+    taskId: string,
+    rowAnn: TaskScanResultAnnotationApiDoc | null | undefined,
+    persisted?: AnnotationData,
+): Annotation | null {
+    const hasRow = rowAnn != null
+    const hasPersisted =
+        persisted != null &&
+        persisted.issue_result !== null &&
+        persisted.issue_result !== undefined
+
+    if (!hasRow && !hasPersisted) return null
+    if (hasRow && !hasPersisted) return rowAnnToAnnotation(rowAnn!, warnUuid, taskId)
+    if (!hasRow && hasPersisted) return annDataToAnnotation(warnUuid, taskId, persisted!)
+
+    const base = rowAnnToAnnotation(rowAnn!, warnUuid, taskId)
+    const p = persisted!
+    const time = p.annotationTime?.trim() || base.updateTime
+    return {
+        ...base,
+        issueResult: p.issue_result as number,
+        userId: p.annotator,
+        reason: p.reason !== undefined ? (p.reason ?? null) : base.reason,
+        annotationStatus: 1,
+        updateTime: time,
+    }
+}
+
+function scanAnnotationToApiDoc(a: Annotation): TaskScanResultAnnotationApiDoc {
+    return {
+        id: a.id,
+        warnUuid: a.warnUuid,
+        userId: a.userId,
+        issueResult: a.issueResult,
+        reason: a.reason,
+        annotationStatus: a.annotationStatus,
+        createTime: a.createTime,
+        updateTime: a.updateTime,
+        userName: a.userName,
+        userDepartment: a.userDepartment,
+        taskId: a.taskId,
+    }
+}
+
+function mockRowToScanResult(
+    r: MockScanResultRow,
+    taskId: string,
+    ann?: AnnotationData,
+): ScanResult {
+    const warnUuid = r.warn_uuid
+    const annotation = buildMockScanResultAnnotation(warnUuid, taskId, r.annotation, ann)
+    const issueResult = (annotation?.issueResult ?? null) as IssueResult
+    return {
+        warn_uuid: warnUuid,
         file_name: r.file_name,
         rule_name: r.rule_name,
         warn_line: r.warn_line,
@@ -506,10 +613,10 @@ function mockRowToScanResult(r: MockScanResultRow, ann?: AnnotationData): ScanRe
         function_name: r.function_name,
         self_increment_id: r.self_increment_id,
         reason: r.reason != null && String(r.reason).trim() !== '' ? String(r.reason) : null,
-        issue_result: mockRowIssueResult(r, ann),
-        annotator: ann?.annotator,
-        annotationTime: ann?.annotationTime,
-        annotation: r.annotation as Annotation | null,
+        issue_result: issueResult,
+        annotator: annotation?.userId ?? ann?.annotator,
+        annotationTime: annotation?.updateTime ?? ann?.annotationTime,
+        annotation,
     }
 }
 
@@ -1063,23 +1170,9 @@ function scanResultToApiDocRow(
 ): TaskScanResultApiDocRow {
     const confRaw = r.confidence
     const confidence = parseMockConfidence(confRaw)
-    let annotation: TaskScanResultAnnotationApiDoc | null = null
-    if (r.annotation) {
-        const a = r.annotation
-        annotation = {
-            id: a.id,
-            warnUuid: a.warnUuid,
-            userId: a.userId,
-            issueResult: a.issueResult,
-            reason: a.reason,
-            annotationStatus: a.annotationStatus,
-            createTime: a.createTime,
-            updateTime: a.updateTime,
-            userName: a.userName,
-            userDepartment: a.userDepartment,
-            taskId: a.taskId,
-        }
-    }
+    const annotation: TaskScanResultAnnotationApiDoc | null = r.annotation
+        ? scanAnnotationToApiDoc(r.annotation)
+        : null
     return {
         file_name: r.file_name,
         function_name: r.function_name?.trim() ? r.function_name : '',
@@ -1184,7 +1277,7 @@ export async function getTaskScanResults(
     const annotations = getAnnotationsForTask(taskId)
     let scanResults: ScanResult[] = results.map((r, idx) => {
         const uuid = r.warn_uuid || `warn-${idx}`
-        return mockRowToScanResult({ ...r, warn_uuid: uuid }, annotations[uuid])
+        return mockRowToScanResult({ ...r, warn_uuid: uuid }, taskId, annotations[uuid])
     })
 
     const annFilter = annotation == null ? '' : String(annotation).trim()
@@ -1253,7 +1346,7 @@ export const getTaskDetail = async (
         // 处理扫描结果数据，兼容旧数据格式
         scanResults = results.map((r, idx) => {
             const uuid = r.warn_uuid || `warn-${idx}`
-            return mockRowToScanResult({ ...r, warn_uuid: uuid }, annotations[uuid])
+            return mockRowToScanResult({ ...r, warn_uuid: uuid }, taskId, annotations[uuid])
         })
         scanResults = filterScanResultsByAnnotationStatus(scanResults, annotationStatus)
     }
@@ -1302,17 +1395,10 @@ export const fetchScanResults = async (taskId: string): Promise<ApiEnvelope<Scan
     // 从内存中加载已标注的数据
     const annotations = getAnnotationsForTask(taskId)
     const resultsWithAnnotations: ScanResult[] = results.map((result) =>
-        mockRowToScanResult(result, annotations[result.warn_uuid]),
+        mockRowToScanResult(result, taskId, annotations[result.warn_uuid]),
     )
 
     return envelopeOk(resultsWithAnnotations)
-}
-
-let mockSaveAnnotationIdSeq = 1
-
-function formatAnnotationResponseTime(d: Date = new Date()): string {
-    const pad = (n: number) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
 /**
@@ -1330,10 +1416,20 @@ export const saveAnnotationApi = async (
         annotationsData[taskId] = {}
     }
 
+    const existing = annotationsData[taskId][warnUuid]
+    const existingOwner = existing?.annotator?.trim() ?? ''
+    const requestUser = userId?.trim() ?? ''
+
     if (issueResult === null) {
-        // 取消标注，删除记录
+        if (existingOwner && requestUser && existingOwner !== requestUser) {
+            return envelopeFail(null, 403, '仅首次标注人可修改该标注，您无法修改他人标记的结果')
+        }
         delete annotationsData[taskId][warnUuid]
         return envelopeOk(null)
+    }
+
+    if (existingOwner && requestUser && existingOwner !== requestUser) {
+        return envelopeFail(null, 403, '仅首次标注人可修改该标注，您无法修改他人标记的结果')
     }
 
     const now = formatAnnotationResponseTime()

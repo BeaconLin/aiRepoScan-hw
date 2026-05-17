@@ -731,10 +731,14 @@
                         </div>
                       </div>
                       <div class="result-actions">
-                        <div class="annotation-section">
+                        <div
+                            class="annotation-section"
+                            :class="{ 'annotation-section--readonly': !canModifyAnnotation(result) }"
+                        >
                           <div class="annotation-label annotation-label--emphasis">缺陷标注</div>
                           <el-radio-group
                               :model-value="getAnnotationIssueResult(result)"
+                              :disabled="!canModifyAnnotation(result)"
                               @update:model-value="(v) => setAnnotationIssueResult(result, v)"
                           >
                             <el-radio :key="0" :value="0" class="option-item">
@@ -751,6 +755,7 @@
                           <div class="reason-section">
                             <el-input
                                 :model-value="getAnnotationReason(result)"
+                                :disabled="!canModifyAnnotation(result)"
                                 @update:model-value="(v) => setAnnotationReason(result, v)"
                                 type="textarea"
                                 :rows="2"
@@ -759,7 +764,20 @@
                             />
 
                           </div>
-                          <el-button @click="submitAnnotation(result)">提交</el-button>
+                          <el-button
+                              :disabled="!canModifyAnnotation(result)"
+                              @click="submitAnnotation(result)"
+                          >
+                            提交
+                          </el-button>
+                          <p
+                              v-if="!canModifyAnnotation(result)"
+                              class="annotation-readonly-tip"
+                          >
+                            该告警已由
+                            <span class="annotation-readonly-tip__user">{{ getAnnotationOwnerDisplay(result) }}</span>
+                            标注，仅标注人可修改
+                          </p>
                           <!-- 标注信息显示 -->
                           <div v-if="result.annotation?.annotationStatus" class="annotation-info">
                           <span class="annotation-info-text">
@@ -1420,9 +1438,14 @@ const annotationStatistics = ref<AnnotationStatistics | null>(null)
 function normalizeApiDocScanRowForList(row: TaskScanResultApiDocRow): Record<string, unknown> {
   const conf = row.confidence
   const confidenceStr = String(conf)
+  const rawIssue = row.annotation?.issueResult
+  const issue_result =
+      rawIssue === null || rawIssue === undefined
+          ? null
+          : (Number.isFinite(Number(rawIssue)) ? Number(rawIssue) : null)
   return {
     ...row,
-    issue_result: row.annotation?.issueResult ?? null,
+    issue_result,
     confidence: confidenceStr,
     check_function_id: row.check_function_id ?? '',
   }
@@ -2256,6 +2279,56 @@ const getIssueResultLabel = (issueResult: number): string => {
   return labelMap[issueResult] || '未知'
 }
 
+/** 已持久化到服务端的标注（含他人标注） */
+const hasPersistedAnnotation = (result: ScanResult): boolean => {
+  if (result.annotation?.annotationStatus === 1) return true
+  if (result.annotation?.id != null) return true
+  const owner = getAnnotationOwnerId(result)
+  return (
+      owner !== '' &&
+      result.issue_result !== null &&
+      result.issue_result !== undefined
+  )
+}
+
+const getAnnotationOwnerId = (result: ScanResult): string => {
+  return (result.annotation?.userId || result.annotator || '').trim()
+}
+
+const getAnnotationOwnerDisplay = (result: ScanResult): string => {
+  return result.annotation?.userName?.trim() || getAnnotationOwnerId(result) || '其他用户'
+}
+
+const getCurrentUserIdentityKeys = (): string[] => {
+  const w3Id = userInfo?.w3Id?.trim() ?? ''
+  const nameCn = userInfo?.nameCn?.trim() ?? ''
+  const keys: string[] = []
+  if (w3Id) keys.push(w3Id)
+  if (nameCn) keys.push(nameCn)
+  if (nameCn && w3Id) keys.push(`${nameCn} ${w3Id}`)
+  return keys
+}
+
+const isCurrentUserAnnotator = (ownerId: string): boolean => {
+  const owner = ownerId.trim().toLowerCase()
+  if (!owner) return false
+  return getCurrentUserIdentityKeys().some((key) => key.toLowerCase() === owner)
+}
+
+/** 未标注：任何人可首次标注；已标注：仅首次标注人可修改 */
+const canModifyAnnotation = (result: ScanResult): boolean => {
+  if (!hasPersistedAnnotation(result)) return true
+  const owner = getAnnotationOwnerId(result)
+  if (!owner) return true
+  return isCurrentUserAnnotator(owner)
+}
+
+const assertCanModifyAnnotation = (result: ScanResult): boolean => {
+  if (canModifyAnnotation(result)) return true
+  ElMessage.warning('仅首次标注人可修改该标注，您无法修改他人标记的结果')
+  return false
+}
+
 // 获取或初始化annotation对象
 const getOrInitAnnotation = (result: ScanResult): Annotation => {
   if (!result.annotation) {
@@ -2272,7 +2345,17 @@ const getOrInitAnnotation = (result: ScanResult): Annotation => {
 // 获取annotation的issueResult（用于v-model）
 const getAnnotationIssueResult = (result: ScanResult): IssueResult => {
   const annotation = getOrInitAnnotation(result)
-  return annotation.issueResult
+  const fromAnn = annotation.issueResult
+  if (fromAnn !== null && fromAnn !== undefined) {
+    const n = Number(fromAnn)
+    return Number.isFinite(n) ? (n as IssueResult) : null
+  }
+  const fromRow = result.issue_result
+  if (fromRow !== null && fromRow !== undefined) {
+    const n = Number(fromRow)
+    return Number.isFinite(n) ? (n as IssueResult) : null
+  }
+  return null
 }
 
 /** 单选切换：仅保存标注结果，reason 传空；提交按钮：保存标注结果 + 原因 */
@@ -2280,6 +2363,7 @@ type AnnotationSaveMode = 'issueOnly' | 'withReason'
 
 // 设置annotation的issueResult（兼容 el-radio-group 等组件的 update 值类型）
 const setAnnotationIssueResult = (result: ScanResult, value: unknown): void => {
+  if (!assertCanModifyAnnotation(result)) return
   const annotation = getOrInitAnnotation(result)
   let parsed: number | null = null
   if (value === null || value === undefined || value === '') {
@@ -2307,12 +2391,14 @@ const getAnnotationReason = (result: ScanResult): string => {
 
 // 设置annotation的reason
 const setAnnotationReason = (result: ScanResult, value: string): void => {
+  if (!assertCanModifyAnnotation(result)) return
   const annotation = getOrInitAnnotation(result)
   annotation.reason = value || null
 }
 
 // 标注处理（提交标注）
 const submitAnnotation = async (result: ScanResult): Promise<void> => {
+  if (!assertCanModifyAnnotation(result)) return
   const annotation = getOrInitAnnotation(result)
   const issueResult = annotation.issueResult
 
@@ -2330,6 +2416,8 @@ const saveAnnotationHandler = async (
     value: IssueResult,
     mode: AnnotationSaveMode = 'withReason'
 ): Promise<void> => {
+  if (!assertCanModifyAnnotation(result)) return
+
   const taskId = route.params.id as string
   if (!taskId) {
     ElMessage.error('缺少任务ID')
@@ -3768,6 +3856,23 @@ onUnmounted(() => {
   font-size: 16px;
   font-weight: 700;
   color: #4b5563;
+}
+
+.annotation-readonly-tip {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #b45309;
+}
+
+.annotation-readonly-tip__user {
+  font-weight: 600;
+  color: #92400e;
+}
+
+.annotation-section--readonly .annotation-label--emphasis {
+  color: #9ca3af;
 }
 
 .annotation-info {
