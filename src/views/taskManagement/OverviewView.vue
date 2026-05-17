@@ -3,32 +3,31 @@
     <!-- 页面标题区域 -->
     <div class="page-header">
       <h1>总览</h1>
-      <p class="page-subtitle">全部任务的数据统计看板</p>
     </div>
 
-    <!-- 总体统计卡片区域 -->
-    <div class="summary-cards-section">
-      <div class="section-label">总体统计卡片区域</div>
+    <!-- 任务概览统计 -->
+    <div class="summary-cards-section" v-loading="summaryLoading">
+      <div class="card-title summary-section-heading">全部任务的数据统计看板</div>
       <div class="cards-grid">
         <div class="summary-card">
-          <div class="card-title">总任务数</div>
-          <div class="card-value">XXX</div>
-          <div class="card-desc">全部任务总数</div>
+          <div class="card-title">任务总数</div>
+          <div class="card-value">{{ formatStat(summaryStats.total) }}</div>
+          <div class="card-desc">已创建的全部扫描任务</div>
         </div>
         <div class="summary-card">
-          <div class="card-title">进行中任务</div>
-          <div class="card-value">XXX</div>
-          <div class="card-desc">正在扫描的任务数</div>
+          <div class="card-title">进行中</div>
+          <div class="card-value">{{ formatStat(summaryStats.running) }}</div>
+          <div class="card-desc">状态为「进行中」的任务</div>
         </div>
         <div class="summary-card">
-          <div class="card-title">已完成任务</div>
-          <div class="card-value">XXX</div>
-          <div class="card-desc">扫描完成的任务数</div>
+          <div class="card-title">已完成</div>
+          <div class="card-value">{{ formatStat(summaryStats.completed) }}</div>
+          <div class="card-desc">状态为「已完成」的任务</div>
         </div>
         <div class="summary-card">
-          <div class="card-title">总缺陷数</div>
-          <div class="card-value">XXX</div>
-          <div class="card-desc">所有任务扫描出的缺陷总数</div>
+          <div class="card-title">扫描告警</div>
+          <div class="card-value">{{ formatStat(summaryStats.warnCount) }}</div>
+          <div class="card-desc">各任务扫描结果告警条数合计</div>
         </div>
       </div>
     </div>
@@ -112,6 +111,70 @@
   </div>
 </template>
 
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import { queryTaskList } from '@/api/taskManagementApi'
+import { TASK_STATUS } from '@/constants/scanTaskConst'
+
+interface SummaryStats {
+  total: number
+  running: number
+  completed: number
+  warnCount: number
+}
+
+const summaryLoading = ref(false)
+const summaryStats = ref<SummaryStats>({
+  total: 0,
+  running: 0,
+  completed: 0,
+  warnCount: 0,
+})
+
+function formatStat(n: number): string {
+  if (summaryLoading.value) return '—'
+  return n.toLocaleString()
+}
+
+async function loadSummaryStats() {
+  summaryLoading.value = true
+  try {
+    const [allRes, runningRes, completedRes] = await Promise.all([
+      queryTaskList(1, 1),
+      queryTaskList(1, 1, undefined, TASK_STATUS.RUNNING),
+      queryTaskList(1, 1, undefined, TASK_STATUS.COMPLETED),
+    ])
+
+    if (allRes.meta.isSuccess) {
+      summaryStats.value.total = allRes.data.total
+      const total = allRes.data.total
+      if (total > 0) {
+        const listRes = await queryTaskList(1, total)
+        if (listRes.meta.isSuccess) {
+          summaryStats.value.warnCount = listRes.data.list.reduce(
+            (sum, row) => sum + (row.warnCount ?? 0),
+            0,
+          )
+        }
+      } else {
+        summaryStats.value.warnCount = 0
+      }
+    }
+
+    if (runningRes.meta.isSuccess) {
+      summaryStats.value.running = runningRes.data.total
+    }
+    if (completedRes.meta.isSuccess) {
+      summaryStats.value.completed = completedRes.data.total
+    }
+  } finally {
+    summaryLoading.value = false
+  }
+}
+
+onMounted(loadSummaryStats)
+</script>
+
 <style scoped>
 .overview-page {
   max-width: 1600px;
@@ -127,12 +190,6 @@
   font-weight: 600;
   color: #1f2937;
   margin: 0 0 8px 0;
-}
-
-.page-subtitle {
-  font-size: 14px;
-  color: #6b7280;
-  margin: 0;
 }
 
 .summary-cards-section,
@@ -178,6 +235,11 @@
   font-size: 14px;
   color: #6b7280;
   margin-bottom: 12px;
+}
+
+.summary-section-heading {
+  font-weight: 600;
+  color: #374151;
 }
 
 .card-value {

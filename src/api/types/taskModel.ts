@@ -43,6 +43,10 @@ export interface ScanResult {
     end_line: number
     func_uuid: string
     index: number | null
+    /** 函数名（接口文档 1.2.2 字段；mock / 详情映射用） */
+    function_name?: string
+    /** 列表展示序号（接口文档 1.2.2 字段） */
+    self_increment_id?: number
     reason: string | null
     issue_result: IssueResult
     annotator?: string

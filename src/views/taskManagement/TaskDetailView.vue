@@ -445,8 +445,26 @@
 
                   <!-- 规则名称分布柱状图 -->
                   <div class="chart-card full-width">
-                    <div class="chart-title">规则名称分布（Top 10）</div>
-                    <div ref="ruleDistributionChartRef" class="chart-container-large"></div>
+                    <div class="chart-title">规则名称分布</div>
+                    <div
+                        ref="ruleDistributionChartRef"
+                        class="chart-container-large"
+                        :style="ruleDistributionChartStyle"
+                    ></div>
+                    <div v-if="ruleDistributionHasMore" class="rule-distribution-footer">
+                      <el-link
+                          type="primary"
+                          :underline="false"
+                          class="rule-distribution-toggle"
+                          @click="toggleRuleDistributionScope"
+                      >
+                        {{
+                          showAllRuleDistribution
+                              ? '收起为 Top 10'
+                              : `查看全部（${ruleStatisticsTotalCount} 条规则）`
+                        }}
+                      </el-link>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -625,7 +643,19 @@
                         >{{ result.issue_result }}、
                           {{ getIssueResultLabel(result.issue_result) }}
                         </el-tag>
-                        <!-- 置信度标签暂不展示 -->
+                        <el-tooltip
+                            v-if="confidenceLabel(result)"
+                            :content="CONFIDENCE_TOOLTIP"
+                            placement="top"
+                        >
+                          <el-tag
+                              size="small"
+                              class="result-confidence-tag"
+                              effect="plain"
+                          >
+                            {{ confidenceLabel(result) }}
+                          </el-tag>
+                        </el-tooltip>
                       </div>
                       <div class="result-body">
                         <div class="result-file-row">
@@ -672,7 +702,7 @@
                               :model-value="snippetContextCollapseOpen[snippetContextCollapseKey(result, rIdx)] ?? []"
                               @update:model-value="(v) => handleSnippetCollapseChange(snippetContextCollapseKey(result, rIdx), v)"
                           >
-                            <el-collapse-item name="snippet-context" title="切片代码块与上下文代码">
+                            <el-collapse-item name="snippet-context" title="切片代码块与修改建议">
                               <div class="snippet-context-block">
                                 <div class="snippet-context-block__label">切片代码块</div>
                                 <CodeBlock
@@ -681,8 +711,15 @@
                                     :language="getCodeLanguage()"
                                 />
                               </div>
+                              <div
+                                  v-if="getScanConditionReason(result)"
+                                  class="snippet-context-block"
+                              >
+                                <div class="snippet-context-block__label">发生条件和影响</div>
+                                <div class="snippet-context-block__text">{{ getScanConditionReason(result) }}</div>
+                              </div>
                               <div class="snippet-context-block">
-                                <div class="snippet-context-block__label">上下文代码</div>
+                                <div class="snippet-context-block__label">修改建议</div>
                                 <CodeBlock
                                     class="result-item-code-block snippet-context-code-block"
                                     :code="result.context || ''"
@@ -717,7 +754,7 @@
                                 @update:model-value="(v) => setAnnotationReason(result, v)"
                                 type="textarea"
                                 :rows="2"
-                                placeholder="选择上方选项将自动保存标注（不含原因）；填写原因后请点击「提交」保存"
+                                placeholder="选择选项将自动保存标注（不含原因）；填写原因后请点击「提交」保存"
                                 resize="none"
                             />
 
@@ -1052,6 +1089,7 @@ interface ScanResult {
   func_uuid: string
   index: number
   self_increment_id?: number
+  /** 发生条件和影响（与 annotation.reason 标注原因区分） */
   reason: string | null
   issue_result: IssueResult
   annotator?: string // 标注用户（兼容旧字段）
@@ -1406,6 +1444,10 @@ function snippetContextCollapseKey(result: ScanResult, rIdx: number): string {
   return `${id}-p${pagination.value.currentPage}-i${rIdx}`
 }
 
+function getScanConditionReason(result: ScanResult): string {
+  return String(result.reason ?? '').trim()
+}
+
 function handleSnippetCollapseChange(
     key: string,
     value: string | number | Array<string | number>
@@ -1468,6 +1510,44 @@ const ruleTreeRef = ref()
 
 // 图表容器引用
 const ruleDistributionChartRef = ref<HTMLElement | null>(null)
+
+/** 规则名称分布柱状图：默认 Top 10，可切换查看全部 */
+const RULE_DISTRIBUTION_TOP_N = 10
+const showAllRuleDistribution = ref(false)
+
+const ruleStatisticsTotalCount = computed(
+    () => annotationStatistics.value?.ruleStatistics?.length ?? 0,
+)
+
+const ruleDistributionHasMore = computed(
+    () => ruleStatisticsTotalCount.value > RULE_DISTRIBUTION_TOP_N,
+)
+
+/** ECharts 柱状图内置标题：Top10规则 / 全部规则 */
+const ruleDistributionChartTitle = computed(() =>
+    showAllRuleDistribution.value ? '全部规则' : 'Top10规则',
+)
+
+const ruleDistributionDisplayedCount = computed(() => {
+  const total = ruleStatisticsTotalCount.value
+  if (total === 0) return 0
+  return showAllRuleDistribution.value
+      ? total
+      : Math.min(RULE_DISTRIBUTION_TOP_N, total)
+})
+
+const ruleDistributionChartStyle = computed(() => {
+  const count = ruleDistributionDisplayedCount.value
+  if (count === 0) return {}
+  const minHeight = 400
+  if (!showAllRuleDistribution.value) {
+    return {height: `${minHeight}px`, minHeight: `${minHeight}px`}
+  }
+  const barHeight = 36
+  const padding = 80
+  const height = Math.max(minHeight, count * barHeight + padding)
+  return {height: `${height}px`, minHeight: `${height}px`}
+})
 
 // 图表实例
 let ruleDistributionChart: echarts.ECharts | null = null
@@ -1709,7 +1789,7 @@ const fetchTaskDetailPage = async (
               warnUuid: item.annotation.warnUuid || item.annotation.warn_uuid || item.warn_uuid,
               userId: item.annotation.userId || item.annotation.user_id || item.annotator || '',
               issueResult: item.annotation.issueResult ?? item.annotation.issue_result ?? item.issue_result ?? null,
-              reason: item.annotation.reason ?? item.reason ?? null,
+              reason: item.annotation.reason ?? null,
               annotationStatus: item.annotation.annotationStatus ?? item.annotation.annotation_status ??
                   (item.issue_result !== null && item.issue_result !== undefined ? 1 : undefined),
               createTime: item.annotation.createTime || item.annotation.create_time || item.annotationTime,
@@ -1724,7 +1804,7 @@ const fetchTaskDetailPage = async (
               warnUuid: item.warn_uuid || item.warnUuid || item.id || '',
               userId: item.annotator || item.annotation?.userId || '',
               issueResult: item.issue_result ?? item.issueResult ?? null,
-              reason: item.reason ?? null,
+              reason: item.annotation?.reason ?? null,
               annotationStatus: 1,
               createTime: item.annotationTime || item.annotation?.createTime,
               updateTime: item.annotationTime || item.annotation?.updateTime,
@@ -2140,6 +2220,23 @@ const filteredScanResultsList = computed<ScanResult[]>(() => {
 const pagedScanResultsList = computed<ScanResult[]>(() => filteredScanResultsList.value)
 
 // 获取标注状态标签类型
+const CONFIDENCE_TOOLTIP =
+    '模型对该告警为真实问题的把握程度，仅供参考，不影响标注结果。'
+
+function parseScanConfidenceValue(raw: string | number | null | undefined): number | null {
+  if (raw === null || raw === undefined || String(raw).trim() === '') return null
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw
+  const n = Number.parseFloat(String(raw).replace(/%/g, '').trim())
+  return Number.isFinite(n) ? n : null
+}
+
+function confidenceLabel(result: ScanResult): string | null {
+  const n = parseScanConfidenceValue(result.confidence)
+  if (n === null || n <= 0) return null
+  const pct = Math.round(Math.min(100, Math.max(0, n)))
+  return `置信度 ${pct}%`
+}
+
 const getIssueResultTagType = (issueResult: number): TagType => {
   const typeMap: Record<number, TagType> = {
     0: 'danger', // 需要修改
@@ -2166,7 +2263,7 @@ const getOrInitAnnotation = (result: ScanResult): Annotation => {
       warnUuid: result.warn_uuid || result.id || '',
       userId: userInfo?.w3Id || '',
       issueResult: result.issue_result ?? null,
-      reason: result.reason ?? null
+      reason: null
     }
   }
   return result.annotation
@@ -2212,8 +2309,6 @@ const getAnnotationReason = (result: ScanResult): string => {
 const setAnnotationReason = (result: ScanResult, value: string): void => {
   const annotation = getOrInitAnnotation(result)
   annotation.reason = value || null
-  // 同步到reason字段（兼容旧字段）
-  result.reason = value || null
 }
 
 // 标注处理（提交标注）
@@ -2267,7 +2362,6 @@ const saveAnnotationHandler = async (
 
       // 更新 result 对象的标注信息
       result.issue_result = null
-      result.reason = null
       result.annotator = undefined
       result.annotationTime = undefined
 
@@ -2283,7 +2377,7 @@ const saveAnnotationHandler = async (
       const reasonForRequest =
           mode === 'issueOnly'
               ? ''
-              : String(result.annotation?.reason ?? result.reason ?? '').trim()
+              : String(result.annotation?.reason ?? '').trim()
       const reqBody: SaveAnnotationReqBody = {
         taskId,
         warnUuid: uuid,
@@ -2303,7 +2397,6 @@ const saveAnnotationHandler = async (
 
       // 更新 result 对象的标注信息（标注时间以服务端返回为准）
       result.issue_result = value
-      result.reason = saved.reason != null && saved.reason !== '' ? saved.reason : null
       result.annotator = currentUser
       result.annotationTime = saved.updateTime
 
@@ -2438,6 +2531,14 @@ const handleCopyRepoUrl = (): void => {
   ElMessage.success('复制成功')
 }
 
+const toggleRuleDistributionScope = (): void => {
+  showAllRuleDistribution.value = !showAllRuleDistribution.value
+  nextTick(() => {
+    initRuleDistributionChart()
+    ruleDistributionChart?.resize()
+  })
+}
+
 // 重试加载
 const handleRetry = (): void => {
   const taskId = route.params.id as string
@@ -2460,13 +2561,17 @@ const initRuleDistributionChart = (): void => {
     ruleDistributionChart = echarts.init(ruleDistributionChartRef.value)
 
     const rs = annotationStatistics.value?.ruleStatistics
-    const ruleEntries: [string, number][] =
+    const sortedRules =
         rs && rs.length > 0
-            ? [...rs]
-                .sort((a, b) => a.ruleCount - b.ruleCount)
-                .slice(0, 10)
-                .map((r) => [r.ruleName, r.ruleCount])
+            ? [...rs].sort((a, b) => a.ruleCount - b.ruleCount)
             : []
+    const displayedRules = showAllRuleDistribution.value
+        ? sortedRules
+        : sortedRules.slice(0, RULE_DISTRIBUTION_TOP_N)
+    const ruleEntries: [string, number][] = displayedRules.map((r) => [
+      r.ruleName,
+      r.ruleCount,
+    ])
 
     // 如果没有规则数据，显示空状态
     if (ruleEntries.length === 0) {
@@ -2492,6 +2597,16 @@ const initRuleDistributionChart = (): void => {
     const ruleCounts = ruleEntries.map(([, count]) => count)
 
     const option = {
+      title: {
+        text: ruleDistributionChartTitle.value,
+        left: 'center',
+        top: 4,
+        textStyle: {
+          fontSize: 14,
+          fontWeight: 500,
+          color: '#6b7280',
+        },
+      },
       tooltip: {
         trigger: 'axis',
         axisPointer: {
@@ -2507,7 +2622,7 @@ const initRuleDistributionChart = (): void => {
         left: '3%',
         right: '4%',
         bottom: '3%',
-        top: '10%',
+        top: 40,
         containLabel: true
       },
       xAxis: {
@@ -2610,6 +2725,7 @@ watch(
     () => task.value?.taskId,
     () => {
       isEditing.value = false
+      showAllRuleDistribution.value = false
     },
 )
 
@@ -3220,6 +3336,17 @@ onUnmounted(() => {
   border-bottom: 2px solid #f3f4f6;
 }
 
+.rule-distribution-footer {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+  padding-top: 4px;
+}
+
+.rule-distribution-toggle {
+  font-size: 13px;
+}
+
 .metric-panel .chart-title {
   margin-bottom: 12px;
 }
@@ -3619,8 +3746,6 @@ onUnmounted(() => {
   justify-content: flex-start;
   align-items: center;
   margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #e5e7eb;
 }
 
 .annotation-section {
@@ -3725,9 +3850,20 @@ onUnmounted(() => {
 }
 
 .result-title {
+  flex: 1;
+  min-width: 0;
   font-size: 16px;
   font-weight: 600;
   color: #2a4d7a;
+}
+
+.result-confidence-tag {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  --el-tag-bg-color: #eef2ff;
+  --el-tag-border-color: #c7d2fe;
+  --el-tag-text-color: #4338ca;
 }
 
 .result-body {
@@ -3823,44 +3959,63 @@ onUnmounted(() => {
 
 .result-field--snippet-collapse {
   padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: 0;
 }
 
 .result-field--snippet-collapse .snippet-context-collapse {
   width: 100%;
 }
 
-.snippet-context-collapse :deep(.el-collapse) {
-  border: none;
+/* 类名在 el-collapse 根节点上，勿用后代选择器；否则无法覆盖 EP 默认的上下边框 */
+.snippet-context-collapse.el-collapse {
+  border-top: none;
+  border-bottom: none;
+}
+
+.snippet-context-collapse :deep(.el-collapse-item) {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
 }
 
 .snippet-context-collapse :deep(.el-collapse-item__header) {
   height: auto;
-  line-height: 1.45;
-  padding: 10px 12px;
+  min-height: 40px;
+  line-height: 1.5;
+  padding: 10px 14px;
+  font-size: 14px;
   font-weight: 600;
   color: #374151;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  background: #fafafa;
+  border: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.snippet-context-collapse :deep(.el-collapse-item.is-active > .el-collapse-item__header) {
+  border-bottom: 1px solid #e5e7eb;
 }
 
 .snippet-context-collapse :deep(.el-collapse-item__wrap) {
+  border: none;
   border-bottom: none;
+  background: #fff;
 }
 
 .snippet-context-collapse :deep(.el-collapse-item__arrow) {
-  margin: 0 6px 0 0;
+  margin: 0 8px 0 0;
+  font-size: 12px;
+  color: #9ca3af;
 }
 
 .snippet-context-collapse :deep(.el-collapse-item__content) {
-  padding: 12px 0 0;
+  padding: 14px;
 }
 
 .snippet-context-block + .snippet-context-block {
-  margin-top: 16px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #f3f4f6;
 }
 
 .snippet-context-block__label {
@@ -3868,6 +4023,14 @@ onUnmounted(() => {
   font-weight: 600;
   color: #6b7280;
   margin-bottom: 8px;
+}
+
+.snippet-context-block__text {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #374151;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* 切片 / 上下文代码区：限制代码区域高度，超出在代码区滚动（保留顶部语言与复制栏） */

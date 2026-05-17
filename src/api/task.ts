@@ -407,55 +407,183 @@ const annotationsData: Record<string, Record<string, AnnotationData>> = {
     }
 }
 
+/** mockScanResults 单行：与接口文档 1.2.2 / 扫描结果标准结构一致 */
+type MockScanResultRow = TaskScanResultApiDocRow
+
+function parseMockConfidence(confRaw: unknown): number {
+    if (typeof confRaw === 'number' && Number.isFinite(confRaw)) return confRaw
+    return Number.parseFloat(String(confRaw ?? '0').replace(/%/g, '')) || 0
+}
+
+function normalizeMockScanResultRow(row: unknown, fallbackSelfId: number): MockScanResultRow {
+    const r = row as Record<string, unknown>
+    const indexRaw = r.index
+    const indexNum =
+        indexRaw === undefined || indexRaw === null ? null : Number(indexRaw)
+    const selfRaw = r.self_increment_id
+    const self_increment_id =
+        typeof selfRaw === 'number' && Number.isFinite(selfRaw)
+            ? selfRaw
+            : indexNum != null
+              ? indexNum
+              : fallbackSelfId
+
+    let function_name = String(r.function_name ?? '')
+    if (!function_name) {
+        const ctx = String(r.context ?? '')
+        const fnMatch = ctx.match(/function\s+(\w+)\s*\(/)
+        if (fnMatch) function_name = fnMatch[1]
+    }
+
+    let annotation: TaskScanResultAnnotationApiDoc | null = null
+    if (r.annotation && typeof r.annotation === 'object') {
+        const a = r.annotation as Record<string, unknown>
+        annotation = {
+            id: Number(a.id),
+            warnUuid: String(a.warnUuid ?? ''),
+            userId: String(a.userId ?? ''),
+            issueResult: Number(a.issueResult),
+            reason: a.reason != null ? String(a.reason) : null,
+            annotationStatus: Number(a.annotationStatus),
+            createTime: String(a.createTime ?? ''),
+            updateTime: String(a.updateTime ?? ''),
+            userName: a.userName != null ? String(a.userName) : null,
+            userDepartment: a.userDepartment != null ? String(a.userDepartment) : null,
+            taskId: a.taskId != null ? String(a.taskId) : null,
+        }
+    }
+
+    return {
+        file_name: String(r.file_name ?? r.fileName ?? ''),
+        function_name,
+        start_line: Number(r.start_line ?? r.warn_line ?? r.line ?? 0),
+        end_line: Number(r.end_line ?? r.warn_line ?? r.line ?? 0),
+        code_snippet: String(r.code_snippet ?? r.warn_code_block ?? r.code_block ?? ''),
+        context: String(r.context ?? ''),
+        func_uuid: String(r.func_uuid ?? ''),
+        self_increment_id,
+        check_function_id:
+            r.check_function_id === undefined || r.check_function_id === null
+                ? null
+                : String(r.check_function_id),
+        index: null,
+        rule_name: String(r.rule_name ?? ''),
+        warn_line: Number(r.warn_line ?? r.line ?? 0),
+        warn_code_block: String(r.warn_code_block ?? r.code_block ?? ''),
+        warn: String(r.warn ?? ''),
+        reason: r.reason != null ? String(r.reason) : '',
+        confidence: parseMockConfidence(r.confidence),
+        warn_uuid: String(r.warn_uuid ?? r.id ?? ''),
+        annotation,
+    }
+}
+
+const normalizeMockScanResultRows = (rows: unknown[]): MockScanResultRow[] =>
+    rows.map((row, idx) => normalizeMockScanResultRow(row, idx + 1))
+
+function mockRowIssueResult(r: MockScanResultRow, ann?: AnnotationData): IssueResult {
+    if (ann) return ann.issue_result
+    if (r.annotation) return r.annotation.issueResult as IssueResult
+    return null
+}
+
+function mockRowToScanResult(r: MockScanResultRow, ann?: AnnotationData): ScanResult {
+    return {
+        warn_uuid: r.warn_uuid,
+        file_name: r.file_name,
+        rule_name: r.rule_name,
+        warn_line: r.warn_line,
+        warn_code_block: r.warn_code_block,
+        code_snippet: r.code_snippet,
+        context: r.context,
+        warn: r.warn,
+        check_function_id: r.check_function_id,
+        confidence: String(r.confidence),
+        start_line: r.start_line,
+        end_line: r.end_line,
+        func_uuid: r.func_uuid,
+        index: r.index,
+        function_name: r.function_name,
+        self_increment_id: r.self_increment_id,
+        reason: r.reason != null && String(r.reason).trim() !== '' ? String(r.reason) : null,
+        issue_result: mockRowIssueResult(r, ann),
+        annotator: ann?.annotator,
+        annotationTime: ann?.annotationTime,
+        annotation: r.annotation as Annotation | null,
+    }
+}
+
+/** 将 mockScanResults 中各行对齐为标准扫描结果结构 */
+const reconcileMockScanResults = (): void => {
+    for (const taskId of Object.keys(mockScanResults)) {
+        const rows = mockScanResults[taskId]
+        if (rows?.length) {
+            mockScanResults[taskId] = normalizeMockScanResultRows(rows)
+        }
+    }
+}
+
 // Mock 扫描结果数据
-const mockScanResults: Record<string, (Omit<ScanResult, 'issue_result' | 'annotator' | 'annotationTime' | 'reason'> & { annotation?: Annotation | null })[]> = {
-    'T00112233-4455-6677-8899-aabbccddeeff': [{
-            warn_uuid: 'w00112233-4455-6677-8899-aabbccddeeff',
+const mockScanResults: Record<string, MockScanResultRow[]> = {
+    'T00112233-4455-6677-8899-aabbccddeeff': normalizeMockScanResultRows([{
             file_name: 'UserProfile.vue',
+            function_name: 'processUserInput',
+            start_line: 40,
+            end_line: 50,
+            code_snippet: 'const result = eval(userInput);',
+            context: 'function processUserInput(userInput) {\n  // 处理用户输入\n  const result = eval(userInput);\n  return result;\n}',
+            func_uuid: 'func-uuid-001',
+            self_increment_id: 1,
+            check_function_id: 'func-001',
+            index: null,
             rule_name: '不安全函数使用',
             warn_line: 45,
             warn_code_block: 'const result = eval(userInput);',
-            code_snippet: 'const result = eval(userInput);',
-            context: 'function processUserInput(userInput) {\n  // 处理用户输入\n  const result = eval(userInput);\n  return result;\n}',
             warn: '使用了不安全的eval函数，可能导致代码注入攻击。建议使用JSON.parse()或其他安全的解析方法。',
-            check_function_id: 'func-001',
-            confidence: '85%',
-            start_line: 40,
-            end_line: 50,
-            func_uuid: 'func-uuid-001',
-            index: 1
+            reason: '当处理不可信的用户输入时调用 eval，攻击者可注入任意 JavaScript 并在当前作用域执行，可能导致数据泄露、会话劫持或页面被篡改。',
+            confidence: 85,
+            warn_uuid: 'w00112233-4455-6677-8899-aabbccddeeff',
+            annotation: null
         },
         {
-            warn_uuid: 'w11223344-5566-7788-99aa-bbccddeeff00',
             file_name: 'api.js',
+            function_name: 'renderList',
+            start_line: 125,
+            end_line: 132,
+            code_snippet: 'document.getElementById("list").innerHTML += item;',
+            context: 'for (let i = 0; i < items.length; i++) {\n  const item = items[i];\n  document.getElementById("list").innerHTML += item;\n}',
+            func_uuid: 'func-uuid-002',
+            self_increment_id: 2,
+            check_function_id: 'func-002',
+            index: null,
             rule_name: 'DOM操作性能问题',
             warn_line: 128,
             warn_code_block: 'document.getElementById("list").innerHTML += item;',
-            code_snippet: 'document.getElementById("list").innerHTML += item;',
-            context: 'for (let i = 0; i < items.length; i++) {\n  const item = items[i];\n  document.getElementById("list").innerHTML += item;\n}',
             warn: '在循环中进行了DOM操作，可能导致性能瓶颈。建议先构建完整的HTML字符串，然后一次性更新DOM。',
-            check_function_id: 'func-002',
-            confidence: '90%',
-            start_line: 125,
-            end_line: 132,
-            func_uuid: 'func-uuid-002',
-            index: 2
+            reason: '在循环中频繁读写 DOM（innerHTML）会触发多次重排与重绘，列表项较多时页面响应变慢，滚动与交互可能出现明显卡顿。',
+            confidence: 90,
+            warn_uuid: 'w11223344-5566-7788-99aa-bbccddeeff00',
+            annotation: null
         },
         {
-            warn_uuid: 'w22334455-6677-8899-aabb-ccddeeff0011',
             file_name: 'user.js',
+            function_name: 'getUserInfo',
+            start_line: 65,
+            end_line: 70,
+            code_snippet: 'let user_name = "test";',
+            context: 'function getUserInfo() {\n  let user_name = "test";\n  let user_age = 25;\n  return { user_name, user_age };\n}',
+            func_uuid: 'func-uuid-003',
+            self_increment_id: 3,
+            check_function_id: 'func-003',
+            index: null,
             rule_name: '命名规范问题',
             warn_line: 67,
             warn_code_block: 'let user_name = "test";',
-            code_snippet: 'let user_name = "test";',
-            context: 'function getUserInfo() {\n  let user_name = "test";\n  let user_age = 25;\n  return { user_name, user_age };\n}',
             warn: '变量命名不符合规范，建议使用驼峰命名（camelCase）。应改为userName。',
-            check_function_id: 'func-003',
-            confidence: '75%',
-            start_line: 65,
-            end_line: 70,
-            func_uuid: 'func-uuid-003',
-            index: 3
+            reason: '项目约定使用驼峰命名（camelCase）。混用下划线命名会降低可读性，并在跨模块协作时增加理解与重构成本。',
+            confidence: 75,
+            warn_uuid: 'w22334455-6677-8899-aabb-ccddeeff0011',
+            annotation: null
         },
         {
             warn_uuid: 'w33445566-7788-99aa-bbcc-ccddeeff0011',
@@ -466,12 +594,14 @@ const mockScanResults: Record<string, (Omit<ScanResult, 'issue_result' | 'annota
             code_snippet: '<div v-html="userContent"></div>',
             context: '<template>\n  <div class="home-page">\n    <div v-html="userContent"></div>\n  </div>\n</template>',
             warn: '未对用户输入进行XSS防护处理，直接使用v-html可能导致XSS攻击。建议对用户输入进行转义处理或使用安全的渲染方法。',
+            reason: '当 userContent 含有恶意脚本且通过 v-html 原样插入 DOM 时，脚本会在用户浏览器中执行，可能导致 Cookie 窃取、钓鱼或页面内容被篡改。',
             check_function_id: 'func-004',
-            confidence: '95%',
+            confidence: 95,
             start_line: 200,
             end_line: 206,
             func_uuid: 'func-uuid-004',
-            index: 4
+            index: 4,
+            annotation: null
         },
         {
             warn_uuid: 'w44556677-8899-aabb-bbcc-ccddeeff0011',
@@ -482,12 +612,14 @@ const mockScanResults: Record<string, (Omit<ScanResult, 'issue_result' | 'annota
             code_snippet: 'return data.items[0].name;',
             context: 'function getFirstItemName(response) {\n  const data = response.data;\n  return data.items[0].name;\n}',
             warn: '缺少错误处理机制，如果data或items为空或undefined，可能导致程序崩溃。建议添加空值检查和错误处理。',
+            reason: '当接口返回空数组、items 缺失或结构异常时，直接访问 items[0] 会抛出运行时错误，导致调用方逻辑中断或页面白屏。',
             check_function_id: 'func-005',
-            confidence: '80%',
+            confidence: 80,
             start_line: 87,
             end_line: 91,
             func_uuid: 'func-uuid-005',
-            index: 5
+            index: 5,
+            annotation: null
         },
         {
             warn_uuid: 'w55667788-99aa-aabb-bbcc-ccddeeff0011',
@@ -498,12 +630,14 @@ const mockScanResults: Record<string, (Omit<ScanResult, 'issue_result' | 'annota
             code_snippet: '<div v-for="item in largeList" :key="item.id">',
             context: '<template>\n  <div class="data-table">\n    <div v-for="item in largeList" :key="item.id">\n      {{ item.name }}\n    </div>\n  </div>\n</template>',
             warn: '大量数据未使用虚拟滚动，可能导致页面卡顿。建议使用虚拟滚动组件（如el-virtual-list）来优化性能。',
+            reason: 'largeList 条目较多时一次性渲染全部 DOM 节点，会占用大量内存并拖慢首次渲染与滚动性能，影响表格类页面的可用性。',
             check_function_id: 'func-006',
-            confidence: '88%',
+            confidence: 88,
             start_line: 154,
             end_line: 159,
             func_uuid: 'func-uuid-006',
-            index: 6
+            index: 6,
+            annotation: null
         },
         {
             warn_uuid: 'w66778899-aabb-bbcc-ccdd-ccddeeff0011',
@@ -514,12 +648,14 @@ const mockScanResults: Record<string, (Omit<ScanResult, 'issue_result' | 'annota
             code_snippet: 'function validateForm(form) {',
             context: 'function validateForm(form) {\n  // 验证用户名\n  // 验证密码\n  // 验证邮箱\n  // ... 200行代码\n  return isValid;\n}',
             warn: '函数过长，建议拆分为多个小函数，提高代码可读性和可维护性。',
+            reason: '单函数超过 200 行时，分支与副作用交织，单元测试与代码审查成本上升，后续修改更容易引入回归缺陷。',
             check_function_id: 'func-007',
-            confidence: '70%',
+            confidence: 70,
             start_line: 34,
             end_line: 234,
             func_uuid: 'func-uuid-007',
-            index: 7
+            index: 7,
+            annotation: null
         },
         {
             warn_uuid: 'w5427cb40-aa79-4f99-aabd-f77da06222a9',
@@ -530,8 +666,9 @@ const mockScanResults: Record<string, (Omit<ScanResult, 'issue_result' | 'annota
             code_snippet: '',
             context: '',
             warn: '内存分配后没有检查分配的大小是否足够后续操作，可能导致缓冲区溢出。应确保分配的内存大小足够容纳所有操作。',
+            reason: '当实际写入长度超过已分配缓冲区时，可能覆盖相邻内存，引发崩溃、数据损坏或潜在的安全漏洞。',
             check_function_id: null,
-            confidence: '0',
+            confidence: 0,
             start_line: 43,
             end_line: 72,
             func_uuid: '5f10f739-1927-4a93-bf6b-cbec62c0061e',
@@ -550,7 +687,7 @@ const mockScanResults: Record<string, (Omit<ScanResult, 'issue_result' | 'annota
                 taskId: null
             }
         }
-    ],
+    ]),
     'T11223344-5566-7788-99aa-bbccddeeff00': [],
     'T22334455-6677-8899-aabb-ccddeeff0011': [],
     'T01020304-0506-0708-090a-0b0c0d0e0f01': [],
@@ -561,6 +698,8 @@ const mockScanResults: Record<string, (Omit<ScanResult, 'issue_result' | 'annota
     'T01020304-0506-0708-090a-0b0c0d0e0f06': [],
     'T01020304-0506-0708-090a-0b0c0d0e0f07': []
 }
+
+reconcileMockScanResults()
 
 const persistTasksToStorage = (): void => {
     try {
@@ -594,7 +733,7 @@ const hydrateTasksFromStorage = (): void => {
             mockTaskDetails[id] = detail
             const sr = raw.scanResults
             if (Array.isArray(sr) && sr.length > 0) {
-                mockScanResults[id] = sr as ScanResult[]
+                mockScanResults[id] = normalizeMockScanResultRows(sr)
             } else {
                 mockScanResults[id] = []
             }
@@ -605,6 +744,7 @@ const hydrateTasksFromStorage = (): void => {
 }
 
 hydrateTasksFromStorage()
+reconcileMockScanResults()
 
 /** 演示任务「前端代码扫描」补充更多扫描结果行，便于详情页分页调试（本地 mock 且存在该任务时生效） */
 ;(function appendExtraMockScanResultsForDemoTask(): void {
@@ -641,23 +781,33 @@ hydrateTasksFromStorage()
     const need = targetMax - list.length
     for (let i = 0; i < need; i++) {
         const idx = list.length + 1
-        list.push({
-            warn_uuid: `w-extra-${String(idx).padStart(2, '0')}-aaaa-bbbb-cccc-${String(100000 + idx).padStart(12, '0')}`,
-            file_name: files[(idx - 1) % files.length],
-            rule_name: rules[(idx - 1) % rules.length],
-            warn_line: 20 + i * 3,
-            warn_code_block: '// TODO: review',
-            code_snippet: '// example \n // example \n // example \n // example \n // example'
-            +'// example \n // example \n // example \n // example \n // example',
-            context: 'function example() {\n  // ...\n}',
-            warn: `Mock 扫描问题 #${idx}：用于分页演示，请检查相关代码路径与配置。`,
-            check_function_id: `func-extra-${idx}`,
-            confidence: `${60 + (i % 35)}%`,
-            start_line: 18 + i * 3,
-            end_line: 24 + i * 3,
-            func_uuid: `func-extra-uuid-${idx}`,
-            index: idx
-        })
+        list.push(
+            normalizeMockScanResultRow(
+                {
+                    warn_uuid: `w-extra-${String(idx).padStart(2, '0')}-aaaa-bbbb-cccc-${String(100000 + idx).padStart(12, '0')}`,
+                    file_name: files[(idx - 1) % files.length],
+                    function_name: 'example',
+                    rule_name: rules[(idx - 1) % rules.length],
+                    warn_line: 20 + i * 3,
+                    warn_code_block: '// TODO: review',
+                    code_snippet:
+                        '// example \n // example \n // example \n // example \n // example'
+                        + '// example \n // example \n // example \n // example \n // example',
+                    context: 'function example() {\n  // ...\n}',
+                    warn: `Mock 扫描问题 #${idx}：用于分页演示，请检查相关代码路径与配置。`,
+                    check_function_id: null,
+                    confidence: 60 + (i % 35),
+                    start_line: 18 + i * 3,
+                    end_line: 24 + i * 3,
+                    func_uuid: `func-extra-uuid-${idx}`,
+                    self_increment_id: idx,
+                    index: null,
+                    reason: '',
+                    annotation: null,
+                },
+                idx,
+            ),
+        )
     }
 })()
 
@@ -907,12 +1057,12 @@ function metaDocFail(number: number, message: string): ApiDocHttpMeta {
     return { isSuccess: false, message, number }
 }
 
-function scanResultToApiDocRow(r: ScanResult, selfIncrementId: number): TaskScanResultApiDocRow {
+function scanResultToApiDocRow(
+    r: ScanResult & Partial<Pick<TaskScanResultApiDocRow, 'function_name' | 'self_increment_id'>>,
+    selfIncrementId: number,
+): TaskScanResultApiDocRow {
     const confRaw = r.confidence
-    const confidence =
-        typeof confRaw === 'number'
-            ? confRaw
-            : Number.parseFloat(String(confRaw ?? '0').replace(/%/g, '')) || 0
+    const confidence = parseMockConfidence(confRaw)
     let annotation: TaskScanResultAnnotationApiDoc | null = null
     if (r.annotation) {
         const a = r.annotation
@@ -932,7 +1082,7 @@ function scanResultToApiDocRow(r: ScanResult, selfIncrementId: number): TaskScan
     }
     return {
         file_name: r.file_name,
-        function_name: '',
+        function_name: r.function_name?.trim() ? r.function_name : '',
         start_line: r.start_line,
         end_line: r.end_line,
         code_snippet: r.code_snippet ?? '',
@@ -1032,30 +1182,9 @@ export async function getTaskScanResults(
 
     const results = mockScanResults[taskId] || []
     const annotations = getAnnotationsForTask(taskId)
-    let scanResults: ScanResult[] = results.map((r: any, idx: number) => {
-        const uuid = r.warn_uuid || r.id || `warn-${idx}`
-        const ann = annotations[uuid]
-        return {
-            warn_uuid: uuid,
-            file_name: r.file_name || r.fileName || '',
-            rule_name: r.rule_name || '',
-            warn_line: r.warn_line || r.line || 0,
-            warn_code_block: r.warn_code_block || r.code_block || '',
-            code_snippet: r.code_snippet || r.warn_code_block || r.code_block || '',
-            context: r.context || '',
-            warn: r.warn || '',
-            check_function_id: r.check_function_id !== undefined ? r.check_function_id : null,
-            confidence: r.confidence || '0%',
-            start_line: r.start_line || r.warn_line || r.line || 0,
-            end_line: r.end_line || r.warn_line || r.line || 0,
-            func_uuid: r.func_uuid || '',
-            index: r.index !== undefined ? r.index : idx + 1,
-            reason: ann?.reason || r.reason || null,
-            issue_result: ann ? ann.issue_result : (r.issue_result !== undefined ? r.issue_result : null),
-            annotator: ann?.annotator || r.annotator,
-            annotationTime: ann?.annotationTime || r.annotationTime,
-            annotation: r.annotation || null,
-        } as ScanResult
+    let scanResults: ScanResult[] = results.map((r, idx) => {
+        const uuid = r.warn_uuid || `warn-${idx}`
+        return mockRowToScanResult({ ...r, warn_uuid: uuid }, annotations[uuid])
     })
 
     const annFilter = annotation == null ? '' : String(annotation).trim()
@@ -1122,31 +1251,9 @@ export const getTaskDetail = async (
         const annotations = getAnnotationsForTask(taskId)
         
         // 处理扫描结果数据，兼容旧数据格式
-        scanResults = results.map((r: any, idx: number) => {
-            const uuid = r.warn_uuid || r.id || `warn-${idx}`
-            const annotation = annotations[uuid]
-            
-            return {
-                warn_uuid: uuid,
-                file_name: r.file_name || r.fileName || '',
-                rule_name: r.rule_name || '',
-                warn_line: r.warn_line || r.line || 0,
-                warn_code_block: r.warn_code_block || r.code_block || '',
-                code_snippet: r.code_snippet || r.warn_code_block || r.code_block || '',
-                context: r.context || '',
-                warn: r.warn || '',
-                check_function_id: r.check_function_id !== undefined ? r.check_function_id : null,
-                confidence: r.confidence || '0%',
-                start_line: r.start_line || r.warn_line || r.line || 0,
-                end_line: r.end_line || r.warn_line || r.line || 0,
-                func_uuid: r.func_uuid || '',
-                index: r.index !== undefined ? r.index : idx + 1,
-                reason: annotation?.reason || r.reason || null,
-                issue_result: annotation ? annotation.issue_result : (r.issue_result !== undefined ? r.issue_result : null),
-                annotator: annotation?.annotator || r.annotator,
-                annotationTime: annotation?.annotationTime || r.annotationTime,
-                annotation: r.annotation || null // 保留原始annotation字段
-            }
+        scanResults = results.map((r, idx) => {
+            const uuid = r.warn_uuid || `warn-${idx}`
+            return mockRowToScanResult({ ...r, warn_uuid: uuid }, annotations[uuid])
         })
         scanResults = filterScanResultsByAnnotationStatus(scanResults, annotationStatus)
     }
@@ -1194,25 +1301,9 @@ export const fetchScanResults = async (taskId: string): Promise<ApiEnvelope<Scan
 
     // 从内存中加载已标注的数据
     const annotations = getAnnotationsForTask(taskId)
-    const resultsWithAnnotations: ScanResult[] = results.map(result => {
-        const warnUuid = result.warn_uuid
-        if (annotations[warnUuid]) {
-            return {
-                ...result,
-                issue_result: annotations[warnUuid].issue_result,
-                reason: annotations[warnUuid].reason || null,
-                annotator: annotations[warnUuid].annotator,
-                annotationTime: annotations[warnUuid].annotationTime
-            } as ScanResult
-        }
-        return {
-            ...result,
-            reason: null,
-            issue_result: null,
-            annotator: undefined,
-            annotationTime: undefined
-        } as ScanResult
-    })
+    const resultsWithAnnotations: ScanResult[] = results.map((result) =>
+        mockRowToScanResult(result, annotations[result.warn_uuid]),
+    )
 
     return envelopeOk(resultsWithAnnotations)
 }
