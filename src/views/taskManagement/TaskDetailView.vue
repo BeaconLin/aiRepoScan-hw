@@ -1107,7 +1107,6 @@ interface ScanResult {
   func_uuid: string
   index: number
   self_increment_id?: number
-  /** 发生条件和影响（与 annotation.reason 标注原因区分） */
   reason: string | null
   issue_result: IssueResult
   annotator?: string // 标注用户（兼容旧字段）
@@ -1263,6 +1262,8 @@ async function handleSaveTask(): Promise<void> {
 const task = ref<Task | null>(null)
 // 分页扫描结果
 const scanResultsList = ref<any[]>([])
+// 完整的扫描结果列表
+const fullScanResultsList = ref<any[]>([])
 
 /** 将 pathList 规范为逗号分隔字符串（兼容接口 string 与旧数据 string[]） */
 function normalizePathListToString(raw: unknown): string {
@@ -1436,13 +1437,18 @@ const annotationStatistics = ref<AnnotationStatistics | null>(null)
 
 /** 将接口文档形扫描行转为列表映射逻辑可用的行（补 issue_result、confidence 字符串等） */
 function normalizeApiDocScanRowForList(row: TaskScanResultApiDocRow): Record<string, unknown> {
-  const conf = row.confidence
-  const confidenceStr = String(conf)
-  const rawIssue = row.annotation?.issueResult
-  const issue_result =
-      rawIssue === null || rawIssue === undefined
-          ? null
-          : (Number.isFinite(Number(rawIssue)) ? Number(rawIssue) : null)
+  const conf = row.confidence;
+  const confidenceStr = String(conf);
+  const rawIssue = row.annotation?.issueResult;
+
+  let issue_result: number | null = null;
+  if (rawIssue !== null && rawIssue !== undefined) {
+    const numIssue = Number(rawIssue);
+    if (Number.isFinite(numIssue)) {
+      issue_result = numIssue;
+    }
+  }
+
   return {
     ...row,
     issue_result,
@@ -1468,7 +1474,8 @@ function snippetContextCollapseKey(result: ScanResult, rIdx: number): string {
 }
 
 function getScanConditionReason(result: ScanResult): string {
-  return String(result.reason ?? '').trim()
+  const reason = String(result.reason ?? '').trim()
+  return reason || '暂无'
 }
 
 function handleSnippetCollapseChange(
@@ -1844,6 +1851,10 @@ const fetchTaskDetailPage = async (
     scanResultsList.value = mapped
     task.value = {...task.value, scanResults: mapped as any}
 
+    if (options.fetchAnnotationStats) {
+      fullScanResultsList.value = [...mapped]
+    }
+
     setTimeout(() => {
       updateAllCharts()
     }, 300)
@@ -1958,13 +1969,20 @@ function handleRefreshTaskDetail(): void {
   loadTaskData(taskId)
 }
 
+/** 是否有任何激活的筛选条件 */
+const hasActiveFilter = computed(() => {
+    const f = filterForm.value
+    return !!(f.keyword?.trim() || f.ruleName?.trim() || f.issueResult?.trim())
+})
+
 /** 任务已完成且接口确认扫描结果总数为 0（非筛选、非请求失败） */
 const isCompletedScanWithZeroIssues = computed(
     () =>
         task.value?.taskStatus === TASK_STATUS.COMPLETED &&
         !loading.value &&
         scanResultsQuerySucceeded.value &&
-        pagination.value.total === 0,
+        pagination.value.total === 0 &&
+        !hasActiveFilter.value,
 )
 
 function goToTaskInfoTab(): void {
@@ -2819,12 +2837,12 @@ watch(
 
 // 监听统计数据变化，更新图表
 watch(
-    () => [annotationStatistics.value, scanResultsList.value.length],
+    () => [annotationStatistics.value, fullScanResultsList.value.length],
     () => {
       if (
           activeView.value === 'info' &&
           task.value?.taskStatus === TASK_STATUS.COMPLETED &&
-          scanResultsList.value.length > 0
+          fullScanResultsList.value.length > 0
       ) {
         updateAllCharts()
       }
@@ -2839,7 +2857,7 @@ watch(activeView, () => {
     if (
         activeView.value === 'info' &&
         task.value?.taskStatus === TASK_STATUS.COMPLETED &&
-        scanResultsList.value.length > 0
+        fullScanResultsList.value.length > 0
     ) {
       updateAllCharts()
       setTimeout(() => {

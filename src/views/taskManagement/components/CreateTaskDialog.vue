@@ -34,11 +34,7 @@
               >
                 <template #content>
                   <div class="repo-url-help-content">
-                    <p class="repo-url-help-intro">支持 SSH、HTTPS 两种 Git 克隆地址。</p>
-                    <p class="repo-url-help-example">
-                      <span class="repo-url-help-tag">SSH</span>
-                      ssh://git@codehub-dg-y.huawei.com:2222/CoreTool/CoreMLOPS/xxxxproductName.git
-                    </p>
+                    <p class="repo-url-help-intro">仅支持 HTTPS 形式的 Git 克隆地址。</p>
                     <p class="repo-url-help-example">
                       <span class="repo-url-help-tag">HTTPS</span>
                       https://codehub-dg-y.huawei.com/CoreTool/CoreMLOPS/xxxxproductName.git
@@ -67,7 +63,7 @@
           </template>
           <el-input
               v-model="formData.repoUrl"
-              placeholder="请输入 SSH 或 HTTPS 形式的代码仓 Git 克隆地址"
+              placeholder="请输入 HTTPS 形式的代码仓 Git 克隆地址"
               clearable
           />
         </el-form-item>
@@ -207,15 +203,11 @@ const formData = reactive({
   createTime: '' // 实际应该自动填充当前时间
 })
 
-/** 仅允许 Git 克隆地址：SSH（ssh://git@主机:端口/路径.git，端口可省略）或 HTTPS（https://主机/路径.git） */
+/** 仅允许 HTTPS Git 克隆地址：https://主机/路径.git */
 const isValidRepoGitUrl = (raw) => {
   const url = String(raw ?? '').trim()
   if (!url) return false
-  const sshGit =
-      /^ssh:\/\/git@[^\s/]+(?::\d+)?\/[^\s?]+\.git$/i.test(url)
-  const httpsGit =
-      /^https:\/\/[^\s/]+\/[^\s?]+\.git$/i.test(url)
-  return sshGit || httpsGit
+  return /^https:\/\/[^\s/]+\/[^\s?]+\.git$/i.test(url)
 }
 
 // 表单验证规则
@@ -237,7 +229,7 @@ const rules = {
         } else {
           callback(
               new Error(
-                  '请输入有效的 Git 克隆地址：SSH 如 ssh://git@主机:端口/组织/项目.git，或 HTTPS 如 https://主机/组织/项目.git'
+                  '请输入有效的 HTTPS Git 克隆地址，如 https://主机/组织/项目.git'
               )
           )
         }
