@@ -242,25 +242,6 @@
                       <div class="task-detail-field-line">
                         <span>创建时间：</span><span>{{ task.createTime || '未知' }}</span>
                       </div>
-                      <div
-                          class="task-detail-field-line"
-                          :class="{ 'task-detail-field-line--edit': isEditing }"
-                      >
-                        <span>任务状态：</span>
-                        <template v-if="isEditing">
-                          <el-select v-model="editForm.taskStatus" class="task-detail-field-input">
-                            <el-option
-                                v-for="s in taskStatusSelectOptions"
-                                :key="s"
-                                :label="s"
-                                :value="s"
-                            />
-                          </el-select>
-                        </template>
-                        <template v-else>
-                          <span>{{ task.taskStatus || '—' }}</span>
-                        </template>
-                      </div>
                     </div>
                   </el-card>
 
@@ -361,23 +342,14 @@
                       <div class="task-detail-field-line task-detail-field-line--start-scan">
                         <span>扫描启动：</span>
                         <el-button
-                            v-if="showStartScanButton"
                             type="primary"
                             size="small"
                             :loading="startingTaskScan"
                             :disabled="startScanButtonDisabled"
                             @click="handleStartTaskScan"
                         >启动扫描</el-button>
-                        <el-button
-                            v-else-if="showPauseTaskButton"
-                            type="warning"
-                            size="small"
-                            :loading="pausingTask"
-                            :disabled="pauseTaskButtonDisabled"
-                            @click="handlePauseTask"
-                        >暂停任务</el-button>
                         <span
-                            v-if="showStartScanButton && startScanDisabledHint"
+                            v-if="startScanDisabledHint"
                             class="task-detail-muted task-detail-start-scan-hint"
                         >{{ startScanDisabledHint }}</span>
                       </div>
@@ -1176,18 +1148,8 @@ const router = useRouter()
 const route = useRoute()
 const userInfo = useProfileStore().userInfo
 
-/** 与创建任务页一致，供编辑模式下拉选择 */
-const taskStatusSelectOptions = [
-  TASK_STATUS.NOT_STARTED,
-  TASK_STATUS.QUEUED,
-  TASK_STATUS.RUNNING,
-  TASK_STATUS.COMPLETED,
-  TASK_STATUS.FAILED,
-]
-
 const savingTask = ref(false)
 const startingTaskScan = ref(false)
-const pausingTask = ref(false)
 const taskEditFormRef = ref<FormInstance | null>(null)
 
 /** 仅允许 HTTPS Git 克隆地址，与创建任务弹窗一致 */
@@ -1257,7 +1219,6 @@ const editForm = reactive({
   branch: '',
   pathList: '',
   s3Path: '',
-  taskStatus: TASK_STATUS.NOT_STARTED,
   assistantVersions: '',
   productName: '',
   codeLanguage: 'Unknown',
@@ -1275,7 +1236,6 @@ function syncEditFormFromTask(t: Task): void {
   editForm.branch = t.branch || ''
   editForm.pathList = normalizePathListToString(t.pathList)
   editForm.s3Path = (t.s3Path || '').trim()
-  editForm.taskStatus = t.taskStatus || TASK_STATUS.NOT_STARTED
   editForm.assistantVersions = normalizeAssistantVersionsToParts(t.assistantVersions).join(',')
   editForm.productName = (t.productName || '').trim() || ''
   editForm.codeLanguage = t.codeLanguage || 'Unknown'
@@ -1322,7 +1282,7 @@ async function handleSaveTask(): Promise<void> {
       branch: editForm.branch.trim(),
       pathList: editForm.pathList.trim() || null,
       s3Path: editForm.s3Path.trim(),
-      taskStatus: editForm.taskStatus,
+      taskStatus: task.value!.taskStatus,
       assistantVersions: editForm.assistantVersions.trim(),
       productName: editForm.productName.trim(),
       codeLanguage: editForm.codeLanguage.trim() || null,
@@ -1344,7 +1304,6 @@ async function handleSaveTask(): Promise<void> {
       task.value.branch = payload.branch
       task.value.pathList = payload.pathList ?? ''
       task.value.s3Path = payload.s3Path
-      task.value.taskStatus = payload.taskStatus
       task.value.assistantVersions = normalizeAssistantVersionsToParts(payload.assistantVersions)
       task.value.productName = payload.productName
       task.value.codeLanguage = payload.codeLanguage?.trim() ? payload.codeLanguage : 'Unknown'
@@ -1445,51 +1404,6 @@ const startScanDisabledHint = computed(() => {
   if (!persistedScanParamsReady.value) return '请先填写并保存本机启动URL与模型名称'
   return ''
 })
-
-/** 排队中 / 进行中显示暂停（含暂停请求进行中） */
-const showPauseTaskButton = computed(() => {
-  if (!task.value) return false
-  if (pausingTask.value) return true
-  const st = task.value.taskStatus
-  return st === TASK_STATUS.QUEUED || st === TASK_STATUS.RUNNING
-})
-
-/** 与暂停按钮互斥：非排队/进行中时显示启动 */
-const showStartScanButton = computed(() => {
-  if (!task.value) return false
-  if (startingTaskScan.value) return true
-  return !showPauseTaskButton.value
-})
-
-const pauseTaskButtonDisabled = computed(() => {
-  if (!task.value || pausingTask.value || startingTaskScan.value) return true
-  if (isEditing.value) return true
-  const st = task.value.taskStatus
-  return st !== TASK_STATUS.QUEUED && st !== TASK_STATUS.RUNNING
-})
-
-function buildUpdateTaskPayloadFromTask(
-    t: Task,
-    taskStatusOverride?: string,
-): UpdateTaskInfoPayload {
-  return {
-    taskName: (t.taskName || '').trim(),
-    repoUrl: (t.repoUrl || '').trim(),
-    branch: (t.branch || '').trim(),
-    pathList: normalizePathListToString(t.pathList) || null,
-    s3Path: (t.s3Path || '').trim(),
-    taskStatus: taskStatusOverride ?? t.taskStatus,
-    assistantVersions: normalizeAssistantVersionsToParts(t.assistantVersions).join(','),
-    productName: (t.productName || '').trim(),
-    codeLanguage: t.codeLanguage?.trim() ? t.codeLanguage : null,
-    lineNum: Number.isFinite(t.lineNum) ? t.lineNum : null,
-    deptName: (t.dept_name || '').trim() || null,
-    pduName: (t.pdu_name || '').trim() || null,
-    warnCount: t.warnCount != null ? t.warnCount : null,
-    hostUrl: (t.hostUrl || '').trim() || null,
-    modelName: (t.modelName || '').trim() || null,
-  }
-}
 
 const assistantVersionsDisplay = computed(() => {
   const parts = normalizeAssistantVersionsToParts(task.value?.assistantVersions)
@@ -2029,49 +1943,6 @@ const fetchTaskDetailPage = async (
   }
 }
 
-async function handlePauseTask(): Promise<void> {
-  const tid = task.value?.taskId
-  if (!tid || !task.value) return
-  if (isEditing.value) {
-    ElMessage.warning('请先保存或取消编辑后再暂停任务')
-    return
-  }
-  const st = task.value.taskStatus
-  if (st !== TASK_STATUS.QUEUED && st !== TASK_STATUS.RUNNING) return
-
-  try {
-    await ElMessageBox.confirm(
-        '暂停后任务状态将更新为「失败」，是否继续？',
-        '确认暂停任务',
-        {
-          confirmButtonText: '确认暂停',
-          cancelButtonText: '取消',
-          type: 'warning',
-          distinguishCancelAndClose: true,
-        },
-    )
-  } catch {
-    return
-  }
-
-  pausingTask.value = true
-  try {
-    const payload = buildUpdateTaskPayloadFromTask(task.value, TASK_STATUS.FAILED)
-    const res = await updateTaskInfo(tid, payload)
-    if (!res.meta.isSuccess) {
-      ElMessage.error(res.meta.message || '暂停失败')
-      return
-    }
-    task.value.taskStatus = TASK_STATUS.FAILED
-    syncEditFormFromTask(task.value)
-    ElMessage.success('任务已暂停')
-  } catch {
-    ElMessage.error('暂停失败')
-  } finally {
-    pausingTask.value = false
-  }
-}
-
 async function handleStartTaskScan(): Promise<void> {
   const tid = task.value?.taskId
   if (!tid || !task.value) return
@@ -2095,7 +1966,7 @@ async function handleStartTaskScan(): Promise<void> {
   }
   try {
     await ElMessageBox.confirm(
-        '请确认任务信息（本机启动 URL、模型名称、代码仓等）无误后再启动。任务进入「排队中」或「进行中」后，可通过「暂停任务」停止扫描并将状态更新为「失败」。',
+        '请确认任务信息（本机启动 URL、模型名称、代码仓等）无误后再启动。',
         '确认启动扫描',
         {
           confirmButtonText: '确认启动',
@@ -2121,7 +1992,6 @@ async function handleStartTaskScan(): Promise<void> {
     })
     if (startedTaskStatus && task.value) {
       task.value.taskStatus = startedTaskStatus
-      syncEditFormFromTask(task.value)
     }
   } catch {
     ElMessage.error('启动失败')
