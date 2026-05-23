@@ -27,6 +27,7 @@ import type {
     TaskScanResultsApiDocResponse,
     UploadScanResultFileResponse,
     UpdateTaskInfoPayload,
+    StartTaskScanData,
 } from './types'
 
 /** 与历史 task store 一致，用于任务列表持久化 */
@@ -1030,15 +1031,18 @@ export const updateTaskInfo = async (
 }
 
 /**
- * 启动扫描（Mock：「未开始」「失败」「已完成」可启动；进行中不可；校验 hostUrl / modelName 非空；成功后置为进行中）
+ * 启动扫描（Mock：「未开始」「失败」「已完成」可启动；排队中/进行中不可；校验 hostUrl / modelName 非空；成功后置为排队中）
  */
-export const startTaskScan = async (taskId: string): Promise<ApiEnvelope<null>> => {
+export const startTaskScan = async (taskId: string): Promise<ApiEnvelope<StartTaskScanData>> => {
     await new Promise((r) => setTimeout(r, 0))
     const t = mockTaskDetails[taskId]
     if (!t) {
         return envelopeFail(null, 404, '未找到任务')
     }
     const st = t.taskStatus
+    if (st === TASK_STATUS.QUEUED) {
+        return envelopeFail(null, 400, '任务排队中，无法再次启动扫描')
+    }
     if (st === TASK_STATUS.RUNNING) {
         return envelopeFail(null, 400, '任务进行中，无法再次启动扫描')
     }
@@ -1050,9 +1054,13 @@ export const startTaskScan = async (taskId: string): Promise<ApiEnvelope<null>> 
     if (!host || !model) {
         return envelopeFail(null, 400, '请先填写并保存本机启动URL与模型名称')
     }
-    t.taskStatus = TASK_STATUS.RUNNING
+    t.taskStatus = TASK_STATUS.QUEUED
     persistTasksToStorage()
-    return envelopeOk(null)
+    return envelopeOk({
+        message: '扫描任务已启动',
+        taskId,
+        taskStatus: t.taskStatus,
+    })
 }
 
 export const createTaskApi = async (payload: CreateTaskPayload): Promise<ApiEnvelope<TaskDetail>> => {

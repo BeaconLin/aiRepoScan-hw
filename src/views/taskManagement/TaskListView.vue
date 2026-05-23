@@ -73,8 +73,10 @@
               <div class="card-title">
                 <span class="task-name">{{ task.taskName }}</span>
                 <el-tag
-                    :type="(TASK_STATUS_MAP[task.taskStatus] || 'info') as 'info' | 'success' | 'warning' | 'danger'"
+                    :type="getTaskStatusElTagType(task.taskStatus)"
+                    effect="light"
                     size="small"
+                    :class="getTaskStatusTagClass(task.taskStatus)"
                 >
                   {{ task.taskStatus }}
                 </el-tag>
@@ -137,7 +139,7 @@
                   type="danger"
                   size="small"
                   @click="handleDelete(task.taskId)"
-                  :disabled="task.taskStatus === TASK_STATUS.RUNNING"
+                  :disabled="task.taskStatus === TASK_STATUS.RUNNING || task.taskStatus === TASK_STATUS.QUEUED"
               >
                 删除
               </el-button>
@@ -182,7 +184,12 @@ import {
   deleteTaskById,
 } from '@/api/taskManagementApi'
 import CreateTaskDialog from '@/views/taskManagement/components/CreateTaskDialog.vue'
-import { TASK_STATUS_MAP, TASK_STATUS } from '@/constants/scanTaskConst'
+import {
+  TASK_STATUS_MAP,
+  TASK_STATUS,
+  getTaskStatusElTagType,
+  getTaskStatusTagClass,
+} from '@/constants/scanTaskConst'
 import { useProfileStore } from '@/stores/userProfile'
 
 type TaskStatus = (typeof TASK_STATUS)[keyof typeof TASK_STATUS]

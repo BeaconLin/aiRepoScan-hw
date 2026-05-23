@@ -22,6 +22,7 @@ import type {
     CreateTaskPayload,
     TaskDetail,
     UpdateTaskInfoPayload,
+    StartTaskScanData,
 } from '@/api/types'
 import type { SaveAnnotationReqBody, SaveAnnotationResultData } from '@/api/types/saveAnnotation'
 import type { TaskListPageData } from '@/api/types/taskList'
@@ -108,7 +109,7 @@ export async function getAnnotationStatistics(
 }
 
 /** 启动扫描（POST `/api/tasks/{taskId}/start`） */
-export async function startTaskScan(taskId: string): Promise<ApiEnvelope<null>> {
+export async function startTaskScan(taskId: string): Promise<ApiEnvelope<StartTaskScanData>> {
     return apiMode === 'live'
         ? taskManagementService.startTaskScan(taskId)
         : mockStartTaskScan(taskId)

@@ -7,10 +7,24 @@
         <h1 v-if="isEditing && task">{{ editForm.taskName || '任务详情' }}</h1>
         <h1 v-else-if="task?.taskName">{{ task.taskName }}</h1>
         <h1 v-else>任务详情</h1>
-        <el-tag v-if="task?.taskStatus" :type="taskStatusToElTagType(task.taskStatus)" size="large" class="status-tag">
+        <el-tag
+            v-if="task?.taskStatus"
+            :type="getTaskStatusElTagType(task.taskStatus)"
+            effect="light"
+            size="large"
+            class="status-tag"
+            :class="getTaskStatusTagClass(task.taskStatus)"
+        >
           {{ task.taskStatus }}
         </el-tag>
-        <el-tag v-else-if="task?.status" :type="taskStatusToElTagType(task.status)" size="large" class="status-tag">
+        <el-tag
+            v-else-if="task?.status"
+            :type="getTaskStatusElTagType(task.status)"
+            effect="light"
+            size="large"
+            class="status-tag"
+            :class="getTaskStatusTagClass(task.status)"
+        >
           {{ task.status }}
         </el-tag>
       </div>
@@ -347,14 +361,23 @@
                       <div class="task-detail-field-line task-detail-field-line--start-scan">
                         <span>扫描启动：</span>
                         <el-button
+                            v-if="showStartScanButton"
                             type="primary"
                             size="small"
                             :loading="startingTaskScan"
                             :disabled="startScanButtonDisabled"
                             @click="handleStartTaskScan"
                         >启动扫描</el-button>
+                        <el-button
+                            v-else-if="showPauseTaskButton"
+                            type="warning"
+                            size="small"
+                            :loading="pausingTask"
+                            :disabled="pauseTaskButtonDisabled"
+                            @click="handlePauseTask"
+                        >暂停任务</el-button>
                         <span
-                            v-if="startScanDisabledHint"
+                            v-if="showStartScanButton && startScanDisabledHint"
                             class="task-detail-muted task-detail-start-scan-hint"
                         >{{ startScanDisabledHint }}</span>
                       </div>
@@ -1019,7 +1042,11 @@ import {
   ElFormItem,
 } from 'element-plus'
 import type { FormInstance, FormRules, UploadFile, UploadFiles } from 'element-plus'
-import { TASK_STATUS, TASK_STATUS_MAP } from '@/constants/scanTaskConst'
+import {
+  TASK_STATUS,
+  getTaskStatusElTagType,
+  getTaskStatusTagClass,
+} from '@/constants/scanTaskConst'
 import { useProfileStore } from '@/stores/userProfile'
 
 import {
@@ -1037,17 +1064,6 @@ import type { AnnotationStatistics } from '@/api/types'
 import type { SaveAnnotationReqBody, TaskDetailPaginationInfo } from '@/api/types/saveAnnotation'
 import CodeBlock from '@/views/taskManagement/components/CodeBlock.vue'
 import { copyText } from '@/utils/utils'
-
-type ElTagType = 'success' | 'info' | 'warning' | 'danger'
-
-function taskStatusToElTagType(status: string | undefined): ElTagType {
-  if (!status) return 'info'
-  const v = TASK_STATUS_MAP[status as keyof typeof TASK_STATUS_MAP]
-  if (v === 'success' || v === 'info' || v === 'warning' || v === 'danger') {
-    return v
-  }
-  return 'info'
-}
 
 /**
  * 仅采用接口/存储中的 nameCn；若无则留空，创建人由 formatTaskCreatorDisplay 只展示 creator。
@@ -1163,6 +1179,7 @@ const userInfo = useProfileStore().userInfo
 /** 与创建任务页一致，供编辑模式下拉选择 */
 const taskStatusSelectOptions = [
   TASK_STATUS.NOT_STARTED,
+  TASK_STATUS.QUEUED,
   TASK_STATUS.RUNNING,
   TASK_STATUS.COMPLETED,
   TASK_STATUS.FAILED,
@@ -1170,6 +1187,7 @@ const taskStatusSelectOptions = [
 
 const savingTask = ref(false)
 const startingTaskScan = ref(false)
+const pausingTask = ref(false)
 const taskEditFormRef = ref<FormInstance | null>(null)
 
 /** 仅允许 HTTPS Git 克隆地址，与创建任务弹窗一致 */
@@ -1401,12 +1419,12 @@ const persistedScanParamsReady = computed(() => {
   return (t.hostUrl || '').trim() !== '' && (t.modelName || '').trim() !== ''
 })
 
-/** 启动扫描：未开始/失败/已完成且参数齐全可点；进行中不可点 */
+/** 启动扫描：未开始/失败/已完成且参数齐全可点；排队中/进行中不可点 */
 const startScanButtonDisabled = computed(() => {
   if (!task.value || startingTaskScan.value) return true
   if (isEditing.value) return true
   const st = task.value.taskStatus
-  if (st === TASK_STATUS.RUNNING) return true
+  if (st === TASK_STATUS.RUNNING || st === TASK_STATUS.QUEUED) return true
   if (
     st !== TASK_STATUS.NOT_STARTED &&
     st !== TASK_STATUS.FAILED &&
@@ -1421,13 +1439,57 @@ const startScanDisabledHint = computed(() => {
   if (!task.value || startingTaskScan.value) return ''
   if (isEditing.value) return '请先保存任务信息后再启动扫描'
   const st = task.value.taskStatus
-  if (st === TASK_STATUS.RUNNING) return '任务进行中，无法再次启动'
   if (st !== TASK_STATUS.NOT_STARTED && st !== TASK_STATUS.FAILED && st !== TASK_STATUS.COMPLETED) {
     return '当前状态不允许启动扫描'
   }
   if (!persistedScanParamsReady.value) return '请先填写并保存本机启动URL与模型名称'
   return ''
 })
+
+/** 排队中 / 进行中显示暂停（含暂停请求进行中） */
+const showPauseTaskButton = computed(() => {
+  if (!task.value) return false
+  if (pausingTask.value) return true
+  const st = task.value.taskStatus
+  return st === TASK_STATUS.QUEUED || st === TASK_STATUS.RUNNING
+})
+
+/** 与暂停按钮互斥：非排队/进行中时显示启动 */
+const showStartScanButton = computed(() => {
+  if (!task.value) return false
+  if (startingTaskScan.value) return true
+  return !showPauseTaskButton.value
+})
+
+const pauseTaskButtonDisabled = computed(() => {
+  if (!task.value || pausingTask.value || startingTaskScan.value) return true
+  if (isEditing.value) return true
+  const st = task.value.taskStatus
+  return st !== TASK_STATUS.QUEUED && st !== TASK_STATUS.RUNNING
+})
+
+function buildUpdateTaskPayloadFromTask(
+    t: Task,
+    taskStatusOverride?: string,
+): UpdateTaskInfoPayload {
+  return {
+    taskName: (t.taskName || '').trim(),
+    repoUrl: (t.repoUrl || '').trim(),
+    branch: (t.branch || '').trim(),
+    pathList: normalizePathListToString(t.pathList) || null,
+    s3Path: (t.s3Path || '').trim(),
+    taskStatus: taskStatusOverride ?? t.taskStatus,
+    assistantVersions: normalizeAssistantVersionsToParts(t.assistantVersions).join(','),
+    productName: (t.productName || '').trim(),
+    codeLanguage: t.codeLanguage?.trim() ? t.codeLanguage : null,
+    lineNum: Number.isFinite(t.lineNum) ? t.lineNum : null,
+    deptName: (t.dept_name || '').trim() || null,
+    pduName: (t.pdu_name || '').trim() || null,
+    warnCount: t.warnCount != null ? t.warnCount : null,
+    hostUrl: (t.hostUrl || '').trim() || null,
+    modelName: (t.modelName || '').trim() || null,
+  }
+}
 
 const assistantVersionsDisplay = computed(() => {
   const parts = normalizeAssistantVersionsToParts(task.value?.assistantVersions)
@@ -1967,6 +2029,49 @@ const fetchTaskDetailPage = async (
   }
 }
 
+async function handlePauseTask(): Promise<void> {
+  const tid = task.value?.taskId
+  if (!tid || !task.value) return
+  if (isEditing.value) {
+    ElMessage.warning('请先保存或取消编辑后再暂停任务')
+    return
+  }
+  const st = task.value.taskStatus
+  if (st !== TASK_STATUS.QUEUED && st !== TASK_STATUS.RUNNING) return
+
+  try {
+    await ElMessageBox.confirm(
+        '暂停后任务状态将更新为「失败」，是否继续？',
+        '确认暂停任务',
+        {
+          confirmButtonText: '确认暂停',
+          cancelButtonText: '取消',
+          type: 'warning',
+          distinguishCancelAndClose: true,
+        },
+    )
+  } catch {
+    return
+  }
+
+  pausingTask.value = true
+  try {
+    const payload = buildUpdateTaskPayloadFromTask(task.value, TASK_STATUS.FAILED)
+    const res = await updateTaskInfo(tid, payload)
+    if (!res.meta.isSuccess) {
+      ElMessage.error(res.meta.message || '暂停失败')
+      return
+    }
+    task.value.taskStatus = TASK_STATUS.FAILED
+    syncEditFormFromTask(task.value)
+    ElMessage.success('任务已暂停')
+  } catch {
+    ElMessage.error('暂停失败')
+  } finally {
+    pausingTask.value = false
+  }
+}
+
 async function handleStartTaskScan(): Promise<void> {
   const tid = task.value?.taskId
   if (!tid || !task.value) return
@@ -1990,7 +2095,7 @@ async function handleStartTaskScan(): Promise<void> {
   }
   try {
     await ElMessageBox.confirm(
-        '启动任务不可中止，请确认任务信息正确',
+        '请确认任务信息（本机启动 URL、模型名称、代码仓等）无误后再启动。任务进入「排队中」或「进行中」后，可通过「暂停任务」停止扫描并将状态更新为「失败」。',
         '确认启动扫描',
         {
           confirmButtonText: '确认启动',
@@ -2009,10 +2114,15 @@ async function handleStartTaskScan(): Promise<void> {
       ElMessage.error(res.meta.message || '启动失败')
       return
     }
-    ElMessage.success('扫描任务已启动')
+    const startedTaskStatus = res.data?.taskStatus?.trim()
+    ElMessage.success(res.data?.message?.trim() || '扫描任务已启动')
     await fetchTaskDetailPage(tid, pagination.value.currentPage, pagination.value.pageSize, {
       fetchAnnotationStats: true,
     })
+    if (startedTaskStatus && task.value) {
+      task.value.taskStatus = startedTaskStatus
+      syncEditFormFromTask(task.value)
+    }
   } catch {
     ElMessage.error('启动失败')
   } finally {
@@ -2661,6 +2771,7 @@ const getStatusTipTitle = (): string => {
   }
   const statusMap: Record<string, string> = {
     [TASK_STATUS.NOT_STARTED]: '任务待处理',
+    [TASK_STATUS.QUEUED]: '任务排队中',
     [TASK_STATUS.RUNNING]: '任务扫描中',
     [TASK_STATUS.FAILED]: '任务扫描失败'
   }
@@ -2678,6 +2789,7 @@ const getStatusTipDescription = (): string => {
   }
   const descMap: Record<string, string> = {
     [TASK_STATUS.NOT_STARTED]: '该任务尚未开始扫描，请等待任务启动后查看扫描结果。',
+    [TASK_STATUS.QUEUED]: '该任务已启动并在排队等待执行，请稍候查看扫描结果。',
     [TASK_STATUS.RUNNING]: '该任务正在扫描中，请稍候查看扫描结果。',
     [TASK_STATUS.FAILED]: '该任务扫描失败，无法查看扫描结果。'
   }

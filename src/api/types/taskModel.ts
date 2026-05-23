@@ -103,6 +103,13 @@ export interface UpdateTaskInfoPayload {
     modelName: string | null
 }
 
+/** 启动扫描接口响应 data（POST `/api/tasks/{taskId}/start`） */
+export interface StartTaskScanData {
+    message: string
+    taskId: string
+    taskStatus: string
+}
+
 /** 创建任务入参（与创建表单 / 接口字段对齐） */
 export interface CreateTaskPayload {
     taskName: string

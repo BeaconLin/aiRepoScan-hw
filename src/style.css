@@ -29,3 +29,16 @@ body {
 #app {
   min-height: 100vh;
 }
+
+/* 任务状态「排队中」：浅蓝标签，与「进行中」橙色区分 */
+.el-tag.task-status-tag--queued {
+  --el-tag-bg-color: #e8f4ff;
+  --el-tag-border-color: #b3d8ff;
+  --el-tag-text-color: #409eff;
+}
+
+.el-tag.el-tag--light.task-status-tag--queued {
+  --el-tag-bg-color: #e8f4ff;
+  --el-tag-border-color: #b3d8ff;
+  --el-tag-text-color: #409eff;
+}
