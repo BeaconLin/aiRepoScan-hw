@@ -35,14 +35,10 @@
                 <template #content>
                   <div class="repo-url-help-content">
                     <p class="repo-url-help-intro">仅支持 HTTPS 形式的 Git 克隆地址。</p>
-                    <p class="repo-url-help-example">
-                      <span class="repo-url-help-tag">HTTPS</span>
-                      https://codehub-dg-y.huawei.com/CoreTool/CoreMLOPS/xxxxproductName.git
-                    </p>
                     <div class="repo-url-help-diagram">
                       <img
                           v-if="repoUrlHelpDiagramSrc"
-                          :src="repoUrlHelpDiagramSrc"
+                          src="@/assets/gitImg.png"
                           alt="代码仓 Git 地址获取示意图"
                           class="repo-url-help-diagram__img"
                       />
@@ -185,8 +181,6 @@ const submitting = ref(false)
 const DEFAULT_CODE_LANGUAGE = 'C/C++'
 const DEFAULT_ASSISTANT_VERSION = '内存安全v1.0.0'
 
-/** 代码仓 Git 地址 tooltip 示意图，替换为图片资源路径后即可展示 */
-const repoUrlHelpDiagramSrc = ''
 
 const formData = reactive({
   taskName: '',

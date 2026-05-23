@@ -66,6 +66,14 @@
             <template v-else>
               <!-- 任务信息区域 -->
               <div v-if="task" class="task-info-section">
+                <el-form
+                    ref="taskEditFormRef"
+                    :model="editForm"
+                    :rules="taskEditFormRules"
+                    class="task-detail-edit-form"
+                    label-position="left"
+                    @submit.prevent
+                >
                 <div class="task-info-cards-row">
                   <el-card class="task-detail-field-card" shadow="never">
                     <template #header>
@@ -76,16 +84,18 @@
                           class="task-detail-field-line"
                           :class="{ 'task-detail-field-line--edit': isEditing }"
                       >
-                        <span>任务名称：</span>
                         <template v-if="isEditing">
-                          <el-input
-                              v-model="editForm.taskName"
-                              placeholder="请输入任务名称"
-                              clearable
-                              class="task-detail-field-input"
-                          />
+                          <el-form-item label="任务名称：" prop="taskName" class="task-detail-inline-form-item">
+                            <el-input
+                                v-model="editForm.taskName"
+                                placeholder="请输入任务名称"
+                                clearable
+                                class="task-detail-field-input"
+                            />
+                          </el-form-item>
                         </template>
                         <template v-else>
+                          <span>任务名称：</span>
                           <span>{{ task.taskName || '—' }}</span>
                         </template>
                       </div>
@@ -93,16 +103,18 @@
                           class="task-detail-field-line"
                           :class="{ 'task-detail-field-line--edit': isEditing }"
                       >
-                        <span>代码仓Git地址：</span>
                         <template v-if="isEditing">
-                          <el-input
-                              v-model="editForm.repoUrl"
-                              placeholder="请输入 SSH 或 HTTPS 形式的代码仓 Git 克隆地址"
-                              clearable
-                              class="task-detail-field-input"
-                          />
+                          <el-form-item label="代码仓Git地址：" prop="repoUrl" class="task-detail-inline-form-item">
+                            <el-input
+                                v-model="editForm.repoUrl"
+                                placeholder="请输入 HTTPS 形式的代码仓 Git 克隆地址"
+                                clearable
+                                class="task-detail-field-input"
+                            />
+                          </el-form-item>
                         </template>
                         <template v-else>
+                          <span>代码仓Git地址：</span>
                           <span v-if="task.repoUrl" class="task-detail-repo-url-inline">
                             <span
                                 class="task-detail-repo-url-text"
@@ -164,16 +176,18 @@
                           class="task-detail-field-line"
                           :class="{ 'task-detail-field-line--edit': isEditing }"
                       >
-                        <span>产品名称：</span>
                         <template v-if="isEditing">
-                          <el-input
-                              v-model="editForm.productName"
-                              placeholder="请输入产品名称"
-                              clearable
-                              class="task-detail-field-input"
-                          />
+                          <el-form-item label="产品名称：" prop="productName" class="task-detail-inline-form-item">
+                            <el-input
+                                v-model="editForm.productName"
+                                placeholder="请输入产品名称"
+                                clearable
+                                class="task-detail-field-input"
+                            />
+                          </el-form-item>
                         </template>
                         <template v-else>
+                          <span>产品名称：</span>
                           <span>{{ task.productName || '-' }}</span>
                         </template>
                       </div>
@@ -245,16 +259,18 @@
                           class="task-detail-field-line"
                           :class="{ 'task-detail-field-line--edit': isEditing }"
                       >
-                        <span>扫描分支：</span>
                         <template v-if="isEditing">
-                          <el-input
-                              v-model="editForm.branch"
-                              placeholder="如 main、master"
-                              clearable
-                              class="task-detail-field-input"
-                          />
+                          <el-form-item label="扫描分支：" prop="branch" class="task-detail-inline-form-item">
+                            <el-input
+                                v-model="editForm.branch"
+                                placeholder="请输入扫描分支，例如：main、master"
+                                clearable
+                                class="task-detail-field-input"
+                            />
+                          </el-form-item>
                         </template>
                         <template v-else>
+                          <span>扫描分支：</span>
                           <span>{{ task.branch || '未设置' }}</span>
                         </template>
                       </div>
@@ -279,16 +295,18 @@
                           class="task-detail-field-line"
                           :class="{ 'task-detail-field-line--edit': isEditing }"
                       >
-                        <span>扫描路径：</span>
                         <template v-if="isEditing">
-                          <el-input
-                              v-model="editForm.pathList"
-                              placeholder="多个路径用英文逗号分隔"
-                              clearable
-                              class="task-detail-field-input"
-                          />
+                          <el-form-item label="扫描路径：" prop="pathList" class="task-detail-inline-form-item">
+                            <el-input
+                                v-model="editForm.pathList"
+                                placeholder="可选，多个路径使用英文逗号分隔，例如：src,view,utils"
+                                clearable
+                                class="task-detail-field-input"
+                            />
+                          </el-form-item>
                         </template>
                         <template v-else>
+                          <span>扫描路径：</span>
                           <span>{{ pathListDisplay }}</span>
                         </template>
                       </div>
@@ -369,6 +387,7 @@
                     </div>
                   </el-card>
                 </div>
+                </el-form>
               </div>
 
               <!-- 未找到任务提示 -->
@@ -996,8 +1015,10 @@ import {
   ElCollapse,
   ElCollapseItem,
   ElResult,
+  ElForm,
+  ElFormItem,
 } from 'element-plus'
-import type { UploadFile, UploadFiles } from 'element-plus'
+import type { FormInstance, FormRules, UploadFile, UploadFiles } from 'element-plus'
 import { TASK_STATUS, TASK_STATUS_MAP } from '@/constants/scanTaskConst'
 import { useProfileStore } from '@/stores/userProfile'
 
@@ -1149,6 +1170,65 @@ const taskStatusSelectOptions = [
 
 const savingTask = ref(false)
 const startingTaskScan = ref(false)
+const taskEditFormRef = ref<FormInstance | null>(null)
+
+/** 仅允许 HTTPS Git 克隆地址，与创建任务弹窗一致 */
+function isValidRepoGitUrl(raw: unknown): boolean {
+  const url = String(raw ?? '').trim()
+  if (!url) return false
+  return /^https:\/\/[^\s/]+\/[^\s?]+\.git$/i.test(url)
+}
+
+/** 任务信息编辑校验规则（与 CreateTaskDialog 一致） */
+const taskEditFormRules: FormRules = {
+  taskName: [
+    { required: true, message: '请输入任务名称', trigger: 'blur' },
+    { min: 2, max: 50, message: '任务名称长度在 2 到 50 个字符', trigger: 'blur' },
+  ],
+  repoUrl: [
+    { required: true, message: '请输入代码仓Git地址', trigger: 'blur' },
+    {
+      validator: (_rule, value, callback) => {
+        if (!value || String(value).trim() === '') {
+          callback()
+          return
+        }
+        if (isValidRepoGitUrl(value)) {
+          callback()
+        } else {
+          callback(
+              new Error(
+                  '请输入有效的 HTTPS Git 克隆地址，如 https://主机/组织/项目.git',
+              ),
+          )
+        }
+      },
+      trigger: 'blur',
+    },
+  ],
+  branch: [{ required: true, message: '请输入扫描分支', trigger: 'blur' }],
+  pathList: [
+    {
+      validator: (_rule, value, callback) => {
+        if (!value || String(value).trim() === '') {
+          callback()
+          return
+        }
+        const paths = String(value)
+            .split(',')
+            .map((path) => path.trim())
+            .filter((path) => path !== '')
+        if (paths.length === 0) {
+          callback(new Error('请至少输入一个有效的扫描路径，或留空'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur',
+    },
+  ],
+  productName: [{ required: true, message: '请输入产品名称', trigger: 'blur' }],
+}
 
 /** 用户点击「编辑」后为 true；保存或取消后恢复为 false（默认查看模式） */
 const isEditing = ref(false)
@@ -1194,16 +1274,28 @@ function handleStartEdit(): void {
   activeView.value = 'info'
   syncEditFormFromTask(task.value)
   isEditing.value = true
+  nextTick(() => {
+    taskEditFormRef.value?.clearValidate()
+  })
 }
 
 function handleCancelEdit(): void {
   if (task.value) syncEditFormFromTask(task.value)
   isEditing.value = false
+  taskEditFormRef.value?.clearValidate()
 }
 
 async function handleSaveTask(): Promise<void> {
   const tid = task.value?.taskId
   if (!tid) return
+  if (isEditing.value && taskEditFormRef.value) {
+    try {
+      await taskEditFormRef.value.validate()
+    } catch {
+      ElMessage.warning('请填写表单中的必填项再保存')
+      return
+    }
+  }
   savingTask.value = true
   try {
     const payload: UpdateTaskInfoPayload = {
@@ -1251,6 +1343,7 @@ async function handleSaveTask(): Promise<void> {
     }
     ElMessage.success('任务信息已保存')
     isEditing.value = false
+    taskEditFormRef.value?.clearValidate()
   } catch {
     ElMessage.error('保存失败')
   } finally {
@@ -3072,6 +3165,28 @@ onUnmounted(() => {
 
 .task-info-section {
   margin-bottom: 16px;
+}
+
+.task-detail-edit-form {
+  width: 100%;
+}
+
+.task-detail-inline-form-item {
+  width: 100%;
+  margin-bottom: 0;
+}
+
+.task-detail-inline-form-item :deep(.el-form-item__label) {
+  flex-shrink: 0;
+  min-width: 7em;
+  padding-right: 0;
+  color: #303133;
+  font-weight: normal;
+}
+
+.task-detail-inline-form-item :deep(.el-form-item__content) {
+  flex: 1;
+  min-width: 0;
 }
 
 .task-detail-field-line--edit {
