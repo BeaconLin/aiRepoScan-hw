@@ -8,6 +8,9 @@ import type { TaskDetailPaginationInfo } from '@/api/types/saveAnnotation'
  */
 export type TaskDetailAnnotationStatusFilter = '' | 'unmarked' | '0' | '1' | '2'
 
+/** 扫描结果评审状态筛选（GET scan-results query reviewStatus） */
+export type TaskDetailReviewStatusFilter = '' | '0' | '1'
+
 // ---------------------------------------------------------------------------
 // 与接口文档 1.2.1 / 1.2.2 一致的 HTTP 响应形（meta.success + data），供本地模拟
 // ---------------------------------------------------------------------------
@@ -80,6 +83,9 @@ export interface TaskScanResultAnnotationApiDoc {
     issueResult: number
     reason: string | null
     annotationStatus: number
+    reviewStatus?: number | null
+    reviewerUserId?: string | null
+    reviewTime?: string | null
     createTime: string
     updateTime: string
     userName: string | null

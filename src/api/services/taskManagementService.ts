@@ -21,11 +21,12 @@ const taskManagementService = {
   // 查询任务基本信息
   getTaskInfo: (taskId: string): any => service.get(`${REPO_SCAN_URL}/api/tasks/${taskId}/info`),
   // 查询任务扫描结果
-  getTaskScanResults: (taskId: string, pageNum: number, pageSize: number, ruleName?: string, annotation?: string): any => service.get(`${REPO_SCAN_URL}/api/tasks/${taskId}/scan-results`, {
+  getTaskScanResults: (taskId: string, pageNum: number, pageSize: number, ruleName?: string, annotation?: string, reviewStatus?: string): any => service.get(`${REPO_SCAN_URL}/api/tasks/${taskId}/scan-results`, {
     pageNum,
     pageSize,
     ...ruleName && {ruleName},
-    ...annotation && {annotation}
+    ...annotation && {annotation},
+    ...reviewStatus && {reviewStatus}
   }),
   saveAnnotationApi: (reqBody: any): any => {
     return service.post(`${REPO_SCAN_URL}/api/annotations`, reqBody)
@@ -69,6 +70,19 @@ const taskManagementService = {
   /** 启动代码仓扫描任务 */
   startTaskScan: (taskId: string): any =>
     service.post(`${REPO_SCAN_URL}/api/tasks/${taskId}/start`, {}),
+  /** 保存缺陷标注评审结果 */
+  saveAnnotationReviewApi: (reqBody: {
+    taskId: string
+    warnUuid: string
+    decision: 'approve' | 'reject'
+    comment?: string
+  }): any => service.post(`${REPO_SCAN_URL}/api/annotations/review`, reqBody),
+  getAnnotationSubmitHistory: (taskId: string, warnUuid: string): any =>
+    service.get(`${REPO_SCAN_URL}/api/tasks/${taskId}/annotations/${warnUuid}/submit-history`),
+  getAnnotationReviewHistory: (taskId: string, warnUuid: string): any =>
+    service.get(`${REPO_SCAN_URL}/api/tasks/${taskId}/annotations/${warnUuid}/review-history`),
+  getAnnotationTimeline: (taskId: string, warnUuid: string): any =>
+    service.get(`${REPO_SCAN_URL}/api/tasks/${taskId}/annotations/${warnUuid}/timeline`),
 };
 
 export default taskManagementService;

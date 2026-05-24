@@ -630,6 +630,23 @@
                         </el-select>
                       </div>
                     </div>
+                    <div class="annotation-filter">
+                      <div class="filter-label">评审状态筛选：</div>
+                      <div class="filter-options">
+                        <el-select
+                            v-model="filterForm.reviewStatus"
+                            @change="handleScanFilterRefetch"
+                            placeholder="请选择评审状态"
+                            clearable
+                            class="annotation-filter-select"
+                            style="width: 200px"
+                        >
+                          <el-option label="全部" value=""/>
+                          <el-option label="待评审" value="0"/>
+                          <el-option label="已通过" value="1"/>
+                        </el-select>
+                      </div>
+                    </div>
                   </div>
                   <div ref="scanResultListContentRef" class="list-content">
                     <div v-if="filteredScanResultsList.length === 0" class="empty-results">
@@ -649,6 +666,14 @@
                     >
                       <div class="result-header">
                         <span class="result-title">{{ result.self_increment_id }}、{{ result.rule_name }}</span>
+                        <el-tag
+                            v-if="getReviewStatusLabel(result)"
+                            :type="getReviewStatusTagType(result)"
+                            size="small"
+                            style="margin-left: 8px"
+                        >
+                          {{ getReviewStatusLabel(result) }}
+                        </el-tag>
                         <el-tag
                             v-if="result.issue_result !== null && false"
                             :type="getIssueResultTagType(result.issue_result)"
@@ -745,11 +770,15 @@
                         </div>
                       </div>
                       <div class="result-actions">
-                        <div
-                            class="annotation-section"
-                            :class="{ 'annotation-section--readonly': !canModifyAnnotation(result) }"
-                        >
-                          <div class="annotation-label annotation-label--emphasis">缺陷标注</div>
+                        <div class="annotation-review-block">
+                          <div
+                              class="annotation-section"
+                              :class="{ 'annotation-section--readonly': isAnnotationSectionReadonly(result) }"
+                          >
+                            <div class="annotation-label annotation-label--emphasis">
+                              缺陷标注
+                              <span v-if="isShowingRejectedSnapshot(result)" class="annotation-snapshot-badge">（已驳回）</span>
+                            </div>
                           <el-radio-group
                               :model-value="getAnnotationIssueResult(result)"
                               :disabled="!canModifyAnnotation(result)"
@@ -779,13 +808,20 @@
 
                           </div>
                           <el-button
+                              v-if="!isShowingRejectedSnapshot(result)"
                               :disabled="!canModifyAnnotation(result)"
                               @click="submitAnnotation(result)"
                           >
                             提交
                           </el-button>
                           <p
-                              v-if="!canModifyAnnotation(result)"
+                              v-if="isShowingRejectedSnapshot(result)"
+                              class="annotation-readonly-tip"
+                          >
+                            该标注已被驳回，内容只读展示；标注人可修改后重新提交
+                          </p>
+                          <p
+                              v-else-if="!canModifyAnnotation(result)"
                               class="annotation-readonly-tip"
                           >
                             该告警已由
@@ -793,15 +829,59 @@
                             标注，仅标注人可修改
                           </p>
                           <!-- 标注信息显示 -->
-                          <div v-if="result.annotation?.annotationStatus" class="annotation-info">
+                          <div v-if="result.annotation?.annotationStatus || isShowingRejectedSnapshot(result)" class="annotation-info">
                           <span class="annotation-info-text">
-                            <span class="annotation-user">{{ result.annotation?.userId }}</span>
+                            <span class="annotation-user">{{ getAnnotationOwnerDisplay(result) }}</span>
                             <span
+                                v-if="result.annotation?.createTime || result.annotation?.updateTime"
                                 class="annotation-time">{{
                                 result.annotation?.createTime || result.annotation?.updateTime
                               }}</span>
                           </span>
                           </div>
+                        </div>
+                        <div
+                            v-if="shouldShowReviewSection(result)"
+                            class="review-section"
+                        >
+                          <div class="annotation-label annotation-label--emphasis">标注评审</div>
+                          <div v-if="canShowReviewActions(result)" class="review-actions">
+                            <el-button
+                                type="success"
+                                size="small"
+                                :loading="reviewSubmitting"
+                                @click="handleApproveReview(result)"
+                            >
+                              通过
+                            </el-button>
+                            <el-button type="warning" size="small" @click="openRejectReviewDialog(result)">
+                              驳回
+                            </el-button>
+                            <el-button size="small" link type="primary" @click="openTimelineDialog(result)">
+                              操作记录
+                            </el-button>
+                          </div>
+                          <div v-else-if="getReviewResultSummary(result)" class="review-result">
+                            <el-tag
+                                :type="getReviewResultSummary(result)!.action === 'approve' ? 'success' : 'warning'"
+                                size="small"
+                            >
+                              {{ getReviewResultSummary(result)!.action === 'approve' ? '已通过' : '已驳回' }}
+                            </el-tag>
+                            <span class="review-result-meta">
+                              {{ formatReviewResultMeta(getReviewResultSummary(result)!) }}
+                            </span>
+                            <p
+                                v-if="getReviewResultSummary(result)!.rejectReason"
+                                class="review-result-reason"
+                            >
+                              驳回理由：{{ getReviewResultSummary(result)!.rejectReason }}
+                            </p>
+                            <el-button size="small" link type="primary" @click="openTimelineDialog(result)">
+                              操作记录
+                            </el-button>
+                          </div>
+                        </div>
                         </div>
                       </div>
                     </div>
@@ -979,6 +1059,48 @@
         </button>
       </Transition>
     </Teleport>
+
+    <el-dialog
+        v-model="rejectReviewDialogVisible"
+        title="驳回标注"
+        width="480px"
+        destroy-on-close
+    >
+      <el-input
+          v-model="rejectReviewComment"
+          type="textarea"
+          :rows="4"
+          placeholder="请填写驳回理由（必填）"
+      />
+      <template #footer>
+        <el-button @click="rejectReviewDialogVisible = false">取消</el-button>
+        <el-button type="warning" :loading="reviewSubmitting" @click="confirmRejectReview">
+          确认驳回
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+        v-model="timelineDialogVisible"
+        title="操作记录"
+        width="560px"
+        destroy-on-close
+    >
+      <div v-if="timelineLoading" class="timeline-loading">加载中...</div>
+      <div v-else-if="timelineEvents.length === 0" class="timeline-empty">暂无操作记录</div>
+      <el-timeline v-else>
+        <el-timeline-item
+            v-for="(ev, idx) in timelineEvents"
+            :key="idx"
+            :timestamp="ev.time"
+            placement="top"
+        >
+          <div class="timeline-event-title">{{ formatTimelineEventTitle(ev) }}</div>
+          <div v-if="ev.reason" class="timeline-event-detail">原因：{{ ev.reason }}</div>
+          <div v-if="ev.rejectReason" class="timeline-event-detail">驳回理由：{{ ev.rejectReason }}</div>
+        </el-timeline-item>
+      </el-timeline>
+    </el-dialog>
   </div>
 </template>
 
@@ -1012,6 +1134,9 @@ import {
   ElResult,
   ElForm,
   ElFormItem,
+  ElDialog,
+  ElTimeline,
+  ElTimelineItem,
 } from 'element-plus'
 import type { FormInstance, FormRules, UploadFile, UploadFiles } from 'element-plus'
 import {
@@ -1026,6 +1151,8 @@ import {
   getTaskScanResults,
   uploadScanResultFile,
   saveAnnotationApi,
+  saveAnnotationReviewApi,
+  getAnnotationTimeline,
   getAnnotationStatistics,
   updateTaskInfo,
   startTaskScan,
@@ -1033,7 +1160,8 @@ import {
 import type { UpdateTaskInfoPayload } from '@/api/types'
 import type { TaskScanResultApiDocRow } from '@/api/types/taskApiDoc'
 import type { AnnotationStatistics } from '@/api/types'
-import type { SaveAnnotationReqBody, TaskDetailPaginationInfo } from '@/api/types/saveAnnotation'
+import type { SaveAnnotationReqBody, SaveAnnotationResultData, TaskDetailPaginationInfo } from '@/api/types/saveAnnotation'
+import type { ReviewRecordSummary, SaveAnnotationReviewResultData, TimelineEvent } from '@/api/types/annotationReview'
 import CodeBlock from '@/views/taskManagement/components/CodeBlock.vue'
 import { copyText } from '@/utils/utils'
 
@@ -1098,6 +1226,17 @@ interface Annotation {
   userName?: string | null // 用户姓名
   userDepartment?: string | null // 用户部门
   taskId?: string | null // 任务id
+  reviewStatus?: number | null // 0 待评审 1 已通过
+  reviewerUserId?: string | null
+  reviewerUserName?: string | null
+  reviewTime?: string | null
+}
+
+interface RejectedAnnotationSnapshot {
+  issueResult: number
+  reason: string | null
+  userId: string
+  userName: string | null
 }
 
 interface ScanResult {
@@ -1121,6 +1260,8 @@ interface ScanResult {
   annotator?: string // 标注用户（兼容旧字段）
   annotationTime?: string // 标注时间（兼容旧字段）
   annotation: Annotation | null // 标注信息，可能为null
+  lastReview?: ReviewRecordSummary | null
+  rejectedAnnotationSnapshot?: RejectedAnnotationSnapshot | null
   // 兼容旧数据格式
   id?: string
   fileName?: string
@@ -1131,7 +1272,8 @@ interface ScanResult {
 interface FilterForm {
   keyword: string
   ruleName: string
-  issueResult: string // '0' | '1' | '2' | 'unmarked' | '' (空字符串表示未选择)
+  issueResult: string // '0' | '1' | '2' | 'unmarked' | '' 
+  reviewStatus: string // '0' | '1' | ''
 }
 
 interface RuleTreeNode {
@@ -1598,7 +1740,8 @@ function detachAnnotationScrollListener(): void {
 const filterForm = ref<FilterForm>({
   keyword: '',
   ruleName: '',
-  issueResult: ''
+  issueResult: '',
+  reviewStatus: '',
 })
 
 // 选中的规则树节点ID
@@ -1789,6 +1932,7 @@ const fetchTaskDetailPage = async (
 ): Promise<void> => {
   const ruleName = filterForm.value.ruleName?.trim()
   const annotation = filterForm.value.issueResult?.trim()
+  const reviewStatus = filterForm.value.reviewStatus?.trim()
 
   const infoRes = await getTaskInfo(taskId)
 
@@ -1805,6 +1949,7 @@ const fetchTaskDetailPage = async (
         pageSize,
         ruleName || undefined,
         annotation || undefined,
+        reviewStatus || undefined,
     )
   } catch (e) {
     console.error('获取扫描结果失败:', e)
@@ -1896,6 +2041,10 @@ const fetchTaskDetailPage = async (
               userName: item.annotation.userName || item.annotation.user_name || null,
               userDepartment: item.annotation.userDepartment || item.annotation.user_department || null,
               taskId: item.annotation.taskId || item.annotation.task_id || null,
+              reviewStatus: item.annotation.reviewStatus ?? null,
+              reviewerUserId: item.annotation.reviewerUserId ?? null,
+              reviewerUserName: item.annotation.reviewerUserName ?? null,
+              reviewTime: item.annotation.reviewTime ?? null,
             }
           }
           if (item.issue_result !== null && item.issue_result !== undefined) {
@@ -1911,6 +2060,8 @@ const fetchTaskDetailPage = async (
           }
           return null
         })(),
+        lastReview: item.lastReview ?? null,
+        rejectedAnnotationSnapshot: item.rejectedAnnotationSnapshot ?? null,
       }
       return result
     }) as ScanResult[]
@@ -2045,7 +2196,7 @@ function handleRefreshTaskDetail(): void {
 /** 是否有任何激活的筛选条件 */
 const hasActiveFilter = computed(() => {
     const f = filterForm.value
-    return !!(f.keyword?.trim() || f.ruleName?.trim() || f.issueResult?.trim())
+    return !!(f.keyword?.trim() || f.ruleName?.trim() || f.issueResult?.trim() || f.reviewStatus?.trim())
 })
 
 /** 任务已完成且接口确认扫描结果总数为 0（非筛选、非请求失败） */
@@ -2131,14 +2282,14 @@ const annotationStatusDisplay = computed(() => {
   const map = new Map((api.annotationDistribution ?? []).map(d => [d.resultCode, d]))
   const unPct = total > 0 ? Number(((api.unannotatedCount / total) * 100).toFixed(2)) : 0
   return {
-    needModify: map.get(0)?.annotationCount ?? 0,
+    needModify: map.get(2)?.annotationCount ?? 0,
     noNeedModify: map.get(1)?.annotationCount ?? 0,
-    falsePositive: map.get(2)?.annotationCount ?? 0,
+    falsePositive: map.get(0)?.annotationCount ?? 0,
     unmarked: api.unannotatedCount,
     pct: {
-      needModify: formatPercentText(map.get(0)?.percentage ?? 0),
+      needModify: formatPercentText(map.get(2)?.percentage ?? 0),
       noNeedModify: formatPercentText(map.get(1)?.percentage ?? 0),
-      falsePositive: formatPercentText(map.get(2)?.percentage ?? 0),
+      falsePositive: formatPercentText(map.get(0)?.percentage ?? 0),
       unmarked: formatPercentText(unPct),
     },
   }
@@ -2370,6 +2521,197 @@ const getIssueResultLabel = (issueResult: number): string => {
   return labelMap[issueResult] || '未知'
 }
 
+const rejectReviewDialogVisible = ref(false)
+const rejectReviewComment = ref('')
+const reviewSubmitting = ref(false)
+const reviewTargetResult = ref<ScanResult | null>(null)
+const timelineDialogVisible = ref(false)
+const timelineLoading = ref(false)
+const timelineEvents = ref<TimelineEvent[]>([])
+
+function getReviewStatusLabel(result: ScanResult): string {
+  const rs = result.annotation?.reviewStatus
+  if (rs === 1) return '已通过'
+  if (isShowingRejectedSnapshot(result)) return '已驳回'
+  if (result.annotation?.annotationStatus && rs !== 1) return '待评审'
+  return ''
+}
+
+function getReviewStatusTagType(result: ScanResult): TagType {
+  const rs = result.annotation?.reviewStatus
+  if (rs === 1) return 'success'
+  if (isShowingRejectedSnapshot(result)) return 'warning'
+  if (result.annotation?.annotationStatus) return 'info'
+  return 'info'
+}
+
+function isShowingRejectedSnapshot(result: ScanResult): boolean {
+  return !hasPersistedAnnotation(result) && !!result.rejectedAnnotationSnapshot
+}
+
+function isAnnotationSectionReadonly(result: ScanResult): boolean {
+  if (isShowingRejectedSnapshot(result)) return true
+  return !canModifyAnnotation(result)
+}
+
+function shouldShowReviewSection(result: ScanResult): boolean {
+  return canShowReviewActions(result) || !!getReviewResultSummary(result)
+}
+
+function getReviewResultSummary(result: ScanResult): ReviewRecordSummary | null {
+  if (canShowReviewActions(result)) return null
+  if (result.annotation?.reviewStatus === 1) {
+    return result.lastReview ?? {
+      action: 'approve',
+      reviewerUserId: result.annotation.reviewerUserId ?? '',
+      reviewerUserName: result.annotation.reviewerUserName ?? null,
+      reviewTime: result.annotation.reviewTime ?? '',
+      rejectReason: null,
+    }
+  }
+  if (isShowingRejectedSnapshot(result) && result.lastReview?.action === 'reject') {
+    return result.lastReview
+  }
+  return null
+}
+
+function formatReviewResultMeta(summary: ReviewRecordSummary): string {
+  const reviewer = summary.reviewerUserName?.trim() || summary.reviewerUserId || '评审人'
+  return `${reviewer} · ${summary.reviewTime}`
+}
+
+function canShowReviewActions(result: ScanResult): boolean {
+  if (!result.annotation?.annotationStatus) return false
+  if (result.annotation.reviewStatus === 1) return false
+  return result.annotation.reviewStatus === 0 || result.annotation.reviewStatus == null
+}
+
+function formatTimelineEventTitle(ev: TimelineEvent): string {
+  if (ev.type === 'submit') {
+    const label = ev.action === 'resubmit' ? '重新标注' : ev.action === 'update' ? '修改标注' : '提交标注'
+    const issue = ev.issueResult != null ? getIssueResultLabel(ev.issueResult) : ''
+    return `${label}${issue ? `：${issue}` : ''}`
+  }
+  if (ev.action === 'approve') return `评审通过（${ev.reviewerUserName || ev.reviewerUserId || ''}）`
+  return `评审驳回（${ev.reviewerUserName || ev.reviewerUserId || ''}）`
+}
+
+async function applyReviewResultToRow(result: ScanResult, data: SaveAnnotationReviewResultData): Promise<void> {
+  if (data.reviewRecord) {
+    result.lastReview = data.reviewRecord
+  }
+  if (data.annotation) {
+    const ann = getOrInitAnnotation(result)
+    ann.issueResult = data.annotation.issueResult
+    ann.reviewStatus = data.annotation.reviewStatus ?? 1
+    ann.reviewerUserId = data.annotation.reviewerUserId ?? null
+    ann.reviewerUserName = data.annotation.reviewerUserName ?? data.reviewRecord?.reviewerUserName ?? null
+    ann.reviewTime = data.annotation.reviewTime ?? data.reviewRecord?.reviewTime ?? null
+    ann.annotationStatus = data.annotation.annotationStatus
+    ann.reason = data.annotation.reason ?? ann.reason
+    result.issue_result = data.annotation.issueResult as IssueResult
+    result.reason = data.annotation.reason ?? null
+    result.rejectedAnnotationSnapshot = null
+  } else {
+    result.rejectedAnnotationSnapshot = data.rejectedAnnotation ?? result.rejectedAnnotationSnapshot ?? null
+    result.annotation = null
+    result.issue_result = null
+    result.annotator = undefined
+    result.annotationTime = undefined
+    result.reason = null
+  }
+}
+
+async function handleApproveReview(result: ScanResult): Promise<void> {
+  const taskId = route.params.id as string
+  const warnUuid = result.warn_uuid || result.id
+  if (!taskId || !warnUuid) return
+  reviewSubmitting.value = true
+  try {
+    const res = await saveAnnotationReviewApi(
+        { taskId, warnUuid, decision: 'approve' },
+        { userId: userInfo?.w3Id || '', userName: userInfo?.nameCn || null },
+    )
+    if (!res.meta.isSuccess || !res.data) {
+      throw new Error(res.meta.message || '评审失败')
+    }
+    await applyReviewResultToRow(result, res.data)
+    ElMessage.success('评审已通过')
+    await refreshStatsAfterReview(taskId)
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '评审失败')
+  } finally {
+    reviewSubmitting.value = false
+  }
+}
+
+function openRejectReviewDialog(result: ScanResult): void {
+  reviewTargetResult.value = result
+  rejectReviewComment.value = ''
+  rejectReviewDialogVisible.value = true
+}
+
+async function confirmRejectReview(): Promise<void> {
+  const result = reviewTargetResult.value
+  const taskId = route.params.id as string
+  const warnUuid = result?.warn_uuid || result?.id
+  const comment = rejectReviewComment.value.trim()
+  if (!result || !taskId || !warnUuid) return
+  if (!comment) {
+    ElMessage.warning('请填写驳回理由')
+    return
+  }
+  reviewSubmitting.value = true
+  try {
+    const res = await saveAnnotationReviewApi(
+        { taskId, warnUuid, decision: 'reject', comment },
+        { userId: userInfo?.w3Id || '', userName: userInfo?.nameCn || null },
+    )
+    if (!res.meta.isSuccess || !res.data) {
+      throw new Error(res.meta.message || '驳回失败')
+    }
+    await applyReviewResultToRow(result, res.data)
+    rejectReviewDialogVisible.value = false
+    ElMessage.success('已驳回')
+    await refreshStatsAfterReview(taskId)
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '驳回失败')
+  } finally {
+    reviewSubmitting.value = false
+  }
+}
+
+async function openTimelineDialog(result: ScanResult): Promise<void> {
+  const taskId = route.params.id as string
+  const warnUuid = result.warn_uuid || result.id
+  if (!taskId || !warnUuid) return
+  timelineDialogVisible.value = true
+  timelineLoading.value = true
+  timelineEvents.value = []
+  try {
+    const res = await getAnnotationTimeline(taskId, warnUuid)
+    if (!res.meta.isSuccess || !res.data) {
+      throw new Error(res.meta.message || '加载失败')
+    }
+    timelineEvents.value = res.data.events ?? []
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '加载操作记录失败')
+  } finally {
+    timelineLoading.value = false
+  }
+}
+
+async function refreshStatsAfterReview(taskId: string): Promise<void> {
+  try {
+    const statisticsResponse = await getAnnotationStatistics(taskId)
+    if (statisticsResponse.meta.isSuccess && statisticsResponse.data) {
+      annotationStatistics.value = statisticsResponse.data
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 /** 已持久化到服务端的标注（含他人标注） */
 const hasPersistedAnnotation = (result: ScanResult): boolean => {
   if (result.annotation?.annotationStatus === 1) return true
@@ -2387,6 +2729,11 @@ const getAnnotationOwnerId = (result: ScanResult): string => {
 }
 
 const getAnnotationOwnerDisplay = (result: ScanResult): string => {
+  if (isShowingRejectedSnapshot(result)) {
+    return result.rejectedAnnotationSnapshot?.userName?.trim()
+        || result.rejectedAnnotationSnapshot?.userId
+        || '其他用户'
+  }
   return result.annotation?.userName?.trim() || getAnnotationOwnerId(result) || '其他用户'
 }
 
@@ -2408,6 +2755,9 @@ const isCurrentUserAnnotator = (ownerId: string): boolean => {
 
 /** 未标注：任何人可首次标注；已标注：仅首次标注人可修改 */
 const canModifyAnnotation = (result: ScanResult): boolean => {
+  if (isShowingRejectedSnapshot(result)) {
+    return isCurrentUserAnnotator(result.rejectedAnnotationSnapshot!.userId)
+  }
   if (!hasPersistedAnnotation(result)) return true
   const owner = getAnnotationOwnerId(result)
   if (!owner) return true
@@ -2435,6 +2785,9 @@ const getOrInitAnnotation = (result: ScanResult): Annotation => {
 
 // 获取annotation的issueResult（用于v-model）
 const getAnnotationIssueResult = (result: ScanResult): IssueResult => {
+  if (isShowingRejectedSnapshot(result)) {
+    return result.rejectedAnnotationSnapshot!.issueResult as IssueResult
+  }
   const annotation = getOrInitAnnotation(result)
   const fromAnn = annotation.issueResult
   if (fromAnn !== null && fromAnn !== undefined) {
@@ -2452,8 +2805,25 @@ const getAnnotationIssueResult = (result: ScanResult): IssueResult => {
 /** 单选切换：仅保存标注结果，reason 传空；提交按钮：保存标注结果 + 原因 */
 type AnnotationSaveMode = 'issueOnly' | 'withReason'
 
+const promoteRejectedSnapshotToAnnotation = (result: ScanResult): void => {
+  const snap = result.rejectedAnnotationSnapshot
+  if (!snap) return
+  result.rejectedAnnotationSnapshot = null
+  result.lastReview = null
+  const annotation = getOrInitAnnotation(result)
+  annotation.issueResult = snap.issueResult as IssueResult
+  annotation.reason = snap.reason
+  annotation.userId = snap.userId
+  annotation.userName = snap.userName
+  result.issue_result = snap.issueResult as IssueResult
+  result.reason = snap.reason
+}
+
 // 设置annotation的issueResult（兼容 el-radio-group 等组件的 update 值类型）
 const setAnnotationIssueResult = (result: ScanResult, value: unknown): void => {
+  if (isShowingRejectedSnapshot(result)) {
+    promoteRejectedSnapshotToAnnotation(result)
+  }
   if (!assertCanModifyAnnotation(result)) return
   const annotation = getOrInitAnnotation(result)
   let parsed: number | null = null
@@ -2476,12 +2846,18 @@ const setAnnotationIssueResult = (result: ScanResult, value: unknown): void => {
 
 // 获取annotation的reason（用于v-model）
 const getAnnotationReason = (result: ScanResult): string => {
+  if (isShowingRejectedSnapshot(result)) {
+    return result.rejectedAnnotationSnapshot?.reason || ''
+  }
   const annotation = getOrInitAnnotation(result)
   return annotation.reason || ''
 }
 
 // 设置annotation的reason
 const setAnnotationReason = (result: ScanResult, value: string): void => {
+  if (isShowingRejectedSnapshot(result)) {
+    promoteRejectedSnapshotToAnnotation(result)
+  }
   if (!assertCanModifyAnnotation(result)) return
   const annotation = getOrInitAnnotation(result)
   annotation.reason = value || null
@@ -2591,6 +2967,9 @@ const saveAnnotationHandler = async (
       annotation.userName = saved.userName
       annotation.userDepartment = saved.userDepartment
       annotation.taskId = saved.taskId ?? taskId
+      annotation.reviewStatus = saved.reviewStatus ?? 0
+      annotation.reviewerUserId = saved.reviewerUserId ?? null
+      annotation.reviewTime = saved.reviewTime ?? null
 
       const statusText = getIssueResultLabel(value)
       ElMessage.success(`已标注为：${statusText}`)
@@ -3946,9 +4325,17 @@ onUnmounted(() => {
 
 .result-actions {
   display: flex;
-  justify-content: flex-start;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   margin-top: 16px;
+  width: 100%;
+}
+
+.annotation-review-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
 }
 
 .annotation-section {
@@ -3958,6 +4345,66 @@ onUnmounted(() => {
   width: 100%;
   flex-wrap: wrap;
   position: relative;
+}
+
+.review-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.review-result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.review-result-meta {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.review-result-reason {
+  margin: 0;
+  font-size: 13px;
+  color: #374151;
+  line-height: 1.5;
+}
+
+.annotation-snapshot-badge {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #d97706;
+}
+
+.timeline-event-title {
+  margin: 0 0 4px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.timeline-event-detail {
+  margin: 0;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.list-header-with-filter {
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .annotation-label {

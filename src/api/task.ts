@@ -18,6 +18,7 @@ import type {
     TaskListPageData,
     TaskStatus,
     TaskDetailAnnotationStatusFilter,
+    TaskDetailReviewStatusFilter,
     ApiDocHttpMeta,
     TaskInfoApiDocData,
     TaskInfoApiDocResponse,
@@ -28,7 +29,26 @@ import type {
     UploadScanResultFileResponse,
     UpdateTaskInfoPayload,
     StartTaskScanData,
+    SaveAnnotationReviewReqBody,
+    SaveAnnotationReviewResultData,
+    SubmitHistoryListData,
+    ReviewHistoryListData,
+    AnnotationTimelineData,
 } from './types'
+import {
+    appendSubmitHistory,
+    buildTimeline,
+    countReviewStats,
+    filterByReviewStatus,
+    getReviewDisplayContext,
+    getReviewHistoryListData,
+    getSubmitHistoryListData,
+    nextRoundNo,
+    persistedToSaveResult,
+    processReviewMock,
+    resolveSubmitAction,
+    type PersistedAnnotationMeta,
+} from './mockAnnotationReview'
 
 /** 与历史 task store 一致，用于任务列表持久化 */
 const TASKS_STORAGE_KEY = 'aiRepoScan_tasks'
@@ -366,7 +386,7 @@ const mockTaskDetails: Record<string, TaskDetail> = {
 }
 
 // 存储标注数据（按任务ID和warn_uuid存储）
-const annotationsData: Record<string, Record<string, AnnotationData>> = {
+const annotationsData: Record<string, Record<string, PersistedAnnotationMeta>> = {
     'T00112233-4455-6677-8899-aabbccddeeff': {
         // 需要修改 (0)
         'w00112233-4455-6677-8899-aabbccddeeff': {
@@ -522,15 +542,19 @@ function rowAnnToAnnotation(
     }
 }
 
-function annDataToAnnotation(warnUuid: string, taskId: string, ann: AnnotationData): Annotation {
+function annDataToAnnotation(warnUuid: string, taskId: string, ann: PersistedAnnotationMeta): Annotation {
     const time = ann.annotationTime?.trim() || formatAnnotationResponseTime()
     return {
-        id: mockAnnotationIdForWarnUuid(warnUuid),
+        id: ann.recordId ?? mockAnnotationIdForWarnUuid(warnUuid),
         warnUuid,
         userId: ann.annotator,
         issueResult: ann.issue_result as number,
         reason: ann.reason ?? null,
         annotationStatus: 1,
+        reviewStatus: ann.reviewStatus ?? 0,
+        reviewerUserId: ann.reviewerUserId ?? null,
+        reviewerUserName: ann.reviewerUserName ?? null,
+        reviewTime: ann.reviewTime ?? null,
         createTime: time,
         updateTime: time,
         userName: null,
@@ -547,7 +571,7 @@ function buildMockScanResultAnnotation(
     warnUuid: string,
     taskId: string,
     rowAnn: TaskScanResultAnnotationApiDoc | null | undefined,
-    persisted?: AnnotationData,
+    persisted?: PersistedAnnotationMeta,
 ): Annotation | null {
     const hasRow = rowAnn != null
     const hasPersisted =
@@ -568,7 +592,12 @@ function buildMockScanResultAnnotation(
         userId: p.annotator,
         reason: p.reason !== undefined ? (p.reason ?? null) : base.reason,
         annotationStatus: 1,
+        reviewStatus: p.reviewStatus ?? 0,
+        reviewerUserId: p.reviewerUserId ?? null,
+        reviewerUserName: p.reviewerUserName ?? null,
+        reviewTime: p.reviewTime ?? null,
         updateTime: time,
+        id: p.recordId ?? base.id,
     }
 }
 
@@ -580,6 +609,9 @@ function scanAnnotationToApiDoc(a: Annotation): TaskScanResultAnnotationApiDoc {
         issueResult: a.issueResult,
         reason: a.reason,
         annotationStatus: a.annotationStatus,
+        reviewStatus: a.reviewStatus ?? null,
+        reviewerUserId: a.reviewerUserId ?? null,
+        reviewTime: a.reviewTime ?? null,
         createTime: a.createTime,
         updateTime: a.updateTime,
         userName: a.userName,
@@ -591,11 +623,13 @@ function scanAnnotationToApiDoc(a: Annotation): TaskScanResultAnnotationApiDoc {
 function mockRowToScanResult(
     r: MockScanResultRow,
     taskId: string,
-    ann?: AnnotationData,
+    ann?: PersistedAnnotationMeta,
 ): ScanResult {
     const warnUuid = r.warn_uuid
     const annotation = buildMockScanResultAnnotation(warnUuid, taskId, r.annotation, ann)
     const issueResult = (annotation?.issueResult ?? null) as IssueResult
+    const hasActiveAnnotation = annotation != null && annotation.annotationStatus === 1
+    const reviewCtx = getReviewDisplayContext(taskId, warnUuid, hasActiveAnnotation)
     return {
         warn_uuid: warnUuid,
         file_name: r.file_name,
@@ -618,6 +652,8 @@ function mockRowToScanResult(
         annotator: annotation?.userId ?? ann?.annotator,
         annotationTime: annotation?.updateTime ?? ann?.annotationTime,
         annotation,
+        lastReview: reviewCtx?.lastReview ?? null,
+        rejectedAnnotationSnapshot: reviewCtx?.rejectedSnapshot ?? null,
     }
 }
 
@@ -920,7 +956,7 @@ reconcileMockScanResults()
 })()
 
 // 获取任务的标注数据
-const getAnnotationsForTask = (taskId: string): Record<string, AnnotationData> => {
+const getAnnotationsForTask = (taskId: string): Record<string, PersistedAnnotationMeta> => {
     return annotationsData[taskId] || {}
 }
 
@@ -980,9 +1016,9 @@ export const queryTaskList = async (
  */
 /**
  * 更新任务信息（Mock：写入 mockTaskDetails 并持久化 localStorage）
- * 与接口文档 1.8 响应 `{ meta, data: null }` 一致；不修改 creator / createTime / nameCn。
+ * 与接口文档 1.5 响应 `{ meta, data: null }` 一致；不修改 creator / createTime / nameCn。
  *
- * 注意：接口文档 1.8 中 URL 误写为 `/api/tasks/{taskId}/annotation-statistics`，实际应为 `PUT /api/tasks/{taskId}`（见 taskManagementService 注释）。
+ * 路径：`PUT /api/tasks/{taskId}`（见接口文档 1.5、taskManagementService）。
  */
 export const updateTaskInfo = async (
     taskId: string,
@@ -1144,6 +1180,19 @@ export const uploadScanResultFile = async (
     }
 }
 
+function filterScanResultsByReviewStatus(
+    results: ScanResult[],
+    reviewStatus: string | undefined,
+): ScanResult[] {
+    const raw = reviewStatus?.trim()
+    if (!raw) return results
+    return results.filter((r) => {
+        const hasAnn = r.annotation != null && r.issue_result !== null
+        const rs = r.annotation?.reviewStatus
+        return filterByReviewStatus(raw, rs, hasAnn)
+    })
+}
+
 function filterScanResultsByAnnotationStatus(
     results: ScanResult[],
     annotationStatus: string
@@ -1257,6 +1306,7 @@ export async function getTaskScanResults(
     pageSize: number,
     ruleName?: string,
     annotation?: string,
+    reviewStatus?: string,
 ): Promise<TaskScanResultsApiDocResponse> {
     await new Promise((r) => setTimeout(r, 0))
     const taskDetail = mockTaskDetails[taskId]
@@ -1290,6 +1340,7 @@ export async function getTaskScanResults(
 
     const annFilter = annotation == null ? '' : String(annotation).trim()
     scanResults = filterScanResultsByAnnotationStatus(scanResults, annFilter)
+    scanResults = filterScanResultsByReviewStatus(scanResults, reviewStatus)
     const rn = ruleName?.trim()
     if (rn) {
         scanResults = scanResults.filter((r) => (r.rule_name || '').trim() === rn)
@@ -1419,7 +1470,6 @@ export const saveAnnotationApi = async (
 ): Promise<ApiEnvelope<SaveAnnotationResultData | null>> => {
     const { taskId, warnUuid, issueResult, userId } = reqBody
 
-    // 初始化任务标注数据
     if (!annotationsData[taskId]) {
         annotationsData[taskId] = {}
     }
@@ -1432,6 +1482,18 @@ export const saveAnnotationApi = async (
         if (existingOwner && requestUser && existingOwner !== requestUser) {
             return envelopeFail(null, 403, '仅首次标注人可修改该标注，您无法修改他人标记的结果')
         }
+        if (existing) {
+            appendSubmitHistory(taskId, warnUuid, {
+                annotationId: existing.recordId ?? null,
+                action: 'cancel',
+                roundNo: nextRoundNo(taskId, warnUuid, 'cancel'),
+                userId: requestUser || existingOwner,
+                userName: reqBody.userName?.trim() || null,
+                userDepartment: null,
+                issueResult: null,
+                reason: null,
+            })
+        }
         delete annotationsData[taskId][warnUuid]
         return envelopeOk(null)
     }
@@ -1440,30 +1502,87 @@ export const saveAnnotationApi = async (
         return envelopeFail(null, 403, '仅首次标注人可修改该标注，您无法修改他人标记的结果')
     }
 
+    const hadExisting = !!existing
+    const action = resolveSubmitAction(taskId, warnUuid, hadExisting, false)
+    const roundNo = nextRoundNo(taskId, warnUuid, action)
     const now = formatAnnotationResponseTime()
-    const data: SaveAnnotationResultData = {
-        id: mockSaveAnnotationIdSeq++,
-        warnUuid,
-        userId,
-        issueResult,
-        reason: reqBody.reason ?? '',
-        annotationStatus: 1,
-        createTime: now,
-        updateTime: now,
-        userName: reqBody.userName?.trim() ? reqBody.userName.trim() : null,
-        userDepartment: null,
-        taskId
-    }
 
-    // 保存标注（内存 mock 仍用 annotator 字段承载 userId）
-    annotationsData[taskId][warnUuid] = {
+    const recordId = existing?.recordId ?? mockSaveAnnotationIdSeq++
+    const meta: PersistedAnnotationMeta = {
         issue_result: issueResult,
         annotator: userId,
-        annotationTime: data.updateTime,
-        ...(reqBody.reason !== undefined ? { reason: reqBody.reason } : {})
+        annotationTime: now,
+        reason: reqBody.reason ?? '',
+        reviewStatus: 0,
+        reviewerUserId: null,
+        reviewerUserName: null,
+        reviewTime: null,
+        recordId,
+    }
+
+    const submitRow = appendSubmitHistory(taskId, warnUuid, {
+        annotationId: recordId,
+        action,
+        roundNo,
+        userId,
+        userName: reqBody.userName?.trim() || null,
+        userDepartment: null,
+        issueResult,
+        reason: reqBody.reason ?? null,
+        submitTime: now,
+    })
+
+    annotationsData[taskId][warnUuid] = meta
+
+    const data: SaveAnnotationResultData = {
+        ...persistedToSaveResult(taskId, warnUuid, meta, submitRow.id),
+        userName: reqBody.userName?.trim() ? reqBody.userName.trim() : null,
     }
 
     return envelopeOk(data)
+}
+
+export const saveAnnotationReviewApi = async (
+    reqBody: SaveAnnotationReviewReqBody,
+    reviewerUserId = 'r00123456',
+    reviewerUserName: string | null = '评审员',
+): Promise<ApiEnvelope<SaveAnnotationReviewResultData | null>> => {
+    const { taskId, warnUuid } = reqBody
+    const persisted = annotationsData[taskId]?.[warnUuid]
+    const result = processReviewMock(reqBody, persisted, reviewerUserId, reviewerUserName)
+    if (!result.ok) {
+        return envelopeFail(null, result.number, result.message)
+    }
+    if (reqBody.decision === 'reject') {
+        delete annotationsData[taskId][warnUuid]
+    } else if (persisted) {
+        annotationsData[taskId][warnUuid] = persisted
+    }
+    return envelopeOk(result.data)
+}
+
+export const getAnnotationSubmitHistory = async (
+    taskId: string,
+    warnUuid: string,
+): Promise<ApiEnvelope<SubmitHistoryListData>> => {
+    await new Promise((r) => setTimeout(r, 0))
+    return envelopeOk(getSubmitHistoryListData(taskId, warnUuid))
+}
+
+export const getAnnotationReviewHistory = async (
+    taskId: string,
+    warnUuid: string,
+): Promise<ApiEnvelope<ReviewHistoryListData>> => {
+    await new Promise((r) => setTimeout(r, 0))
+    return envelopeOk(getReviewHistoryListData(taskId, warnUuid))
+}
+
+export const getAnnotationTimeline = async (
+    taskId: string,
+    warnUuid: string,
+): Promise<ApiEnvelope<AnnotationTimelineData>> => {
+    await new Promise((r) => setTimeout(r, 0))
+    return envelopeOk(buildTimeline(taskId, warnUuid))
 }
 
 /**
@@ -1547,7 +1666,7 @@ export const getAnnotationStatistics = async (taskId: string): Promise<ApiEnvelo
         }
     })
 
-    // 与接口文档 1.5 一致：issue_result 0/1/2 → resultCode 2/1/0
+    // 与接口文档附录 A 一致：issue_result 0/1/2 → resultCode 2/1/0
     const annotationDistribution = []
     const docRows: Array<{ resultCode: number; resultDescription: string; count: number }> = [
         { resultCode: 2, resultDescription: '需要修改', count: statusCountMap[0] },
@@ -1592,6 +1711,7 @@ export const getAnnotationStatistics = async (taskId: string): Promise<ApiEnvelo
         statusDistribution: statusDistribution,
         annotationDistribution,
         ruleStatistics,
+        ...countReviewStats(taskId, annotations),
     }
 
     return envelopeOk(statistics)

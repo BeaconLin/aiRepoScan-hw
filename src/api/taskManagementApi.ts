@@ -12,6 +12,10 @@ import {
     getTaskScanResults as mockGetTaskScanResults,
     uploadScanResultFile as mockUploadScanResultFile,
     saveAnnotationApi as mockSaveAnnotationApi,
+    saveAnnotationReviewApi as mockSaveAnnotationReviewApi,
+    getAnnotationSubmitHistory as mockGetAnnotationSubmitHistory,
+    getAnnotationReviewHistory as mockGetAnnotationReviewHistory,
+    getAnnotationTimeline as mockGetAnnotationTimeline,
     getAnnotationStatistics as mockGetAnnotationStatistics,
     startTaskScan as mockStartTaskScan,
 } from '@/api/task'
@@ -25,6 +29,13 @@ import type {
     StartTaskScanData,
 } from '@/api/types'
 import type { SaveAnnotationReqBody, SaveAnnotationResultData } from '@/api/types/saveAnnotation'
+import type {
+    SaveAnnotationReviewReqBody,
+    SaveAnnotationReviewResultData,
+    SubmitHistoryListData,
+    ReviewHistoryListData,
+    AnnotationTimelineData,
+} from '@/api/types/annotationReview'
 import type { TaskListPageData } from '@/api/types/taskList'
 import type { TaskInfoApiDocResponse, TaskScanResultsApiDocResponse } from '@/api/types/taskApiDoc'
 import type { UploadScanResultFileResponse } from '@/api/types/upload'
@@ -76,10 +87,11 @@ export async function getTaskScanResults(
     pageSize: number,
     ruleName?: string,
     annotation?: string,
+    reviewStatus?: string,
 ): Promise<TaskScanResultsApiDocResponse> {
     return apiMode === 'live'
-        ? taskManagementService.getTaskScanResults(taskId, pageNum, pageSize, ruleName, annotation)
-        : mockGetTaskScanResults(taskId, pageNum, pageSize, ruleName, annotation)
+        ? taskManagementService.getTaskScanResults(taskId, pageNum, pageSize, ruleName, annotation, reviewStatus)
+        : mockGetTaskScanResults(taskId, pageNum, pageSize, ruleName, annotation, reviewStatus)
 }
 
 export async function uploadScanResultFile(
@@ -113,4 +125,46 @@ export async function startTaskScan(taskId: string): Promise<ApiEnvelope<StartTa
     return apiMode === 'live'
         ? taskManagementService.startTaskScan(taskId)
         : mockStartTaskScan(taskId)
+}
+
+/** 保存缺陷标注评审（POST `/api/annotations/review`） */
+export async function saveAnnotationReviewApi(
+    reqBody: SaveAnnotationReviewReqBody,
+    reviewer?: { userId: string; userName?: string | null },
+): Promise<ApiEnvelope<SaveAnnotationReviewResultData | null>> {
+    if (apiMode === 'live') {
+        return taskManagementService.saveAnnotationReviewApi(reqBody)
+    }
+    return mockSaveAnnotationReviewApi(
+        reqBody,
+        reviewer?.userId ?? 'r00123456',
+        reviewer?.userName ?? null,
+    )
+}
+
+export async function getAnnotationSubmitHistory(
+    taskId: string,
+    warnUuid: string,
+): Promise<ApiEnvelope<SubmitHistoryListData>> {
+    return apiMode === 'live'
+        ? taskManagementService.getAnnotationSubmitHistory(taskId, warnUuid)
+        : mockGetAnnotationSubmitHistory(taskId, warnUuid)
+}
+
+export async function getAnnotationReviewHistory(
+    taskId: string,
+    warnUuid: string,
+): Promise<ApiEnvelope<ReviewHistoryListData>> {
+    return apiMode === 'live'
+        ? taskManagementService.getAnnotationReviewHistory(taskId, warnUuid)
+        : mockGetAnnotationReviewHistory(taskId, warnUuid)
+}
+
+export async function getAnnotationTimeline(
+    taskId: string,
+    warnUuid: string,
+): Promise<ApiEnvelope<AnnotationTimelineData>> {
+    return apiMode === 'live'
+        ? taskManagementService.getAnnotationTimeline(taskId, warnUuid)
+        : mockGetAnnotationTimeline(taskId, warnUuid)
 }

@@ -20,6 +20,10 @@ export interface Annotation {
     issueResult: number // 0: 需要修改, 1: 无需修改, 2: 问题误报
     reason: string | null
     annotationStatus: number
+    reviewStatus?: import('./saveAnnotation').ReviewStatus | null
+    reviewerUserId?: string | null
+    reviewerUserName?: string | null
+    reviewTime?: string | null
     createTime: string
     updateTime: string
     userName: string | null
@@ -52,6 +56,10 @@ export interface ScanResult {
     annotator?: string
     annotationTime?: string
     annotation?: Annotation | null
+    /** 最近一次评审摘要（驳回且无有效标注时展示） */
+    lastReview?: import('./annotationReview').ReviewRecordSummary | null
+    /** 驳回后被评审标注的快照（只读展示） */
+    rejectedAnnotationSnapshot?: import('./annotationReview').RejectedAnnotationSnapshot | null
 }
 
 /** 任务详情接口 */
@@ -162,4 +170,10 @@ export interface AnnotationStatistics {
     annotationDistribution?: AnnotationResultDistributionItem[]
     /** 扫描告警规则统计 */
     ruleStatistics?: RuleStatisticItem[]
+    /** 待评审条数 */
+    pendingReviewCount?: number
+    /** 已通过条数 */
+    approvedReviewCount?: number
+    /** 累计驳回次数 */
+    rejectedReviewCount?: number
 }
