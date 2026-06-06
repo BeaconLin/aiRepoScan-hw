@@ -245,143 +245,189 @@
                     </div>
                   </el-card>
 
-                  <el-card class="task-detail-field-card" shadow="never">
-                    <template #header>
-                      <span class="task-detail-card-title">扫描设置</span>
-                    </template>
-                    <div class="task-detail-fields">
-                      <div
-                          class="task-detail-field-line"
-                          :class="{ 'task-detail-field-line--edit': isEditing }"
-                      >
-                        <template v-if="isEditing">
-                          <el-form-item label="扫描分支：" prop="branch" class="task-detail-inline-form-item">
-                            <el-input
-                                v-model="editForm.branch"
-                                placeholder="请输入扫描分支，例如：main、master"
-                                clearable
-                                class="task-detail-field-input"
-                            />
-                          </el-form-item>
-                        </template>
-                        <template v-else>
-                          <span>扫描分支：</span>
-                          <span>{{ task.branch || '未设置' }}</span>
-                        </template>
-                      </div>
-                      <div
-                          class="task-detail-field-line"
-                          :class="{ 'task-detail-field-line--edit': isEditing }"
-                      >
-                        <span>助手版本：</span>
-                        <template v-if="isEditing">
-                          <el-input
-                              v-model="editForm.assistantVersions"
-                              placeholder="多个版本用英文逗号分隔，如 v1.0.0,v2.0.0"
-                              clearable
-                              class="task-detail-field-input"
-                          />
-                        </template>
-                        <template v-else>
-                          <span>{{ assistantVersionsDisplay }}</span>
-                        </template>
-                      </div>
-                      <div
-                          class="task-detail-field-line"
-                          :class="{ 'task-detail-field-line--edit': isEditing }"
-                      >
-                        <template v-if="isEditing">
-                          <el-form-item label="扫描路径：" prop="pathList" class="task-detail-inline-form-item">
-                            <el-input
-                                v-model="editForm.pathList"
-                                placeholder="可选，多个路径使用英文逗号分隔，例如：src,view,utils"
-                                clearable
-                                class="task-detail-field-input"
-                            />
-                          </el-form-item>
-                        </template>
-                        <template v-else>
-                          <span>扫描路径：</span>
-                          <span>{{ pathListDisplay }}</span>
-                        </template>
-                      </div>
-                      <div
-                          class="task-detail-field-line"
-                          :class="{ 'task-detail-field-line--edit': isEditing }"
-                      >
-                        <span>本机启动URL：</span>
-                        <template v-if="isEditing">
-                          <el-input
-                              v-model="editForm.hostUrl"
-                              placeholder="如 http://127.0.0.1:3000"
-                              clearable
-                              class="task-detail-field-input"
-                          />
-                        </template>
-                        <template v-else>
-                          <span>{{ hostUrlDisplay }}</span>
-                        </template>
-                      </div>
-                      <div
-                          class="task-detail-field-line"
-                          :class="{ 'task-detail-field-line--edit': isEditing }"
-                      >
-                        <span>模型名称：</span>
-                        <template v-if="isEditing">
-                          <el-input
-                              v-model="editForm.modelName"
-                              placeholder="模型名称"
-                              clearable
-                              class="task-detail-field-input"
-                          />
-                        </template>
-                        <template v-else>
-                          <span>{{ modelNameDisplay }}</span>
-                        </template>
-                      </div>
-                      <div class="task-detail-field-line task-detail-field-line--start-scan">
-                        <span>扫描启动：</span>
-                        <el-button
-                            type="primary"
-                            size="small"
-                            :loading="startingTaskScan"
-                            :disabled="startScanButtonDisabled"
-                            @click="handleStartTaskScan"
-                        >启动扫描</el-button>
-                        <span
-                            v-if="startScanDisabledHint"
-                            class="task-detail-muted task-detail-start-scan-hint"
-                        >{{ startScanDisabledHint }}</span>
-                      </div>
-                      <div class="task-detail-field-line task-detail-field-line--scan-file">
-                        <div class="task-detail-scan-file-main">
-                          <div class="task-detail-scan-grid">
-                            <span class="task-detail-scan-label">扫描结果文件S3路径：</span>
-                            <span
-                                class="task-detail-scan-file-value"
-                                :title="scanResultFileDisplay || undefined"
-                            >{{ scanResultFileDisplay || '暂未上传' }}</span>
-                            <span
-                                class="task-detail-scan-hint">仅支持 JSON 格式；上传后将替换当前任务关联的扫描结果文件。</span>
-                          </div>
-                        </div>
-                        <el-upload
-                            ref="scanResultUploadRef"
-                            class="task-detail-scan-upload"
-                            :auto-upload="false"
-                            :show-file-list="false"
-                            :limit="1"
-                            accept=".json"
-                            :on-change="handleScanResultFileChange"
+                    <el-card class="task-detail-field-card" shadow="never">
+                      <template #header>
+                        <span class="task-detail-card-title">扫描设置</span>
+                      </template>
+                      <div class="task-detail-fields">
+                        <div
+                            class="task-detail-field-line"
+                            :class="{ 'task-detail-field-line--edit': isEditing }"
                         >
-                          <template #trigger>
-                            <el-button type="primary" size="small">{{ scanResultFileButtonText }}</el-button>
+                          <template v-if="isEditing">
+                            <el-form-item label="扫描分支：" prop="branch" class="task-detail-inline-form-item">
+                              <el-input
+                                  v-model="editForm.branch"
+                                  placeholder="请输入扫描分支，例如：main、master"
+                                  clearable
+                                  class="task-detail-field-input"
+                              />
+                            </el-form-item>
                           </template>
-                        </el-upload>
+                          <template v-else>
+                            <span>扫描分支：</span>
+                            <span>{{ task.branch || '未设置' }}</span>
+                          </template>
+                        </div>
+                        <div
+                            class="task-detail-field-line"
+                            :class="{ 'task-detail-field-line--edit': isEditing }"
+                        >
+                          <span>助手版本：</span>
+                          <template v-if="isEditing">
+                            <el-input
+                                v-model="editForm.assistantVersions"
+                                placeholder="多个版本用英文逗号分隔，如 v1.0.0,v2.0.0"
+                                clearable
+                                class="task-detail-field-input"
+                            />
+                          </template>
+                          <template v-else>
+                            <span>{{ assistantVersionsDisplay }}</span>
+                          </template>
+                        </div>
+                        <div
+                            class="task-detail-field-line"
+                            :class="{ 'task-detail-field-line--edit': isEditing }"
+                        >
+                          <template v-if="isEditing">
+                            <el-form-item label="扫描路径：" prop="pathList" class="task-detail-inline-form-item">
+                              <el-input
+                                  v-model="editForm.pathList"
+                                  placeholder="可选，多个路径使用英文逗号分隔，例如：src,view,utils"
+                                  clearable
+                                  class="task-detail-field-input"
+                              />
+                            </el-form-item>
+                          </template>
+                          <template v-else>
+                            <span>扫描路径：</span>
+                            <span>{{ pathListDisplay }}</span>
+                          </template>
+                        </div>
+                        <div class="task-detail-field-line">
+                          <span>CommitId：</span>
+                          <span v-if="task.commitId" class="task-detail-repo-url-inline">
+                            <span
+                                class="task-detail-repo-url-text"
+                                :title="task.commitId"
+                            >{{ task.commitId }}</span>
+                            <el-tooltip
+                                content="复制"
+                                placement="top"
+                                :show-after="200"
+                            >
+                              <el-button
+                                  type="primary"
+                                  link
+                                  size="small"
+                                  class="task-detail-repo-url-copy"
+                                  aria-label="复制 CommitId"
+                                  @click="handleCopyCommitId"
+                              >
+                                <svg
+                                    class="task-detail-repo-url-copy-icon"
+                                    viewBox="0 0 24 24"
+                                    width="14"
+                                    height="14"
+                                    aria-hidden="true"
+                                >
+                                  <path
+                                      fill="currentColor"
+                                      d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"
+                                  />
+                                </svg>
+                              </el-button>
+                            </el-tooltip>
+                          </span>
+                          <span v-else class="task-detail-muted">未设置</span>
+                        </div>
+                        <div
+                            class="task-detail-field-line"
+                            :class="{ 'task-detail-field-line--edit': isEditing }"
+                        >
+                          <span>本机启动URL：</span>
+                          <template v-if="isEditing">
+                            <el-input
+                                v-model="editForm.hostUrl"
+                                placeholder="如 http://127.0.0.1:3000"
+                                clearable
+                                class="task-detail-field-input"
+                            />
+                          </template>
+                          <template v-else>
+                            <span>{{ hostUrlDisplay }}</span>
+                          </template>
+                        </div>
+                        <div
+                            class="task-detail-field-line"
+                            :class="{ 'task-detail-field-line--edit': isEditing }"
+                        >
+                          <span>模型名称：</span>
+                          <template v-if="isEditing">
+                            <el-input
+                                v-model="editForm.modelName"
+                                placeholder="模型名称"
+                                clearable
+                                class="task-detail-field-input"
+                            />
+                          </template>
+                          <template v-else>
+                            <span>{{ modelNameDisplay }}</span>
+                          </template>
+                        </div>
+                        <div class="task-detail-field-line task-detail-field-line--start-scan">
+                          <span>扫描启动：</span>
+                          <el-button
+                              v-if="showStartScanButton"
+                              type="primary"
+                              size="small"
+                              :loading="startingTaskScan"
+                              :disabled="startScanButtonDisabled"
+                              @click="handleStartTaskScan"
+                          >启动扫描</el-button>
+                          <el-button
+                              v-else-if="showPauseTaskButton"
+                              type="warning"
+                              size="small"
+                              :loading="pausingTask"
+                              :disabled="pauseTaskButtonDisabled"
+                              @click="handlePauseTask"
+                          >暂停任务</el-button>
+                          <span
+                              v-if="showStartScanButton && startScanDisabledHint"
+                              class="task-detail-muted task-detail-start-scan-hint"
+                          >{{ startScanDisabledHint }}</span>
+                        </div>
+                        <div class="task-detail-field-line task-detail-field-line--scan-file">
+                          <div class="task-detail-scan-file-main">
+                            <div class="task-detail-scan-grid">
+                              <span class="task-detail-scan-label">扫描结果文件S3路径：</span>
+                              <span
+                                  class="task-detail-scan-file-value"
+                                  :title="scanResultFileDisplay || undefined"
+                              >{{ scanResultFileDisplay || '暂未上传' }}</span>
+                              <span
+                                  class="task-detail-scan-hint">仅支持 JSON 格式；上传后将替换当前任务关联的扫描结果文件。</span>
+                            </div>
+                          </div>
+                          <el-upload
+                              ref="scanResultUploadRef"
+                              class="task-detail-scan-upload"
+                              :auto-upload="false"
+                              :show-file-list="false"
+                              :limit="1"
+                              accept=".json"
+                              :on-change="handleScanResultFileChange"
+                          >
+                            <template #trigger>
+                              <el-button type="primary" size="small">{{ scanResultFileButtonText }}</el-button>
+                            </template>
+                          </el-upload>
+                        </div>
                       </div>
-                    </div>
-                  </el-card>
-                </div>
+                    </el-card>
+                  </div>
                 </el-form>
               </div>
 
@@ -630,23 +676,6 @@
                         </el-select>
                       </div>
                     </div>
-                    <div class="annotation-filter">
-                      <div class="filter-label">评审状态筛选：</div>
-                      <div class="filter-options">
-                        <el-select
-                            v-model="filterForm.reviewStatus"
-                            @change="handleScanFilterRefetch"
-                            placeholder="请选择评审状态"
-                            clearable
-                            class="annotation-filter-select"
-                            style="width: 200px"
-                        >
-                          <el-option label="全部" value=""/>
-                          <el-option label="待评审" value="0"/>
-                          <el-option label="已通过" value="1"/>
-                        </el-select>
-                      </div>
-                    </div>
                   </div>
                   <div ref="scanResultListContentRef" class="list-content">
                     <div v-if="filteredScanResultsList.length === 0" class="empty-results">
@@ -666,14 +695,6 @@
                     >
                       <div class="result-header">
                         <span class="result-title">{{ result.self_increment_id }}、{{ result.rule_name }}</span>
-                        <el-tag
-                            v-if="getReviewStatusLabel(result)"
-                            :type="getReviewStatusTagType(result)"
-                            size="small"
-                            style="margin-left: 8px"
-                        >
-                          {{ getReviewStatusLabel(result) }}
-                        </el-tag>
                         <el-tag
                             v-if="result.issue_result !== null && false"
                             :type="getIssueResultTagType(result.issue_result)"
@@ -770,15 +791,11 @@
                         </div>
                       </div>
                       <div class="result-actions">
-                        <div class="annotation-review-block">
-                          <div
-                              class="annotation-section"
-                              :class="{ 'annotation-section--readonly': isAnnotationSectionReadonly(result) }"
-                          >
-                            <div class="annotation-label annotation-label--emphasis">
-                              缺陷标注
-                              <span v-if="isShowingRejectedSnapshot(result)" class="annotation-snapshot-badge">（已驳回）</span>
-                            </div>
+                        <div
+                            class="annotation-section"
+                            :class="{ 'annotation-section--readonly': !canModifyAnnotation(result) }"
+                        >
+                          <div class="annotation-label annotation-label--emphasis">缺陷标注</div>
                           <el-radio-group
                               :model-value="getAnnotationIssueResult(result)"
                               :disabled="!canModifyAnnotation(result)"
@@ -808,20 +825,13 @@
 
                           </div>
                           <el-button
-                              v-if="!isShowingRejectedSnapshot(result)"
                               :disabled="!canModifyAnnotation(result)"
                               @click="submitAnnotation(result)"
                           >
                             提交
                           </el-button>
                           <p
-                              v-if="isShowingRejectedSnapshot(result)"
-                              class="annotation-readonly-tip"
-                          >
-                            该标注已被驳回，内容只读展示；标注人可修改后重新提交
-                          </p>
-                          <p
-                              v-else-if="!canModifyAnnotation(result)"
+                              v-if="!canModifyAnnotation(result)"
                               class="annotation-readonly-tip"
                           >
                             该告警已由
@@ -829,59 +839,15 @@
                             标注，仅标注人可修改
                           </p>
                           <!-- 标注信息显示 -->
-                          <div v-if="result.annotation?.annotationStatus || isShowingRejectedSnapshot(result)" class="annotation-info">
+                          <div v-if="result.annotation?.annotationStatus" class="annotation-info">
                           <span class="annotation-info-text">
-                            <span class="annotation-user">{{ getAnnotationOwnerDisplay(result) }}</span>
+                            <span class="annotation-user">{{ result.annotation?.userId }}</span>
                             <span
-                                v-if="result.annotation?.createTime || result.annotation?.updateTime"
                                 class="annotation-time">{{
                                 result.annotation?.createTime || result.annotation?.updateTime
                               }}</span>
                           </span>
                           </div>
-                        </div>
-                        <div
-                            v-if="shouldShowReviewSection(result)"
-                            class="review-section"
-                        >
-                          <div class="annotation-label annotation-label--emphasis">标注评审</div>
-                          <div v-if="canShowReviewActions(result)" class="review-actions">
-                            <el-button
-                                type="success"
-                                size="small"
-                                :loading="reviewSubmitting"
-                                @click="handleApproveReview(result)"
-                            >
-                              通过
-                            </el-button>
-                            <el-button type="warning" size="small" @click="openRejectReviewDialog(result)">
-                              驳回
-                            </el-button>
-                            <el-button size="small" link type="primary" @click="openTimelineDialog(result)">
-                              操作记录
-                            </el-button>
-                          </div>
-                          <div v-else-if="getReviewResultSummary(result)" class="review-result">
-                            <el-tag
-                                :type="getReviewResultSummary(result)!.action === 'approve' ? 'success' : 'warning'"
-                                size="small"
-                            >
-                              {{ getReviewResultSummary(result)!.action === 'approve' ? '已通过' : '已驳回' }}
-                            </el-tag>
-                            <span class="review-result-meta">
-                              {{ formatReviewResultMeta(getReviewResultSummary(result)!) }}
-                            </span>
-                            <p
-                                v-if="getReviewResultSummary(result)!.rejectReason"
-                                class="review-result-reason"
-                            >
-                              驳回理由：{{ getReviewResultSummary(result)!.rejectReason }}
-                            </p>
-                            <el-button size="small" link type="primary" @click="openTimelineDialog(result)">
-                              操作记录
-                            </el-button>
-                          </div>
-                        </div>
                         </div>
                       </div>
                     </div>
@@ -1059,50 +1025,9 @@
         </button>
       </Transition>
     </Teleport>
-
-    <el-dialog
-        v-model="rejectReviewDialogVisible"
-        title="驳回标注"
-        width="480px"
-        destroy-on-close
-    >
-      <el-input
-          v-model="rejectReviewComment"
-          type="textarea"
-          :rows="4"
-          placeholder="请填写驳回理由（必填）"
-      />
-      <template #footer>
-        <el-button @click="rejectReviewDialogVisible = false">取消</el-button>
-        <el-button type="warning" :loading="reviewSubmitting" @click="confirmRejectReview">
-          确认驳回
-        </el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog
-        v-model="timelineDialogVisible"
-        title="操作记录"
-        width="560px"
-        destroy-on-close
-    >
-      <div v-if="timelineLoading" class="timeline-loading">加载中...</div>
-      <div v-else-if="timelineEvents.length === 0" class="timeline-empty">暂无操作记录</div>
-      <el-timeline v-else>
-        <el-timeline-item
-            v-for="(ev, idx) in timelineEvents"
-            :key="idx"
-            :timestamp="ev.time"
-            placement="top"
-        >
-          <div class="timeline-event-title">{{ formatTimelineEventTitle(ev) }}</div>
-          <div v-if="ev.reason" class="timeline-event-detail">原因：{{ ev.reason }}</div>
-          <div v-if="ev.rejectReason" class="timeline-event-detail">驳回理由：{{ ev.rejectReason }}</div>
-        </el-timeline-item>
-      </el-timeline>
-    </el-dialog>
   </div>
 </template>
+
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
@@ -1134,9 +1059,6 @@ import {
   ElResult,
   ElForm,
   ElFormItem,
-  ElDialog,
-  ElTimeline,
-  ElTimelineItem,
 } from 'element-plus'
 import type { FormInstance, FormRules, UploadFile, UploadFiles } from 'element-plus'
 import {
@@ -1151,8 +1073,6 @@ import {
   getTaskScanResults,
   uploadScanResultFile,
   saveAnnotationApi,
-  saveAnnotationReviewApi,
-  getAnnotationTimeline,
   getAnnotationStatistics,
   updateTaskInfo,
   startTaskScan,
@@ -1160,8 +1080,7 @@ import {
 import type { UpdateTaskInfoPayload } from '@/api/types'
 import type { TaskScanResultApiDocRow } from '@/api/types/taskApiDoc'
 import type { AnnotationStatistics } from '@/api/types'
-import type { SaveAnnotationReqBody, SaveAnnotationResultData, TaskDetailPaginationInfo } from '@/api/types/saveAnnotation'
-import type { ReviewRecordSummary, SaveAnnotationReviewResultData, TimelineEvent } from '@/api/types/annotationReview'
+import type { SaveAnnotationReqBody, TaskDetailPaginationInfo } from '@/api/types/saveAnnotation'
 import CodeBlock from '@/views/taskManagement/components/CodeBlock.vue'
 import { copyText } from '@/utils/utils'
 
@@ -1201,7 +1120,7 @@ interface Task {
   modelName?: string
   warnCount?: number | null
   scanResults: any[]
-  // 兼容旧数据格式
+  commitId?: string
   id?: string
   status?: string
   scanPaths?: string | string[]
@@ -1226,17 +1145,6 @@ interface Annotation {
   userName?: string | null // 用户姓名
   userDepartment?: string | null // 用户部门
   taskId?: string | null // 任务id
-  reviewStatus?: number | null // 0 待评审 1 已通过
-  reviewerUserId?: string | null
-  reviewerUserName?: string | null
-  reviewTime?: string | null
-}
-
-interface RejectedAnnotationSnapshot {
-  issueResult: number
-  reason: string | null
-  userId: string
-  userName: string | null
 }
 
 interface ScanResult {
@@ -1260,8 +1168,6 @@ interface ScanResult {
   annotator?: string // 标注用户（兼容旧字段）
   annotationTime?: string // 标注时间（兼容旧字段）
   annotation: Annotation | null // 标注信息，可能为null
-  lastReview?: ReviewRecordSummary | null
-  rejectedAnnotationSnapshot?: RejectedAnnotationSnapshot | null
   // 兼容旧数据格式
   id?: string
   fileName?: string
@@ -1272,8 +1178,7 @@ interface ScanResult {
 interface FilterForm {
   keyword: string
   ruleName: string
-  issueResult: string // '0' | '1' | '2' | 'unmarked' | '' 
-  reviewStatus: string // '0' | '1' | ''
+  issueResult: string // '0' | '1' | '2' | 'unmarked' | '' (空字符串表示未选择)
 }
 
 interface RuleTreeNode {
@@ -1290,8 +1195,18 @@ const router = useRouter()
 const route = useRoute()
 const userInfo = useProfileStore().userInfo
 
+/** 与创建任务页一致，供编辑模式下拉选择 */
+const taskStatusSelectOptions = [
+  TASK_STATUS.NOT_STARTED,
+  TASK_STATUS.QUEUED,
+  TASK_STATUS.RUNNING,
+  TASK_STATUS.COMPLETED,
+  TASK_STATUS.FAILED,
+]
+
 const savingTask = ref(false)
 const startingTaskScan = ref(false)
+const pausingTask = ref(false)
 const taskEditFormRef = ref<FormInstance | null>(null)
 
 /** 仅允许 HTTPS Git 克隆地址，与创建任务弹窗一致 */
@@ -1361,6 +1276,7 @@ const editForm = reactive({
   branch: '',
   pathList: '',
   s3Path: '',
+  taskStatus: TASK_STATUS.NOT_STARTED,
   assistantVersions: '',
   productName: '',
   codeLanguage: 'Unknown',
@@ -1378,6 +1294,7 @@ function syncEditFormFromTask(t: Task): void {
   editForm.branch = t.branch || ''
   editForm.pathList = normalizePathListToString(t.pathList)
   editForm.s3Path = (t.s3Path || '').trim()
+  editForm.taskStatus = t.taskStatus || TASK_STATUS.NOT_STARTED
   editForm.assistantVersions = normalizeAssistantVersionsToParts(t.assistantVersions).join(',')
   editForm.productName = (t.productName || '').trim() || ''
   editForm.codeLanguage = t.codeLanguage || 'Unknown'
@@ -1424,7 +1341,7 @@ async function handleSaveTask(): Promise<void> {
       branch: editForm.branch.trim(),
       pathList: editForm.pathList.trim() || null,
       s3Path: editForm.s3Path.trim(),
-      taskStatus: task.value!.taskStatus,
+      taskStatus: editForm.taskStatus,
       assistantVersions: editForm.assistantVersions.trim(),
       productName: editForm.productName.trim(),
       codeLanguage: editForm.codeLanguage.trim() || null,
@@ -1446,6 +1363,7 @@ async function handleSaveTask(): Promise<void> {
       task.value.branch = payload.branch
       task.value.pathList = payload.pathList ?? ''
       task.value.s3Path = payload.s3Path
+      task.value.taskStatus = payload.taskStatus
       task.value.assistantVersions = normalizeAssistantVersionsToParts(payload.assistantVersions)
       task.value.productName = payload.productName
       task.value.codeLanguage = payload.codeLanguage?.trim() ? payload.codeLanguage : 'Unknown'
@@ -1520,16 +1438,16 @@ const persistedScanParamsReady = computed(() => {
   return (t.hostUrl || '').trim() !== '' && (t.modelName || '').trim() !== ''
 })
 
-/** 启动扫描：未开始/失败/已完成且参数齐全可点；排队中/进行中不可点 */
+/** 启动扫描：待处理/失败/已完成且参数齐全可点；排队中/进行中不可点 */
 const startScanButtonDisabled = computed(() => {
   if (!task.value || startingTaskScan.value) return true
   if (isEditing.value) return true
   const st = task.value.taskStatus
   if (st === TASK_STATUS.RUNNING || st === TASK_STATUS.QUEUED) return true
   if (
-    st !== TASK_STATUS.NOT_STARTED &&
-    st !== TASK_STATUS.FAILED &&
-    st !== TASK_STATUS.COMPLETED
+      st !== TASK_STATUS.NOT_STARTED &&
+      st !== TASK_STATUS.FAILED &&
+      st !== TASK_STATUS.COMPLETED
   ) {
     return true
   }
@@ -1546,6 +1464,51 @@ const startScanDisabledHint = computed(() => {
   if (!persistedScanParamsReady.value) return '请先填写并保存本机启动URL与模型名称'
   return ''
 })
+
+/** 排队中 / 进行中显示暂停（含暂停请求进行中） */
+const showPauseTaskButton = computed(() => {
+  if (!task.value) return false
+  if (pausingTask.value) return true
+  const st = task.value.taskStatus
+  return st === TASK_STATUS.QUEUED || st === TASK_STATUS.RUNNING
+})
+
+/** 与暂停按钮互斥：非排队/进行中时显示启动 */
+const showStartScanButton = computed(() => {
+  if (!task.value) return false
+  if (startingTaskScan.value) return true
+  return !showPauseTaskButton.value
+})
+
+const pauseTaskButtonDisabled = computed(() => {
+  if (!task.value || pausingTask.value || startingTaskScan.value) return true
+  if (isEditing.value) return true
+  const st = task.value.taskStatus
+  return st !== TASK_STATUS.QUEUED && st !== TASK_STATUS.RUNNING
+})
+
+function buildUpdateTaskPayloadFromTask(
+    t: Task,
+    taskStatusOverride?: string,
+): UpdateTaskInfoPayload {
+  return {
+    taskName: (t.taskName || '').trim(),
+    repoUrl: (t.repoUrl || '').trim(),
+    branch: (t.branch || '').trim(),
+    pathList: normalizePathListToString(t.pathList) || null,
+    s3Path: (t.s3Path || '').trim(),
+    taskStatus: taskStatusOverride ?? t.taskStatus,
+    assistantVersions: normalizeAssistantVersionsToParts(t.assistantVersions).join(','),
+    productName: (t.productName || '').trim(),
+    codeLanguage: t.codeLanguage?.trim() ? t.codeLanguage : null,
+    lineNum: Number.isFinite(t.lineNum) ? t.lineNum : null,
+    deptName: (t.dept_name || '').trim() || null,
+    pduName: (t.pdu_name || '').trim() || null,
+    warnCount: t.warnCount != null ? t.warnCount : null,
+    hostUrl: (t.hostUrl || '').trim() || null,
+    modelName: (t.modelName || '').trim() || null,
+  }
+}
 
 const assistantVersionsDisplay = computed(() => {
   const parts = normalizeAssistantVersionsToParts(task.value?.assistantVersions)
@@ -1740,8 +1703,7 @@ function detachAnnotationScrollListener(): void {
 const filterForm = ref<FilterForm>({
   keyword: '',
   ruleName: '',
-  issueResult: '',
-  reviewStatus: '',
+  issueResult: ''
 })
 
 // 选中的规则树节点ID
@@ -1932,7 +1894,6 @@ const fetchTaskDetailPage = async (
 ): Promise<void> => {
   const ruleName = filterForm.value.ruleName?.trim()
   const annotation = filterForm.value.issueResult?.trim()
-  const reviewStatus = filterForm.value.reviewStatus?.trim()
 
   const infoRes = await getTaskInfo(taskId)
 
@@ -1949,7 +1910,6 @@ const fetchTaskDetailPage = async (
         pageSize,
         ruleName || undefined,
         annotation || undefined,
-        reviewStatus || undefined,
     )
   } catch (e) {
     console.error('获取扫描结果失败:', e)
@@ -2041,10 +2001,6 @@ const fetchTaskDetailPage = async (
               userName: item.annotation.userName || item.annotation.user_name || null,
               userDepartment: item.annotation.userDepartment || item.annotation.user_department || null,
               taskId: item.annotation.taskId || item.annotation.task_id || null,
-              reviewStatus: item.annotation.reviewStatus ?? null,
-              reviewerUserId: item.annotation.reviewerUserId ?? null,
-              reviewerUserName: item.annotation.reviewerUserName ?? null,
-              reviewTime: item.annotation.reviewTime ?? null,
             }
           }
           if (item.issue_result !== null && item.issue_result !== undefined) {
@@ -2060,8 +2016,6 @@ const fetchTaskDetailPage = async (
           }
           return null
         })(),
-        lastReview: item.lastReview ?? null,
-        rejectedAnnotationSnapshot: item.rejectedAnnotationSnapshot ?? null,
       }
       return result
     }) as ScanResult[]
@@ -2094,6 +2048,49 @@ const fetchTaskDetailPage = async (
   }
 }
 
+async function handlePauseTask(): Promise<void> {
+  const tid = task.value?.taskId
+  if (!tid || !task.value) return
+  if (isEditing.value) {
+    ElMessage.warning('请先保存或取消编辑后再暂停任务')
+    return
+  }
+  const st = task.value.taskStatus
+  if (st !== TASK_STATUS.QUEUED && st !== TASK_STATUS.RUNNING) return
+
+  try {
+    await ElMessageBox.confirm(
+        '暂停后任务状态将更新为「失败」，是否继续？',
+        '确认暂停任务',
+        {
+          confirmButtonText: '确认暂停',
+          cancelButtonText: '取消',
+          type: 'warning',
+          distinguishCancelAndClose: true,
+        },
+    )
+  } catch {
+    return
+  }
+
+  pausingTask.value = true
+  try {
+    const payload = buildUpdateTaskPayloadFromTask(task.value, TASK_STATUS.FAILED)
+    const res = await updateTaskInfo(tid, payload)
+    if (!res.meta.isSuccess) {
+      ElMessage.error(res.meta.message || '暂停失败')
+      return
+    }
+    task.value.taskStatus = TASK_STATUS.FAILED
+    syncEditFormFromTask(task.value)
+    ElMessage.success('任务已暂停')
+  } catch {
+    ElMessage.error('暂停失败')
+  } finally {
+    pausingTask.value = false
+  }
+}
+
 async function handleStartTaskScan(): Promise<void> {
   const tid = task.value?.taskId
   if (!tid || !task.value) return
@@ -2109,15 +2106,15 @@ async function handleStartTaskScan(): Promise<void> {
   }
   const st = task.value.taskStatus
   if (
-    st !== TASK_STATUS.NOT_STARTED &&
-    st !== TASK_STATUS.FAILED &&
-    st !== TASK_STATUS.COMPLETED
+      st !== TASK_STATUS.NOT_STARTED &&
+      st !== TASK_STATUS.FAILED &&
+      st !== TASK_STATUS.COMPLETED
   ) {
     return
   }
   try {
     await ElMessageBox.confirm(
-        '请确认任务信息（本机启动 URL、模型名称、代码仓等）无误后再启动。',
+        '请确认任务信息（本机启动 URL、模型名称、代码仓等）无误后再启动。任务进入「排队中」或「进行中」后，可通过「暂停任务」停止扫描并将状态更新为「失败」。',
         '确认启动扫描',
         {
           confirmButtonText: '确认启动',
@@ -2143,6 +2140,7 @@ async function handleStartTaskScan(): Promise<void> {
     })
     if (startedTaskStatus && task.value) {
       task.value.taskStatus = startedTaskStatus
+      syncEditFormFromTask(task.value)
     }
   } catch {
     ElMessage.error('启动失败')
@@ -2195,8 +2193,8 @@ function handleRefreshTaskDetail(): void {
 
 /** 是否有任何激活的筛选条件 */
 const hasActiveFilter = computed(() => {
-    const f = filterForm.value
-    return !!(f.keyword?.trim() || f.ruleName?.trim() || f.issueResult?.trim() || f.reviewStatus?.trim())
+  const f = filterForm.value
+  return !!(f.keyword?.trim() || f.ruleName?.trim() || f.issueResult?.trim())
 })
 
 /** 任务已完成且接口确认扫描结果总数为 0（非筛选、非请求失败） */
@@ -2282,14 +2280,14 @@ const annotationStatusDisplay = computed(() => {
   const map = new Map((api.annotationDistribution ?? []).map(d => [d.resultCode, d]))
   const unPct = total > 0 ? Number(((api.unannotatedCount / total) * 100).toFixed(2)) : 0
   return {
-    needModify: map.get(2)?.annotationCount ?? 0,
+    needModify: map.get(0)?.annotationCount ?? 0,
     noNeedModify: map.get(1)?.annotationCount ?? 0,
-    falsePositive: map.get(0)?.annotationCount ?? 0,
+    falsePositive: map.get(2)?.annotationCount ?? 0,
     unmarked: api.unannotatedCount,
     pct: {
-      needModify: formatPercentText(map.get(2)?.percentage ?? 0),
+      needModify: formatPercentText(map.get(0)?.percentage ?? 0),
       noNeedModify: formatPercentText(map.get(1)?.percentage ?? 0),
-      falsePositive: formatPercentText(map.get(0)?.percentage ?? 0),
+      falsePositive: formatPercentText(map.get(2)?.percentage ?? 0),
       unmarked: formatPercentText(unPct),
     },
   }
@@ -2521,197 +2519,6 @@ const getIssueResultLabel = (issueResult: number): string => {
   return labelMap[issueResult] || '未知'
 }
 
-const rejectReviewDialogVisible = ref(false)
-const rejectReviewComment = ref('')
-const reviewSubmitting = ref(false)
-const reviewTargetResult = ref<ScanResult | null>(null)
-const timelineDialogVisible = ref(false)
-const timelineLoading = ref(false)
-const timelineEvents = ref<TimelineEvent[]>([])
-
-function getReviewStatusLabel(result: ScanResult): string {
-  const rs = result.annotation?.reviewStatus
-  if (rs === 1) return '已通过'
-  if (isShowingRejectedSnapshot(result)) return '已驳回'
-  if (result.annotation?.annotationStatus && rs !== 1) return '待评审'
-  return ''
-}
-
-function getReviewStatusTagType(result: ScanResult): TagType {
-  const rs = result.annotation?.reviewStatus
-  if (rs === 1) return 'success'
-  if (isShowingRejectedSnapshot(result)) return 'warning'
-  if (result.annotation?.annotationStatus) return 'info'
-  return 'info'
-}
-
-function isShowingRejectedSnapshot(result: ScanResult): boolean {
-  return !hasPersistedAnnotation(result) && !!result.rejectedAnnotationSnapshot
-}
-
-function isAnnotationSectionReadonly(result: ScanResult): boolean {
-  if (isShowingRejectedSnapshot(result)) return true
-  return !canModifyAnnotation(result)
-}
-
-function shouldShowReviewSection(result: ScanResult): boolean {
-  return canShowReviewActions(result) || !!getReviewResultSummary(result)
-}
-
-function getReviewResultSummary(result: ScanResult): ReviewRecordSummary | null {
-  if (canShowReviewActions(result)) return null
-  if (result.annotation?.reviewStatus === 1) {
-    return result.lastReview ?? {
-      action: 'approve',
-      reviewerUserId: result.annotation.reviewerUserId ?? '',
-      reviewerUserName: result.annotation.reviewerUserName ?? null,
-      reviewTime: result.annotation.reviewTime ?? '',
-      rejectReason: null,
-    }
-  }
-  if (isShowingRejectedSnapshot(result) && result.lastReview?.action === 'reject') {
-    return result.lastReview
-  }
-  return null
-}
-
-function formatReviewResultMeta(summary: ReviewRecordSummary): string {
-  const reviewer = summary.reviewerUserName?.trim() || summary.reviewerUserId || '评审人'
-  return `${reviewer} · ${summary.reviewTime}`
-}
-
-function canShowReviewActions(result: ScanResult): boolean {
-  if (!result.annotation?.annotationStatus) return false
-  if (result.annotation.reviewStatus === 1) return false
-  return result.annotation.reviewStatus === 0 || result.annotation.reviewStatus == null
-}
-
-function formatTimelineEventTitle(ev: TimelineEvent): string {
-  if (ev.type === 'submit') {
-    const label = ev.action === 'resubmit' ? '重新标注' : ev.action === 'update' ? '修改标注' : '提交标注'
-    const issue = ev.issueResult != null ? getIssueResultLabel(ev.issueResult) : ''
-    return `${label}${issue ? `：${issue}` : ''}`
-  }
-  if (ev.action === 'approve') return `评审通过（${ev.reviewerUserName || ev.reviewerUserId || ''}）`
-  return `评审驳回（${ev.reviewerUserName || ev.reviewerUserId || ''}）`
-}
-
-async function applyReviewResultToRow(result: ScanResult, data: SaveAnnotationReviewResultData): Promise<void> {
-  if (data.reviewRecord) {
-    result.lastReview = data.reviewRecord
-  }
-  if (data.annotation) {
-    const ann = getOrInitAnnotation(result)
-    ann.issueResult = data.annotation.issueResult
-    ann.reviewStatus = data.annotation.reviewStatus ?? 1
-    ann.reviewerUserId = data.annotation.reviewerUserId ?? null
-    ann.reviewerUserName = data.annotation.reviewerUserName ?? data.reviewRecord?.reviewerUserName ?? null
-    ann.reviewTime = data.annotation.reviewTime ?? data.reviewRecord?.reviewTime ?? null
-    ann.annotationStatus = data.annotation.annotationStatus
-    ann.reason = data.annotation.reason ?? ann.reason
-    result.issue_result = data.annotation.issueResult as IssueResult
-    result.reason = data.annotation.reason ?? null
-    result.rejectedAnnotationSnapshot = null
-  } else {
-    result.rejectedAnnotationSnapshot = data.rejectedAnnotation ?? result.rejectedAnnotationSnapshot ?? null
-    result.annotation = null
-    result.issue_result = null
-    result.annotator = undefined
-    result.annotationTime = undefined
-    result.reason = null
-  }
-}
-
-async function handleApproveReview(result: ScanResult): Promise<void> {
-  const taskId = route.params.id as string
-  const warnUuid = result.warn_uuid || result.id
-  if (!taskId || !warnUuid) return
-  reviewSubmitting.value = true
-  try {
-    const res = await saveAnnotationReviewApi(
-        { taskId, warnUuid, decision: 'approve' },
-        { userId: userInfo?.w3Id || '', userName: userInfo?.nameCn || null },
-    )
-    if (!res.meta.isSuccess || !res.data) {
-      throw new Error(res.meta.message || '评审失败')
-    }
-    await applyReviewResultToRow(result, res.data)
-    ElMessage.success('评审已通过')
-    await refreshStatsAfterReview(taskId)
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '评审失败')
-  } finally {
-    reviewSubmitting.value = false
-  }
-}
-
-function openRejectReviewDialog(result: ScanResult): void {
-  reviewTargetResult.value = result
-  rejectReviewComment.value = ''
-  rejectReviewDialogVisible.value = true
-}
-
-async function confirmRejectReview(): Promise<void> {
-  const result = reviewTargetResult.value
-  const taskId = route.params.id as string
-  const warnUuid = result?.warn_uuid || result?.id
-  const comment = rejectReviewComment.value.trim()
-  if (!result || !taskId || !warnUuid) return
-  if (!comment) {
-    ElMessage.warning('请填写驳回理由')
-    return
-  }
-  reviewSubmitting.value = true
-  try {
-    const res = await saveAnnotationReviewApi(
-        { taskId, warnUuid, decision: 'reject', comment },
-        { userId: userInfo?.w3Id || '', userName: userInfo?.nameCn || null },
-    )
-    if (!res.meta.isSuccess || !res.data) {
-      throw new Error(res.meta.message || '驳回失败')
-    }
-    await applyReviewResultToRow(result, res.data)
-    rejectReviewDialogVisible.value = false
-    ElMessage.success('已驳回')
-    await refreshStatsAfterReview(taskId)
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '驳回失败')
-  } finally {
-    reviewSubmitting.value = false
-  }
-}
-
-async function openTimelineDialog(result: ScanResult): Promise<void> {
-  const taskId = route.params.id as string
-  const warnUuid = result.warn_uuid || result.id
-  if (!taskId || !warnUuid) return
-  timelineDialogVisible.value = true
-  timelineLoading.value = true
-  timelineEvents.value = []
-  try {
-    const res = await getAnnotationTimeline(taskId, warnUuid)
-    if (!res.meta.isSuccess || !res.data) {
-      throw new Error(res.meta.message || '加载失败')
-    }
-    timelineEvents.value = res.data.events ?? []
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '加载操作记录失败')
-  } finally {
-    timelineLoading.value = false
-  }
-}
-
-async function refreshStatsAfterReview(taskId: string): Promise<void> {
-  try {
-    const statisticsResponse = await getAnnotationStatistics(taskId)
-    if (statisticsResponse.meta.isSuccess && statisticsResponse.data) {
-      annotationStatistics.value = statisticsResponse.data
-    }
-  } catch {
-    /* ignore */
-  }
-}
-
 /** 已持久化到服务端的标注（含他人标注） */
 const hasPersistedAnnotation = (result: ScanResult): boolean => {
   if (result.annotation?.annotationStatus === 1) return true
@@ -2729,11 +2536,6 @@ const getAnnotationOwnerId = (result: ScanResult): string => {
 }
 
 const getAnnotationOwnerDisplay = (result: ScanResult): string => {
-  if (isShowingRejectedSnapshot(result)) {
-    return result.rejectedAnnotationSnapshot?.userName?.trim()
-        || result.rejectedAnnotationSnapshot?.userId
-        || '其他用户'
-  }
   return result.annotation?.userName?.trim() || getAnnotationOwnerId(result) || '其他用户'
 }
 
@@ -2755,9 +2557,6 @@ const isCurrentUserAnnotator = (ownerId: string): boolean => {
 
 /** 未标注：任何人可首次标注；已标注：仅首次标注人可修改 */
 const canModifyAnnotation = (result: ScanResult): boolean => {
-  if (isShowingRejectedSnapshot(result)) {
-    return isCurrentUserAnnotator(result.rejectedAnnotationSnapshot!.userId)
-  }
   if (!hasPersistedAnnotation(result)) return true
   const owner = getAnnotationOwnerId(result)
   if (!owner) return true
@@ -2785,9 +2584,6 @@ const getOrInitAnnotation = (result: ScanResult): Annotation => {
 
 // 获取annotation的issueResult（用于v-model）
 const getAnnotationIssueResult = (result: ScanResult): IssueResult => {
-  if (isShowingRejectedSnapshot(result)) {
-    return result.rejectedAnnotationSnapshot!.issueResult as IssueResult
-  }
   const annotation = getOrInitAnnotation(result)
   const fromAnn = annotation.issueResult
   if (fromAnn !== null && fromAnn !== undefined) {
@@ -2805,25 +2601,8 @@ const getAnnotationIssueResult = (result: ScanResult): IssueResult => {
 /** 单选切换：仅保存标注结果，reason 传空；提交按钮：保存标注结果 + 原因 */
 type AnnotationSaveMode = 'issueOnly' | 'withReason'
 
-const promoteRejectedSnapshotToAnnotation = (result: ScanResult): void => {
-  const snap = result.rejectedAnnotationSnapshot
-  if (!snap) return
-  result.rejectedAnnotationSnapshot = null
-  result.lastReview = null
-  const annotation = getOrInitAnnotation(result)
-  annotation.issueResult = snap.issueResult as IssueResult
-  annotation.reason = snap.reason
-  annotation.userId = snap.userId
-  annotation.userName = snap.userName
-  result.issue_result = snap.issueResult as IssueResult
-  result.reason = snap.reason
-}
-
 // 设置annotation的issueResult（兼容 el-radio-group 等组件的 update 值类型）
 const setAnnotationIssueResult = (result: ScanResult, value: unknown): void => {
-  if (isShowingRejectedSnapshot(result)) {
-    promoteRejectedSnapshotToAnnotation(result)
-  }
   if (!assertCanModifyAnnotation(result)) return
   const annotation = getOrInitAnnotation(result)
   let parsed: number | null = null
@@ -2846,18 +2625,12 @@ const setAnnotationIssueResult = (result: ScanResult, value: unknown): void => {
 
 // 获取annotation的reason（用于v-model）
 const getAnnotationReason = (result: ScanResult): string => {
-  if (isShowingRejectedSnapshot(result)) {
-    return result.rejectedAnnotationSnapshot?.reason || ''
-  }
   const annotation = getOrInitAnnotation(result)
   return annotation.reason || ''
 }
 
 // 设置annotation的reason
 const setAnnotationReason = (result: ScanResult, value: string): void => {
-  if (isShowingRejectedSnapshot(result)) {
-    promoteRejectedSnapshotToAnnotation(result)
-  }
   if (!assertCanModifyAnnotation(result)) return
   const annotation = getOrInitAnnotation(result)
   annotation.reason = value || null
@@ -2967,9 +2740,6 @@ const saveAnnotationHandler = async (
       annotation.userName = saved.userName
       annotation.userDepartment = saved.userDepartment
       annotation.taskId = saved.taskId ?? taskId
-      annotation.reviewStatus = saved.reviewStatus ?? 0
-      annotation.reviewerUserId = saved.reviewerUserId ?? null
-      annotation.reviewTime = saved.reviewTime ?? null
 
       const statusText = getIssueResultLabel(value)
       ElMessage.success(`已标注为：${statusText}`)
@@ -3037,7 +2807,7 @@ const getStatusTipDescription = (): string => {
     return '无法查看扫描结果。'
   }
   const descMap: Record<string, string> = {
-    [TASK_STATUS.NOT_STARTED]: '该任务尚未开始扫描，请等待任务启动后查看扫描结果。',
+    [TASK_STATUS.NOT_STARTED]: '该任务待处理，请等待任务启动后查看扫描结果。',
     [TASK_STATUS.QUEUED]: '该任务已启动并在排队等待执行，请稍候查看扫描结果。',
     [TASK_STATUS.RUNNING]: '该任务正在扫描中，请稍候查看扫描结果。',
     [TASK_STATUS.FAILED]: '该任务扫描失败，无法查看扫描结果。'
@@ -3063,7 +2833,7 @@ const getCodeLanguage = (): string => {
     'PHP': 'php',
     'Ruby': 'ruby',
     'C#': 'csharp',
-    'C/C++': 'C/C++',
+    'C/C++': 'cpp',
     'c': 'c',
     'java': 'java',
     'python': 'python',
@@ -3088,6 +2858,16 @@ const handleCopyRepoUrl = (): void => {
     return
   }
   copyText(url)
+  ElMessage.success('复制成功')
+}
+
+const handleCopyCommitId = (): void => {
+  const commitId = task.value?.commitId?.trim()
+  if (!commitId) {
+    ElMessage.warning('暂无 CommitId 可复制')
+    return
+  }
+  copyText(commitId)
   ElMessage.success('复制成功')
 }
 
@@ -3376,6 +3156,7 @@ onUnmounted(() => {
   }
 })
 </script>
+
 
 <style scoped>
 .task-detail-page {
@@ -4325,17 +4106,9 @@ onUnmounted(() => {
 
 .result-actions {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
+  justify-content: flex-start;
+  align-items: center;
   margin-top: 16px;
-  width: 100%;
-}
-
-.annotation-review-block {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  width: 100%;
 }
 
 .annotation-section {
@@ -4345,66 +4118,6 @@ onUnmounted(() => {
   width: 100%;
   flex-wrap: wrap;
   position: relative;
-}
-
-.review-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: 100%;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #e5e7eb;
-}
-
-.review-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-}
-
-.review-result {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: flex-start;
-}
-
-.review-result-meta {
-  font-size: 13px;
-  color: #6b7280;
-}
-
-.review-result-reason {
-  margin: 0;
-  font-size: 13px;
-  color: #374151;
-  line-height: 1.5;
-}
-
-.annotation-snapshot-badge {
-  margin-left: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  color: #d97706;
-}
-
-.timeline-event-title {
-  margin: 0 0 4px;
-  font-weight: 600;
-  color: #374151;
-}
-
-.timeline-event-detail {
-  margin: 0;
-  font-size: 13px;
-  color: #6b7280;
-}
-
-.list-header-with-filter {
-  flex-wrap: wrap;
-  gap: 12px;
 }
 
 .annotation-label {

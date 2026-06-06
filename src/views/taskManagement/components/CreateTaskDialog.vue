@@ -164,6 +164,7 @@ import { onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useProfileStore } from '@/stores/userProfile'
 import { createTaskApi } from '@/api/taskManagementApi'
+import { createTaskFormRules } from '@/views/taskManagement/utils/taskFormValidation'
 
 const props = defineProps({
   modelValue: {
@@ -197,67 +198,8 @@ const formData = reactive({
   createTime: '' // 实际应该自动填充当前时间
 })
 
-/** 仅允许 HTTPS Git 克隆地址：https://主机/路径.git */
-const isValidRepoGitUrl = (raw) => {
-  const url = String(raw ?? '').trim()
-  if (!url) return false
-  return /^https:\/\/[^\s/]+\/[^\s?]+\.git$/i.test(url)
-}
-
-// 表单验证规则
-const rules = {
-  taskName: [
-    {required: true, message: '请输入任务名称', trigger: 'blur'},
-    {min: 2, max: 50, message: '任务名称长度在 2 到 50 个字符', trigger: 'blur'}
-  ],
-  repoUrl: [
-    {required: true, message: '请输入代码仓Git地址', trigger: 'blur'},
-    {
-      validator: (rule, value, callback) => {
-        if (!value || String(value).trim() === '') {
-          callback()
-          return
-        }
-        if (isValidRepoGitUrl(value)) {
-          callback()
-        } else {
-          callback(
-              new Error(
-                  '请输入有效的 HTTPS Git 克隆地址，如 https://主机/组织/项目.git'
-              )
-          )
-        }
-      },
-      trigger: 'blur',
-    },
-  ],
-  branch: [
-    {required: true, message: '请输入扫描分支', trigger: 'blur'}
-  ],
-  scanPaths: [
-    {
-      validator: (rule, value, callback) => {
-        if (!value || String(value).trim() === '') {
-          callback()
-          return
-        }
-        const paths = String(value)
-            .split(',')
-            .map((path) => path.trim())
-            .filter((path) => path !== '')
-        if (paths.length === 0) {
-          callback(new Error('请至少输入一个有效的扫描路径，或留空'))
-        } else {
-          callback()
-        }
-      },
-      trigger: 'blur',
-    },
-  ],
-  productName: [
-    {required: true, message: '请输入产品名称', trigger: 'blur'}
-  ],
-}
+/** 创建任务弹窗表单校验 */
+const rules = createTaskFormRules
 
 // 监听 modelValue 变化
 watch(

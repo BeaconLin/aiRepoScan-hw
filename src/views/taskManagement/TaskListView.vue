@@ -598,10 +598,8 @@ onMounted(async () => {
   border-top: 1px solid #f3f4f6;
   flex-shrink: 0;
 }
-</style>
 
-<style>
-.task-list-repo-url-tooltip {
+:global(.task-list-repo-url-tooltip) {
   max-width: 480px;
   word-break: break-all;
 }
