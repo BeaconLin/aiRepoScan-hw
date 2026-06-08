@@ -537,25 +537,44 @@
 
                   <!-- 规则名称分布柱状图 -->
                   <div class="chart-card full-width">
-                    <div class="chart-title">规则名称分布</div>
+                    <div class="chart-title-row">
+                      <div class="chart-title chart-title--inline">规则名称分布</div>
+                      <div class="chart-title-actions">
+                        <el-link
+                            v-if="ruleDistributionHasMore"
+                            type="primary"
+                            :underline="false"
+                            class="rule-distribution-toggle"
+                            @click="toggleRuleDistributionScope"
+                        >
+                          {{
+                            showAllRuleDistribution
+                                ? '收起为 Top 10'
+                                : `查看全部（${ruleStatisticsTotalCount} 条规则）`
+                          }}
+                        </el-link>
+                        <el-button
+                            type="primary"
+                            plain
+                            size="small"
+                            :loading="rerunningRuleStatistics"
+                            :disabled="rerunningRuleStatistics"
+                            @click="handleRerunRuleStatistics"
+                        >
+                          重新统计
+                        </el-button>
+                      </div>
+                    </div>
                     <div
-                        ref="ruleDistributionChartRef"
-                        class="chart-container-large"
-                        :style="ruleDistributionChartStyle"
-                    ></div>
-                    <div v-if="ruleDistributionHasMore" class="rule-distribution-footer">
-                      <el-link
-                          type="primary"
-                          :underline="false"
-                          class="rule-distribution-toggle"
-                          @click="toggleRuleDistributionScope"
-                      >
-                        {{
-                          showAllRuleDistribution
-                              ? '收起为 Top 10'
-                              : `查看全部（${ruleStatisticsTotalCount} 条规则）`
-                        }}
-                      </el-link>
+                        class="rule-distribution-chart-scroll"
+                        :class="{ 'rule-distribution-chart-scroll--overflow': ruleDistributionNeedsScroll }"
+                        :style="ruleDistributionScrollStyle"
+                    >
+                      <div
+                          ref="ruleDistributionChartRef"
+                          class="chart-container-large"
+                          :style="ruleDistributionChartStyle"
+                      ></div>
                     </div>
                   </div>
                 </div>
@@ -1195,6 +1214,7 @@ import {
   saveAnnotationApi,
   saveAnnotationReviewApi,
   getAnnotationStatistics,
+  rerunStatistics,
   updateTaskInfo,
   startTaskScan,
 } from '@/api/taskManagementApi'
@@ -1344,6 +1364,7 @@ const taskStatusSelectOptions = [
 const savingTask = ref(false)
 const startingTaskScan = ref(false)
 const pausingTask = ref(false)
+const rerunningRuleStatistics = ref(false)
 const taskEditFormRef = ref<FormInstance | null>(null)
 
 /** 仅允许 HTTPS Git 克隆地址，与创建任务弹窗一致 */
@@ -1880,6 +1901,12 @@ const ruleDistributionChartRef = ref<HTMLElement | null>(null)
 
 /** 规则名称分布柱状图：默认 Top 10，可切换查看全部 */
 const RULE_DISTRIBUTION_TOP_N = 10
+/** 每条规则在图表中占用的行高（与容器高度计算一致，避免 Top10 / 全部 切换时间距不一致） */
+const RULE_DISTRIBUTION_BAR_ROW_HEIGHT = 36
+const RULE_DISTRIBUTION_CHART_PADDING = 80
+const RULE_DISTRIBUTION_MIN_HEIGHT = 280
+/** 规则卡片可见区域最多展示的行数，超出后纵向滚动 */
+const RULE_DISTRIBUTION_MAX_VISIBLE_ROWS = 20
 const showAllRuleDistribution = ref(false)
 
 const ruleStatisticsTotalCount = computed(
@@ -1903,17 +1930,28 @@ const ruleDistributionDisplayedCount = computed(() => {
       : Math.min(RULE_DISTRIBUTION_TOP_N, total)
 })
 
+function calcRuleDistributionChartHeight(count: number): number {
+  if (count === 0) return 0
+  return Math.max(
+      RULE_DISTRIBUTION_MIN_HEIGHT,
+      count * RULE_DISTRIBUTION_BAR_ROW_HEIGHT + RULE_DISTRIBUTION_CHART_PADDING,
+  )
+}
+
+const ruleDistributionNeedsScroll = computed(
+    () => ruleDistributionDisplayedCount.value > RULE_DISTRIBUTION_MAX_VISIBLE_ROWS,
+)
+
 const ruleDistributionChartStyle = computed(() => {
-  const count = ruleDistributionDisplayedCount.value
-  if (count === 0) return {}
-  const minHeight = 400
-  if (!showAllRuleDistribution.value) {
-    return {height: `${minHeight}px`, minHeight: `${minHeight}px`}
-  }
-  const barHeight = 36
-  const padding = 80
-  const height = Math.max(minHeight, count * barHeight + padding)
+  const height = calcRuleDistributionChartHeight(ruleDistributionDisplayedCount.value)
+  if (height === 0) return {}
   return {height: `${height}px`, minHeight: `${height}px`}
+})
+
+const ruleDistributionScrollStyle = computed(() => {
+  if (!ruleDistributionNeedsScroll.value) return {}
+  const maxHeight = calcRuleDistributionChartHeight(RULE_DISTRIBUTION_MAX_VISIBLE_ROWS)
+  return {maxHeight: `${maxHeight}px`}
 })
 
 // 图表实例
@@ -2317,6 +2355,39 @@ async function handleStartTaskScan(): Promise<void> {
     ElMessage.error('启动失败')
   } finally {
     startingTaskScan.value = false
+  }
+}
+
+/** 重新统计规则分布：POST rerunStatistics 后拉取最新 annotation-statistics */
+async function handleRerunRuleStatistics(): Promise<void> {
+  const taskId = route.params.id as string
+  if (!taskId) {
+    ElMessage.error('缺少任务ID')
+    return
+  }
+  const uid = (userInfo?.w3Id || '').trim()
+  if (!uid) {
+    ElMessage.warning('无法获取当前用户工号')
+    return
+  }
+  rerunningRuleStatistics.value = true
+  try {
+    const res = await rerunStatistics(taskId, uid)
+    if (!res.meta.isSuccess) {
+      ElMessage.error(res.meta.message || '重新统计失败')
+      return
+    }
+    const statisticsResponse = await getAnnotationStatistics(taskId)
+    if (statisticsResponse.meta.isSuccess && statisticsResponse.data) {
+      annotationStatistics.value = statisticsResponse.data
+      ElMessage.success('规则统计已更新')
+    } else {
+      ElMessage.warning(statisticsResponse.meta.message || '获取最新规则统计失败')
+    }
+  } catch {
+    ElMessage.error('重新统计失败')
+  } finally {
+    rerunningRuleStatistics.value = false
   }
 }
 
@@ -3192,9 +3263,15 @@ const getCodeLanguage = (): string => {
   return languageMap[normalizedLang]
 }
 
-// 返回任务列表
+// 返回任务列表（恢复进入详情前的筛选与分页）
 const handleBack = (): void => {
-  router.push('/tasks')
+  const historyState = history.state as Record<string, unknown> | null
+  const savedQuery = historyState?.taskListQuery
+  const query =
+      savedQuery && typeof savedQuery === 'object' && !Array.isArray(savedQuery)
+          ? (savedQuery as Record<string, string>)
+          : {}
+  router.push({ path: '/tasks', query })
 }
 
 const handleCopyRepoUrl = (): void => {
@@ -3344,6 +3421,8 @@ const initRuleDistributionChart = (): void => {
           name: '缺陷数量',
           type: 'bar',
           data: ruleCounts,
+          barMaxWidth: 24,
+          barCategoryGap: '35%',
           itemStyle: {
             color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
               {offset: 0, color: '#3b82f6'},
@@ -4090,15 +4169,32 @@ onUnmounted(() => {
   border-bottom: 2px solid #f3f4f6;
 }
 
-.rule-distribution-footer {
+.chart-title-row {
   display: flex;
-  justify-content: center;
-  margin-top: 12px;
-  padding-top: 4px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #f3f4f6;
+}
+
+.chart-title--inline {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.chart-title-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
 }
 
 .rule-distribution-toggle {
   font-size: 13px;
+  white-space: nowrap;
 }
 
 .metric-panel .chart-title {
@@ -4228,8 +4324,17 @@ onUnmounted(() => {
 
 .chart-container-large {
   width: 100%;
-  height: 400px;
-  min-height: 400px;
+  /* 高度由 ruleDistributionChartStyle 按条数动态计算，避免与 Top10/全部 逻辑冲突 */
+  min-height: 280px;
+}
+
+.rule-distribution-chart-scroll {
+  width: 100%;
+}
+
+.rule-distribution-chart-scroll--overflow {
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* 规则树形结构样式 */
@@ -5121,8 +5226,7 @@ onUnmounted(() => {
   }
 
   .chart-container-large {
-    height: 300px;
-    min-height: 300px;
+    min-height: 240px;
   }
 
   .metric-hero-value {

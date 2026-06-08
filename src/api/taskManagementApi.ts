@@ -17,6 +17,7 @@ import {
     getAnnotationReviewHistory as mockGetAnnotationReviewHistory,
     getAnnotationTimeline as mockGetAnnotationTimeline,
     getAnnotationStatistics as mockGetAnnotationStatistics,
+    rerunStatistics as mockRerunStatistics,
     startTaskScan as mockStartTaskScan,
 } from '@/api/task'
 import taskManagementService from '@/api/services/taskManagementService'
@@ -49,10 +50,12 @@ export async function queryTaskList(
     creator?: string,
     taskStatus?: string,
     taskName?: string,
+    deptName?: string,
+    pduName?: string,
 ): Promise<ApiEnvelope<TaskListPageData>> {
     return apiMode === 'live'
-        ? taskManagementService.queryTaskList(pageNum, pageSize, creator, taskStatus, taskName)
-        : mockQueryTaskList(pageNum, pageSize, creator, taskStatus, taskName)
+        ? taskManagementService.queryTaskList(pageNum, pageSize, creator, taskStatus, taskName, deptName, pduName)
+        : mockQueryTaskList(pageNum, pageSize, creator, taskStatus, taskName, deptName, pduName)
 }
 
 export async function deleteTaskById(taskId: string): Promise<ApiEnvelope<boolean>> {
@@ -118,6 +121,16 @@ export async function getAnnotationStatistics(
     return apiMode === 'live'
         ? taskManagementService.getAnnotationStatistics(taskId)
         : mockGetAnnotationStatistics(taskId)
+}
+
+/** 重新统计规则分布（POST `/api/tasks/{taskId}/rerunStatistics?userId`） */
+export async function rerunStatistics(
+    taskId: string,
+    userId: string,
+): Promise<ApiEnvelope<null>> {
+    return apiMode === 'live'
+        ? taskManagementService.rerunStatistics(taskId, userId)
+        : mockRerunStatistics(taskId, userId)
 }
 
 /** 启动扫描（POST `/api/tasks/{taskId}/start`） */

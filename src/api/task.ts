@@ -994,13 +994,17 @@ const getAnnotationsForTask = (taskId: string): Record<string, PersistedAnnotati
  * @param creator 可选，创建人筛选
  * @param taskStatus 可选，任务状态筛选
  * @param taskName 可选，任务名称模糊筛选
+ * @param deptName 可选，部门名称模糊筛选
+ * @param pduName 可选，PDU名称模糊筛选
  */
 export const queryTaskList = async (
     pageNum: number,
     pageSize: number,
     creator?: string,
     taskStatus?: string,
-    taskName?: string
+    taskName?: string,
+    deptName?: string,
+    pduName?: string,
 ): Promise<ApiEnvelope<TaskListPageData>> => {
     let rows = Object.values(mockTaskDetails)
     const c = creator?.trim()
@@ -1015,6 +1019,24 @@ export const queryTaskList = async (
     if (tn) {
         const q = tn.toLowerCase()
         rows = rows.filter((t) => t.taskName.toLowerCase().includes(q))
+    }
+    const dn = deptName?.trim()
+    if (dn) {
+        const q = dn.toLowerCase()
+        rows = rows.filter((t) => {
+            const ext = t as TaskDetail & { deptName?: string | null }
+            const val = (ext.deptName ?? '').trim().toLowerCase()
+            return val.includes(q)
+        })
+    }
+    const pn = pduName?.trim()
+    if (pn) {
+        const q = pn.toLowerCase()
+        rows = rows.filter((t) => {
+            const ext = t as TaskDetail & { pduName?: string | null }
+            const val = (ext.pduName ?? '').trim().toLowerCase()
+            return val.includes(q)
+        })
     }
     rows.sort((a, b) => b.createTime.localeCompare(a.createTime))
 
@@ -1745,4 +1767,18 @@ export const getAnnotationStatistics = async (taskId: string): Promise<ApiEnvelo
     }
 
     return envelopeOk(statistics)
+}
+
+/**
+ * 重新统计规则分布（Mock：直接返回成功，由调用方再拉取 getAnnotationStatistics）
+ */
+export const rerunStatistics = async (
+    taskId: string,
+    _userId: string,
+): Promise<ApiEnvelope<null>> => {
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    if (!mockTaskDetails[taskId]) {
+        return envelopeFail(null, 404, `未找到任务ID为 ${taskId} 的任务详情`)
+    }
+    return envelopeOk(null)
 }

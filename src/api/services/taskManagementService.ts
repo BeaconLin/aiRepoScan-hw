@@ -7,12 +7,14 @@ const VITE_API_REPO_SCAN = 'http://localhost:8662'
 
 const REPO_SCAN_URL = VITE_API_REPO_SCAN + '/ai_repo_scan_service';
 const taskManagementService = {
-  queryTaskList: (pageNum: number, pageSize: number, creator?: string, taskStatus?: string, taskName?: string): any => service.get(`${REPO_SCAN_URL}/api/tasks`, {
+  queryTaskList: (pageNum: number, pageSize: number, creator?: string, taskStatus?: string, taskName?: string, deptName?: string, pduName?: string): any => service.get(`${REPO_SCAN_URL}/api/tasks`, {
     pageNum,
     pageSize,
-    ...creator && {creator}, // 如果提供了creator参数，则添加到请求中
-    ...taskStatus && {taskStatus}, // 如果提供了taskStatus参数，则添加到请求中
-    ...taskName && {taskName} // 如果提供了taskName参数，则添加到请求中
+    ...creator && {creator},
+    ...taskStatus && {taskStatus},
+    ...taskName && {taskName},
+    ...deptName && {deptName},
+    ...pduName && {pduName},
   }),
   getTaskDetail: (taskId: string, pageNum: number, pageSize: number): any => service.get(`${REPO_SCAN_URL}/api/tasks/${taskId}`, {
     pageNum,
@@ -64,6 +66,9 @@ const taskManagementService = {
   },
   // 获取任务的标注完成度和状态分布统计信息
   getAnnotationStatistics: (taskId: string): any => service.get(`${REPO_SCAN_URL}/api/tasks/${taskId}/annotation-statistics`),
+  /** 重新统计规则分布（POST `/api/tasks/{taskId}/rerunStatistics?userId`） */
+  rerunStatistics: (taskId: string, userId: string): any =>
+    service.post(`${REPO_SCAN_URL}/api/tasks/${taskId}/rerunStatistics`, {}, { userId }),
   deleteTaskById: (taskId: string): any => service.delete(`${REPO_SCAN_URL}/api/tasks/${taskId}`),
   updateTaskInfo: (taskId: string, body: UpdateTaskInfoPayload): any =>
     service.put(`${REPO_SCAN_URL}/api/tasks/${taskId}`, body),

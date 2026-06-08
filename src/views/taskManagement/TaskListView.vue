@@ -33,6 +33,24 @@
                 @input="handleFilter"
             />
           </el-form-item>
+          <el-form-item label="部门名称">
+            <el-input
+                v-model="filterForm.deptName"
+                placeholder="请输入部门名称"
+                clearable
+                style="width: 200px"
+                @input="handleFilter"
+            />
+          </el-form-item>
+          <el-form-item label="PDU名称">
+            <el-input
+                v-model="filterForm.pduName"
+                placeholder="请输入PDU名称"
+                clearable
+                style="width: 200px"
+                @input="handleFilter"
+            />
+          </el-form-item>
           <el-form-item label="任务状态">
             <el-select
                 v-model="filterForm.status"
@@ -165,8 +183,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
   ElButton,
   ElMessage,
@@ -245,15 +263,92 @@ function formatTaskCreatorDisplay(task: { creator?: string; nameCn?: string }) {
 }
 
 const router = useRouter()
+const route = useRoute()
+
+/** 从详情页返回时通过 history.state 携带的列表筛选 query */
+const TASK_LIST_QUERY_STATE_KEY = 'taskListQuery'
+
+const DEFAULT_PAGE_SIZE = 12
+
+function getQueryString(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (Array.isArray(value) && typeof value[0] === 'string') return value[0]
+  return ''
+}
+
+function applyQueryToState(query: typeof route.query) {
+  const type = getQueryString(query.type)
+  taskType.value = type === 'my' ? 'my' : 'all'
+  filterForm.value.taskName = getQueryString(query.name)
+  filterForm.value.deptName = getQueryString(query.deptName)
+  filterForm.value.pduName = getQueryString(query.pduName)
+  filterForm.value.status = getQueryString(query.status)
+  const page = Number(getQueryString(query.page))
+  currentPage.value = page > 0 ? page : 1
+  const size = Number(getQueryString(query.size))
+  pageSize.value = [8, 12, 16, 20].includes(size) ? size : DEFAULT_PAGE_SIZE
+}
+
+function buildQueryFromState(): Record<string, string> {
+  const q: Record<string, string> = {}
+  if (taskType.value === 'my') q.type = 'my'
+  const name = filterForm.value.taskName.trim()
+  if (name) q.name = name
+  const deptName = filterForm.value.deptName.trim()
+  if (deptName) q.deptName = deptName
+  const pduName = filterForm.value.pduName.trim()
+  if (pduName) q.pduName = pduName
+  if (filterForm.value.status) q.status = filterForm.value.status
+  if (currentPage.value > 1) q.page = String(currentPage.value)
+  if (pageSize.value !== DEFAULT_PAGE_SIZE) q.size = String(pageSize.value)
+  return q
+}
+
+function isSameQuery(
+    next: Record<string, string>,
+    current: typeof route.query
+): boolean {
+  const keys = new Set([
+    ...Object.keys(next),
+    ...Object.keys(current),
+  ])
+  for (const key of keys) {
+    const cur = getQueryString(current[key])
+    if ((next[key] ?? '') !== cur) return false
+  }
+  return true
+}
+
+function syncQueryToUrl() {
+  const nextQuery = buildQueryFromState()
+  if (isSameQuery(nextQuery, route.query)) return
+  router.replace({ query: nextQuery })
+}
 
 /**
  * 通用的任务加载函数
  * @param creator 创建者筛选条件，可选
  * @param taskStatus 任务状态筛选条件，可选
  * @param taskName 任务名称筛选条件，可选
+ * @param deptName 部门名称筛选条件，可选
+ * @param pduName PDU名称筛选条件，可选
  */
-const loadTasksData = async (creator?: string, taskStatus?: string, taskName?: string) => {
-  const res = await queryTaskList(currentPage.value, pageSize.value, creator, taskStatus, taskName)
+const loadTasksData = async (
+    creator?: string,
+    taskStatus?: string,
+    taskName?: string,
+    deptName?: string,
+    pduName?: string,
+) => {
+  const res = await queryTaskList(
+      currentPage.value,
+      pageSize.value,
+      creator,
+      taskStatus,
+      taskName,
+      deptName,
+      pduName,
+  )
 
   if (res.meta.isSuccess) {
     filteredTasks.value = res.data.list.map((row) => ({
@@ -292,21 +387,24 @@ const loadMyTasks = async () => {
 // 根据当前的任务类型、筛选条件加载任务
 const loadTasksByCurrentCondition = async () => {
   const creator = taskType.value === 'my' ? profileStore.userInfo?.w3Id : undefined
-  // 确保传递完整的筛选条件，包括任务状态和任务名称
   const taskStatus = filterForm.value.status || undefined
   const taskName = filterForm.value.taskName || undefined
-  await loadTasksData(creator, taskStatus, taskName)
+  const deptName = filterForm.value.deptName || undefined
+  const pduName = filterForm.value.pduName || undefined
+  await loadTasksData(creator, taskStatus, taskName, deptName, pduName)
 }
 const createDialogVisible = ref(false)
 const loading = ref(false)
 const taskType = ref('all') // 'all' | 'my'
 const currentPage = ref(1)
-const pageSize = ref(12)
+const pageSize = ref(DEFAULT_PAGE_SIZE)
 const pageTotal = ref(0)
 
 // 筛选表单
 const filterForm = ref({
   taskName: '',
+  deptName: '',
+  pduName: '',
   status: ''
 })
 
@@ -335,6 +433,7 @@ const handleCreateSuccess = async () => {
 // 筛选处理
 const handleFilter = async () => {
   currentPage.value = 1 // 重置到第一页
+  syncQueryToUrl()
   await loadTasksByCurrentCondition()
 }
 
@@ -342,15 +441,25 @@ const handleFilter = async () => {
 const handleResetFilter = async () => {
   filterForm.value = {
     taskName: '',
+    deptName: '',
+    pduName: '',
     status: ''
   }
   currentPage.value = 1
+  syncQueryToUrl()
   await loadTasksByCurrentCondition()
 }
 
 // 查看详情
-const handleViewDetail = (taskId) => {
-  router.push(`/task/${taskId}`)
+const handleViewDetail = async (taskId: string) => {
+  const query = buildQueryFromState()
+  if (!isSameQuery(query, route.query)) {
+    await router.replace({ query })
+  }
+  await router.push({
+    path: `/task/${taskId}`,
+    state: { [TASK_LIST_QUERY_STATE_KEY]: query },
+  })
 }
 
 // 判断当前用户是否可以删除任务
@@ -394,27 +503,31 @@ const handleDelete = async (taskId) => {
 }
 
 // 分页大小改变
-const handleSizeChange = (size) => {
+const handleSizeChange = (size: number) => {
   pageSize.value = size
   currentPage.value = 1
+  syncQueryToUrl()
   loadTasksByCurrentCondition()
 }
 
 // 当前页改变
-const handleCurrentChange = (page) => {
+const handleCurrentChange = (page: number) => {
   currentPage.value = page
+  syncQueryToUrl()
   loadTasksByCurrentCondition()
 }
 
 // 监听任务类型变化，重置分页
 watch(taskType, async () => {
   currentPage.value = 1
+  syncQueryToUrl()
   await loadTasksByCurrentCondition()
 })
 
 onMounted(async () => {
   loading.value = true
   try {
+    applyQueryToState(route.query)
     await loadTasksByCurrentCondition()
   } finally {
     loading.value = false
