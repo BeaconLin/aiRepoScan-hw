@@ -28,6 +28,19 @@
           {{ task.status }}
         </el-tag>
       </div>
+      <div v-if="showProgressBar && task" class="header-progress">
+        <span class="header-progress-files">{{ progressInfo.scanned }} / {{ progressInfo.total }}</span>
+        <div
+            class="header-progress-bar"
+            role="progressbar"
+            :aria-valuenow="progressInfo.percent"
+            aria-valuemin="0"
+            aria-valuemax="100"
+        >
+          <div class="header-progress-bar__fill" :style="{ width: `${progressInfo.percent}%` }"/>
+        </div>
+        <span class="header-progress-percent">{{ progressInfo.percent }}%</span>
+      </div>
     </div>
 
     <!-- 视图切换标签页（加载时也展示） -->
@@ -441,7 +454,7 @@
                   v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && scanResultsList && scanResultsList.length > 0"
                   class="dashboard-section">
                 <div class="section-label">任务扫描结果统计看板</div>
-                <div class="dashboard-content">
+                <div class="dashboard-content" :class="{ 'dashboard-content--3-cols': !EXPERT_REVIEW_ENABLED }">
                   <!-- 总缺陷数统计卡片 -->
                   <div class="stat-summary-card">
                     <div class="summary-icon">📊</div>
@@ -499,6 +512,25 @@
                         <div class="metric-cell-value">{{ annotationStatusDisplay.unmarked }}</div>
                         <div class="metric-cell-label">未标注</div>
                         <div class="metric-cell-sub">{{ annotationStatusDisplay.pct.unmarked }}%</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 专家评审统计（暂未上线，EXPERT_REVIEW_ENABLED 改为 true 即可恢复） -->
+                  <div v-if="EXPERT_REVIEW_ENABLED" class="chart-card metric-panel">
+                    <div class="chart-title">专家评审进度</div>
+                    <div class="metric-grid-3">
+                      <div class="metric-cell metric-cell--review-pending">
+                        <div class="metric-cell-value">{{ reviewStatsDisplay.pending }}</div>
+                        <div class="metric-cell-label">未评审</div>
+                      </div>
+                      <div class="metric-cell metric-cell--review-approved">
+                        <div class="metric-cell-value">{{ reviewStatsDisplay.approved }}</div>
+                        <div class="metric-cell-label">已通过</div>
+                      </div>
+                      <div class="metric-cell metric-cell--review-rejected">
+                        <div class="metric-cell-value">{{ reviewStatsDisplay.rejected }}</div>
+                        <div class="metric-cell-label">已驳回</div>
                       </div>
                     </div>
                   </div>
@@ -675,6 +707,24 @@
                           <el-option label="未标注" value="unmarked"/>
                         </el-select>
                       </div>
+                      <template v-if="EXPERT_REVIEW_ENABLED">
+                        <div class="filter-label review-filter-label">评审状态筛选：</div>
+                        <div class="filter-options">
+                          <el-select
+                              v-model="filterForm.reviewStatus"
+                              @change="handleScanFilterRefetch"
+                              placeholder="请选择评审状态"
+                              clearable
+                              class="annotation-filter-select"
+                              style="width: 200px"
+                          >
+                            <el-option label="全部" value=""/>
+                            <el-option label="未评审" value="0"/>
+                            <el-option label="已通过" value="1"/>
+                            <el-option label="已驳回" value="2"/>
+                          </el-select>
+                        </div>
+                      </template>
                     </div>
                   </div>
                   <div ref="scanResultListContentRef" class="list-content">
@@ -695,6 +745,14 @@
                     >
                       <div class="result-header">
                         <span class="result-title">{{ result.self_increment_id }}、{{ result.rule_name }}</span>
+                        <el-tag
+                            v-if="EXPERT_REVIEW_ENABLED && getAnnotationReviewStatus(result) !== null"
+                            :type="getReviewStatusTagType(getAnnotationReviewStatus(result))"
+                            size="small"
+                            class="result-review-tag"
+                        >
+                          {{ getReviewStatusLabel(getAnnotationReviewStatus(result)) }}
+                        </el-tag>
                         <el-tag
                             v-if="result.issue_result !== null && false"
                             :type="getIssueResultTagType(result.issue_result)"
@@ -824,12 +882,24 @@
                             />
 
                           </div>
-                          <el-button
-                              :disabled="!canModifyAnnotation(result)"
-                              @click="submitAnnotation(result)"
-                          >
-                            提交
-                          </el-button>
+                          <div class="annotation-actions">
+                            <el-button
+                                :disabled="!canModifyAnnotation(result) || annotationSubmittingKey === getResultReviewKey(result)"
+                                :loading="annotationSubmittingKey === getResultReviewKey(result)"
+                                @click="submitAnnotation(result)"
+                            >
+                              提交
+                            </el-button>
+                            <el-button
+                                v-if="canCancelAnnotation(result)"
+                                type="danger"
+                                plain
+                                :loading="annotationSubmittingKey === getResultReviewKey(result)"
+                                @click="cancelAnnotation(result)"
+                            >
+                              取消标注
+                            </el-button>
+                          </div>
                           <p
                               v-if="!canModifyAnnotation(result)"
                               class="annotation-readonly-tip"
@@ -847,6 +917,56 @@
                                 result.annotation?.createTime || result.annotation?.updateTime
                               }}</span>
                           </span>
+                          </div>
+                          <!-- 专家评审（暂未上线，EXPERT_REVIEW_ENABLED 改为 true 即可恢复） -->
+                          <div
+                              v-if="EXPERT_REVIEW_ENABLED && result.annotation?.annotationStatus"
+                              class="review-section"
+                          >
+                            <div class="review-section__header">
+                              <span class="annotation-label annotation-label--emphasis">专家评审</span>
+                              <el-tag
+                                  v-if="getAnnotationReviewStatus(result) !== null"
+                                  :type="getReviewStatusTagType(getAnnotationReviewStatus(result))"
+                                  size="small"
+                              >
+                                {{ getReviewStatusLabel(getAnnotationReviewStatus(result)) }}
+                              </el-tag>
+                            </div>
+                            <p
+                                v-if="result.annotation?.reviewComment"
+                                class="review-comment"
+                            >
+                              评审意见：{{ result.annotation.reviewComment }}
+                            </p>
+                            <p
+                                v-if="result.annotation?.reviewTime && result.annotation?.reviewerUserId"
+                                class="review-meta"
+                            >
+                              {{ result.annotation.reviewerUserName || result.annotation.reviewerUserId }}
+                              · {{ result.annotation.reviewTime }}
+                            </p>
+                            <div
+                                v-if="canExpertReview && isReviewable(result)"
+                                class="review-actions"
+                            >
+                              <el-button
+                                  type="success"
+                                  size="small"
+                                  :loading="reviewSubmittingKey === getResultReviewKey(result)"
+                                  @click="handleApproveReview(result)"
+                              >
+                                通过
+                              </el-button>
+                              <el-button
+                                  type="warning"
+                                  size="small"
+                                  :loading="reviewSubmittingKey === getResultReviewKey(result)"
+                                  @click="handleRejectReview(result)"
+                              >
+                                驳回
+                              </el-button>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1073,10 +1193,12 @@ import {
   getTaskScanResults,
   uploadScanResultFile,
   saveAnnotationApi,
+  saveAnnotationReviewApi,
   getAnnotationStatistics,
   updateTaskInfo,
   startTaskScan,
 } from '@/api/taskManagementApi'
+import type { SaveAnnotationReviewReqBody } from '@/api/types/annotationReview'
 import type { UpdateTaskInfoPayload } from '@/api/types'
 import type { TaskScanResultApiDocRow } from '@/api/types/taskApiDoc'
 import type { AnnotationStatistics } from '@/api/types'
@@ -1127,6 +1249,7 @@ interface Task {
   language?: string
   codeLines?: number
   product_name?: string
+  progress?: string // 扫描进度，格式：已扫描文件数/全部文件数，如 "12/100"
 }
 
 /** 0: 需要修改, 1: 无需修改的问题, 2: 问题误报, null: 未标注 */
@@ -1140,6 +1263,12 @@ interface Annotation {
   issueResult: IssueResult
   reason: string | null // 标注原因说明
   annotationStatus?: number // 标注状态（1:已标注）
+  reviewStatus?: 0 | 1 | 2 | null // 0 未评审 / 1 已通过 / 2 已驳回
+  reviewerUserId?: string | null
+  reviewerUserName?: string | null
+  reviewTime?: string | null
+  reviewComment?: string | null
+  finalIssueResult?: number | null
   createTime?: string // 标注创建时间
   updateTime?: string // 标注更新时间
   userName?: string | null // 用户姓名
@@ -1179,6 +1308,7 @@ interface FilterForm {
   keyword: string
   ruleName: string
   issueResult: string // '0' | '1' | '2' | 'unmarked' | '' (空字符串表示未选择)
+  reviewStatus: string // '0' | '1' | '2' | '' 
 }
 
 interface RuleTreeNode {
@@ -1191,9 +1321,16 @@ interface RuleTreeNode {
 
 type TagType = 'success' | 'info' | 'warning' | 'danger'
 
+/** 专家评审功能开关（暂未上线，改为 true 即可恢复全部评审 UI 与交互） */
+const EXPERT_REVIEW_ENABLED = false
+
 const router = useRouter()
 const route = useRoute()
-const userInfo = useProfileStore().userInfo
+const profileStore = useProfileStore()
+const userInfo = profileStore.userInfo
+const canExpertReview = computed(() => EXPERT_REVIEW_ENABLED && profileStore.isExpert())
+const reviewSubmittingKey = ref<string | null>(null)
+const annotationSubmittingKey = ref<string | null>(null)
 
 /** 与创建任务页一致，供编辑模式下拉选择 */
 const taskStatusSelectOptions = [
@@ -1429,6 +1566,31 @@ const hostUrlDisplay = computed(() => {
 const modelNameDisplay = computed(() => {
   const s = (task.value?.modelName || '').trim()
   return s || '未设置'
+})
+
+/** 解析进度字符串，返回 { scanned, total, percent } */
+const progressInfo = computed(() => {
+  const raw = (task.value?.progress || '').trim()
+  if (!raw) {
+    return { scanned: 0, total: 0, percent: 0, text: '' }
+  }
+  const parts = raw.split('/')
+  if (parts.length !== 2) {
+    return { scanned: 0, total: 0, percent: 0, text: raw }
+  }
+  const scanned = parseInt(parts[0], 10) || 0
+  const total = parseInt(parts[1], 10) || 0
+  const percent = total > 0 ? Math.min(100, Math.round((scanned / total) * 100)) : 0
+  return { scanned, total, percent, text: raw }
+})
+
+/** 是否显示进度条：排队中/进行中始终显示；已完成且有文件总数时也显示 */
+const showProgressBar = computed(() => {
+  if (!task.value) return false
+  const st = task.value.taskStatus
+  if (st === TASK_STATUS.QUEUED || st === TASK_STATUS.RUNNING) return true
+  if (st === TASK_STATUS.COMPLETED) return progressInfo.value.total > 0
+  return false
 })
 
 /** 已持久化的本机 URL 与模型名是否可用于启动扫描 */
@@ -1703,7 +1865,8 @@ function detachAnnotationScrollListener(): void {
 const filterForm = ref<FilterForm>({
   keyword: '',
   ruleName: '',
-  issueResult: ''
+  issueResult: '',
+  reviewStatus: '',
 })
 
 // 选中的规则树节点ID
@@ -1894,6 +2057,7 @@ const fetchTaskDetailPage = async (
 ): Promise<void> => {
   const ruleName = filterForm.value.ruleName?.trim()
   const annotation = filterForm.value.issueResult?.trim()
+  const reviewStatus = EXPERT_REVIEW_ENABLED ? filterForm.value.reviewStatus?.trim() : undefined
 
   const infoRes = await getTaskInfo(taskId)
 
@@ -1910,6 +2074,7 @@ const fetchTaskDetailPage = async (
         pageSize,
         ruleName || undefined,
         annotation || undefined,
+        reviewStatus || undefined,
     )
   } catch (e) {
     console.error('获取扫描结果失败:', e)
@@ -1996,6 +2161,12 @@ const fetchTaskDetailPage = async (
               reason: item.annotation.reason ?? null,
               annotationStatus: item.annotation.annotationStatus ?? item.annotation.annotation_status ??
                   (item.issue_result !== null && item.issue_result !== undefined ? 1 : undefined),
+              reviewStatus: item.annotation.reviewStatus ?? item.annotation.review_status ?? 0,
+              reviewerUserId: item.annotation.reviewerUserId ?? item.annotation.reviewer_user_id ?? null,
+              reviewerUserName: item.annotation.reviewerUserName ?? item.annotation.reviewer_user_name ?? null,
+              reviewTime: item.annotation.reviewTime ?? item.annotation.review_time ?? null,
+              reviewComment: item.annotation.reviewComment ?? item.annotation.review_comment ?? null,
+              finalIssueResult: item.annotation.finalIssueResult ?? item.annotation.final_issue_result ?? null,
               createTime: item.annotation.createTime || item.annotation.create_time || item.annotationTime,
               updateTime: item.annotation.updateTime || item.annotation.update_time || item.annotationTime,
               userName: item.annotation.userName || item.annotation.user_name || null,
@@ -2194,7 +2365,12 @@ function handleRefreshTaskDetail(): void {
 /** 是否有任何激活的筛选条件 */
 const hasActiveFilter = computed(() => {
   const f = filterForm.value
-  return !!(f.keyword?.trim() || f.ruleName?.trim() || f.issueResult?.trim())
+  return !!(
+      f.keyword?.trim()
+      || f.ruleName?.trim()
+      || f.issueResult?.trim()
+      || (EXPERT_REVIEW_ENABLED && f.reviewStatus?.trim())
+  )
 })
 
 /** 任务已完成且接口确认扫描结果总数为 0（非筛选、非请求失败） */
@@ -2263,6 +2439,13 @@ const annotationCompletionHeroText = computed(() => {
   }
   return '0'
 })
+
+/** 专家评审进度（接口 pendingReviewCount / approvedReviewCount / rejectedReviewCount） */
+const reviewStatsDisplay = computed(() => ({
+  pending: annotationStatistics.value?.pendingReviewCount ?? 0,
+  approved: annotationStatistics.value?.approvedReviewCount ?? 0,
+  rejected: annotationStatistics.value?.rejectedReviewCount ?? 0,
+}))
 
 /** 标注状态分布（仅接口 annotationDistribution + unannotatedCount） */
 const annotationStatusDisplay = computed(() => {
@@ -2519,6 +2702,121 @@ const getIssueResultLabel = (issueResult: number): string => {
   return labelMap[issueResult] || '未知'
 }
 
+function getAnnotationReviewStatus(result: ScanResult): 0 | 1 | 2 | null {
+  if (!result.annotation?.annotationStatus) return null
+  const rs = result.annotation.reviewStatus
+  if (rs === 0 || rs === 1 || rs === 2) return rs
+  return 0
+}
+
+function getReviewStatusLabel(status: 0 | 1 | 2 | null): string {
+  if (status === 1) return '已通过'
+  if (status === 2) return '已驳回'
+  if (status === 0) return '未评审'
+  return ''
+}
+
+function getReviewStatusTagType(status: 0 | 1 | 2 | null): TagType {
+  if (status === 1) return 'success'
+  if (status === 2) return 'warning'
+  if (status === 0) return 'info'
+  return 'info'
+}
+
+function isReviewable(result: ScanResult): boolean {
+  return getAnnotationReviewStatus(result) === 0
+}
+
+function getResultReviewKey(result: ScanResult): string {
+  return String(result.warn_uuid || result.id || '')
+}
+
+async function handleApproveReview(result: ScanResult): Promise<void> {
+  const taskId = route.params.id as string
+  const warnUuid = getResultReviewKey(result)
+  if (!taskId || !warnUuid) return
+
+  try {
+    await ElMessageBox.confirm('确认通过该条标注结论？', '评审通过', {
+      confirmButtonText: '通过',
+      cancelButtonText: '取消',
+      type: 'info',
+    })
+  } catch {
+    return
+  }
+
+  reviewSubmittingKey.value = warnUuid
+  try {
+    const req: SaveAnnotationReviewReqBody = {
+      taskId,
+      warnUuid,
+      decision: 'approve',
+    }
+    const res = await saveAnnotationReviewApi(req, {
+      userId: userInfo.w3Id,
+      userName: userInfo.nameCn,
+    })
+    if (!res.meta.isSuccess) {
+      ElMessage.error(res.meta.message || '评审失败')
+      return
+    }
+    ElMessage.success('评审已通过')
+    await fetchTaskDetailPage(taskId, pagination.value.currentPage, pagination.value.pageSize, {
+      fetchAnnotationStats: true,
+    })
+  } finally {
+    reviewSubmittingKey.value = null
+  }
+}
+
+async function handleRejectReview(result: ScanResult): Promise<void> {
+  const taskId = route.params.id as string
+  const warnUuid = getResultReviewKey(result)
+  if (!taskId || !warnUuid) return
+
+  let comment = ''
+  try {
+    const { value } = await ElMessageBox.prompt('请填写驳回理由', '评审驳回', {
+      confirmButtonText: '驳回',
+      cancelButtonText: '取消',
+      inputType: 'textarea',
+      inputPlaceholder: '请输入评审意见（必填）',
+      inputValidator: (val) => {
+        if (!val || !String(val).trim()) return '驳回时必须填写评审意见'
+        return true
+      },
+    })
+    comment = String(value).trim()
+  } catch {
+    return
+  }
+
+  reviewSubmittingKey.value = warnUuid
+  try {
+    const req: SaveAnnotationReviewReqBody = {
+      taskId,
+      warnUuid,
+      decision: 'reject',
+      comment,
+    }
+    const res = await saveAnnotationReviewApi(req, {
+      userId: userInfo.w3Id,
+      userName: userInfo.nameCn,
+    })
+    if (!res.meta.isSuccess) {
+      ElMessage.error(res.meta.message || '评审失败')
+      return
+    }
+    ElMessage.success('已驳回，标注员可修改后重新提交')
+    await fetchTaskDetailPage(taskId, pagination.value.currentPage, pagination.value.pageSize, {
+      fetchAnnotationStats: true,
+    })
+  } finally {
+    reviewSubmittingKey.value = null
+  }
+}
+
 /** 已持久化到服务端的标注（含他人标注） */
 const hasPersistedAnnotation = (result: ScanResult): boolean => {
   if (result.annotation?.annotationStatus === 1) return true
@@ -2561,6 +2859,11 @@ const canModifyAnnotation = (result: ScanResult): boolean => {
   const owner = getAnnotationOwnerId(result)
   if (!owner) return true
   return isCurrentUserAnnotator(owner)
+}
+
+/** 仅标注人可取消已保存的标注 */
+const canCancelAnnotation = (result: ScanResult): boolean => {
+  return hasPersistedAnnotation(result) && canModifyAnnotation(result)
 }
 
 const assertCanModifyAnnotation = (result: ScanResult): boolean => {
@@ -2647,7 +2950,56 @@ const submitAnnotation = async (result: ScanResult): Promise<void> => {
     return
   }
 
-  await saveAnnotationHandler(result, issueResult, 'withReason')
+  const key = getResultReviewKey(result)
+  annotationSubmittingKey.value = key
+  try {
+    await saveAnnotationHandler(result, issueResult, 'withReason')
+  } finally {
+    annotationSubmittingKey.value = null
+  }
+}
+
+/** 取消单条告警标注（仅标注人；同步清除评审，等待下次标注后评审） */
+const cancelAnnotation = async (result: ScanResult): Promise<void> => {
+  if (!canCancelAnnotation(result)) {
+    ElMessage.warning('仅标注人可取消该标注')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+        EXPERT_REVIEW_ENABLED
+            ? '取消后该条告警将恢复为未标注状态，已有评审记录也将一并清除，需重新标注后等待专家评审。是否继续？'
+            : '取消后该条告警将恢复为未标注状态。是否继续？',
+        '取消标注',
+        {
+          confirmButtonText: '确认取消',
+          cancelButtonText: '保留',
+          type: 'warning',
+        },
+    )
+  } catch {
+    return
+  }
+
+  const key = getResultReviewKey(result)
+  annotationSubmittingKey.value = key
+  try {
+    await saveAnnotationHandler(result, null, 'withReason')
+    const taskId = route.params.id as string
+    if (taskId) {
+      try {
+        const statisticsResponse = await getAnnotationStatistics(taskId)
+        if (statisticsResponse.meta.isSuccess && statisticsResponse.data) {
+          annotationStatistics.value = statisticsResponse.data
+        }
+      } catch {
+        // 统计刷新失败不影响取消结果
+      }
+    }
+  } finally {
+    annotationSubmittingKey.value = null
+  }
 }
 
 // 标注处理（内部函数）
@@ -2679,8 +3031,8 @@ const saveAnnotationHandler = async (
         taskId,
         warnUuid: uuid,
         issueResult: null,
-        userId: '',
-        userName: '',
+        userId: currentUser,
+        userName: userNameCn,
         reason: ''
       }
       const cancelRes = await saveAnnotationApi(reqBody)
@@ -2688,19 +3040,13 @@ const saveAnnotationHandler = async (
         throw new Error(cancelRes.meta.message || '取消标注失败')
       }
 
-      // 更新 result 对象的标注信息
+      // 清除标注与评审状态，恢复为未标注
       result.issue_result = null
       result.annotator = undefined
       result.annotationTime = undefined
+      result.annotation = null
 
-      // 清除annotation对象
-      if (result.annotation) {
-        result.annotation.issueResult = null
-        result.annotation.reason = null
-        result.annotation.annotationStatus = undefined
-      }
-
-      ElMessage.success('已取消标注')
+      ElMessage.success(EXPERT_REVIEW_ENABLED ? '已取消标注，评审已清除' : '已取消标注')
     } else {
       const reasonForRequest =
           mode === 'issueOnly'
@@ -2903,7 +3249,10 @@ const initRuleDistributionChart = (): void => {
     const rs = annotationStatistics.value?.ruleStatistics
     const sortedRules =
         rs && rs.length > 0
-            ? [...rs].sort((a, b) => a.ruleCount - b.ruleCount)
+            ? [...rs].sort((a, b) => {
+              if (b.ruleCount !== a.ruleCount) return b.ruleCount - a.ruleCount
+              return a.ruleName.localeCompare(b.ruleName, 'zh-CN')
+            })
             : []
     const displayedRules = showAllRuleDistribution.value
         ? sortedRules
@@ -2979,6 +3328,7 @@ const initRuleDistributionChart = (): void => {
       yAxis: {
         type: 'category',
         data: ruleNames,
+        inverse: true,
         axisLabel: {
           color: '#6b7280',
           fontSize: 12
@@ -3165,9 +3515,45 @@ onUnmounted(() => {
 
 .page-header {
   display: flex;
-  justify-content: flex-start;
+  justify-content: space-between;
   align-items: center;
   margin-bottom: 8px;
+  gap: 16px;
+}
+
+.header-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.header-progress-files {
+  font-weight: 500;
+  color: #0c4a6e;
+}
+
+.header-progress-bar {
+  width: 120px;
+  height: 6px;
+  background: #e0f2fe;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.header-progress-bar__fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0ea5e9 0%, #0284c7 100%);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.header-progress-percent {
+  min-width: 36px;
+  font-weight: 600;
+  color: #0369a1;
 }
 
 /* 视图切换标签页：与右侧操作按钮同一行 */
@@ -3615,9 +4001,14 @@ onUnmounted(() => {
 
 .dashboard-content {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 24px;
   align-items: stretch;
+}
+
+/* 隐藏评审功能时，3 个卡片占满整行 */
+.dashboard-content--3-cols {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 /* 规则分布图独占下一整行 */
@@ -3757,6 +4148,24 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 12px;
+}
+
+.metric-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.metric-cell--review-pending .metric-cell-value {
+  color: #64748b;
+}
+
+.metric-cell--review-approved .metric-cell-value {
+  color: #059669;
+}
+
+.metric-cell--review-rejected .metric-cell-value {
+  color: #d97706;
 }
 
 .metric-cell {
@@ -4146,8 +4555,61 @@ onUnmounted(() => {
   color: #92400e;
 }
 
+.annotation-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .annotation-section--readonly .annotation-label--emphasis {
   color: #9ca3af;
+}
+
+.review-section {
+  flex: 1 1 100%;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.review-section__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.review-comment {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #92400e;
+  background: #fffbeb;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #fde68a;
+}
+
+.review-meta {
+  margin: 0;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.review-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.result-review-tag {
+  margin-left: 8px;
+}
+
+.review-filter-label {
+  margin-left: 12px;
 }
 
 .annotation-info {
@@ -4668,8 +5130,9 @@ onUnmounted(() => {
   }
 }
 
-@media (min-width: 769px) and (max-width: 1200px) {
+@media (min-width: 769px) and (max-width: 1400px) {
   .dashboard-content {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
   }
 }

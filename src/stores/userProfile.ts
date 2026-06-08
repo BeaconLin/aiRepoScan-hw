@@ -13,7 +13,9 @@ import { ref } from 'vue'
 const DEFAULT_USER_INFO = {
     w3Id: 't00598420',
     name: 'tianyuan 00598420',
-    nameCn: '田园'
+    nameCn: '田园',
+    /** IAM 角色；含 expert 时可执行专家评审 */
+    roles: ['expert', 'annotator'] as string[],
 }
 
 export const useProfileStore = defineStore('userProfile', () => {
@@ -29,7 +31,8 @@ export const useProfileStore = defineStore('userProfile', () => {
             userInfo.value = {
                 w3Id: newUserInfo.w3Id || '',
                 name: newUserInfo.name || '',
-                nameCn: newUserInfo.nameCn || ''
+                nameCn: newUserInfo.nameCn || '',
+                roles: Array.isArray(newUserInfo.roles) ? [...newUserInfo.roles] : [],
             }
             return true
         }
@@ -74,12 +77,18 @@ export const useProfileStore = defineStore('userProfile', () => {
         return userInfo.value && userInfo.value.w3Id !== ''
     }
 
+    /** 是否具备专家评审权限（IAM 角色「专家」） */
+    const isExpert = () => {
+        return userInfo.value?.roles?.includes('expert') ?? false
+    }
+
     return {
         userInfo,
         setUserInfo,
         updateUserInfo,
         clearUserInfo,
         getUserInfo,
-        isLoggedIn
+        isLoggedIn,
+        isExpert,
     }
 })

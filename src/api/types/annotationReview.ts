@@ -8,7 +8,7 @@ export type SubmitHistoryAction = 'submit' | 'update' | 'resubmit' | 'cancel'
 export type ReviewHistoryAction = 'approve' | 'reject'
 
 /** 扫描结果评审状态筛选 */
-export type ReviewStatusFilter = '' | '0' | '1'
+export type ReviewStatusFilter = '' | '0' | '1' | '2'
 
 /** 标注提交历史（接口文档 §5） */
 export interface AnnotationSubmitHistory {
@@ -63,6 +63,8 @@ export interface SaveAnnotationReviewReqBody {
     warnUuid: string
     decision: ReviewDecision
     comment?: string
+    /** 可选：专家确认后的最终结论（0/1/2） */
+    finalIssueResult?: number
 }
 
 /** 评审结果摘要（供前端评审后展示） */

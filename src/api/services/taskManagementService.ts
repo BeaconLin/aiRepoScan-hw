@@ -76,6 +76,7 @@ const taskManagementService = {
     warnUuid: string
     decision: 'approve' | 'reject'
     comment?: string
+    finalIssueResult?: number
   }): any => service.post(`${REPO_SCAN_URL}/api/annotations/review`, reqBody),
   getAnnotationSubmitHistory: (taskId: string, warnUuid: string): any =>
     service.get(`${REPO_SCAN_URL}/api/tasks/${taskId}/annotations/${warnUuid}/submit-history`),

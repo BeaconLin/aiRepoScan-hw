@@ -19,10 +19,12 @@ export interface PersistedAnnotationMeta {
     annotator: string
     annotationTime: string
     reason?: string | null
-    reviewStatus?: 0 | 1
+    reviewStatus?: 0 | 1 | 2
     reviewerUserId?: string | null
     reviewerUserName?: string | null
     reviewTime?: string | null
+    reviewComment?: string | null
+    finalIssueResult?: IssueResult
     recordId?: number
 }
 
@@ -171,6 +173,9 @@ export function persistedToSaveResult(
         reviewerUserId: meta.reviewerUserId ?? null,
         reviewerUserName: meta.reviewerUserName ?? null,
         reviewTime: meta.reviewTime ?? null,
+        reviewComment: meta.reviewComment ?? null,
+        finalIssueResult:
+            meta.finalIssueResult != null ? (meta.finalIssueResult as number) : null,
         createTime: meta.annotationTime,
         updateTime: meta.annotationTime,
         userName: null,
@@ -301,67 +306,56 @@ export function processReviewMock(
     reviewerUserId: string,
     reviewerUserName: string | null,
 ): ReviewMockResult {
-    const { taskId, warnUuid, decision, comment } = req
+    const { taskId, warnUuid, decision, comment, finalIssueResult } = req
 
     if (!persisted || persisted.issue_result === null || persisted.issue_result === undefined) {
-        return { ok: false, number: 400, message: '当前告警不可评审，仅待评审状态可执行评审操作' }
+        return { ok: false, number: 400, message: '当前告警不可评审，仅未评审状态可执行评审操作' }
     }
-    if (persisted.reviewStatus === 1) {
-        return { ok: false, number: 400, message: '当前告警不可评审，仅待评审状态可执行评审操作' }
+    const currentReviewStatus = persisted.reviewStatus ?? 0
+    if (currentReviewStatus !== 0) {
+        return { ok: false, number: 400, message: '当前告警不可评审，仅未评审状态可执行评审操作' }
     }
 
-    const submitHistoryId = findPendingSubmitHistoryId(taskId, warnUuid)
-    if (submitHistoryId == null) {
-        return { ok: false, number: 400, message: '未找到待评审的标注提交记录' }
-    }
+    const now = formatReviewTime()
 
     if (decision === 'reject') {
         const reason = (comment ?? '').trim()
         if (!reason) {
-            return { ok: false, number: 400, message: '驳回时必须填写驳回理由' }
+            return { ok: false, number: 400, message: '驳回时必须填写评审意见' }
         }
-        const reviewRow = appendReviewHistory(taskId, warnUuid, {
-            submitHistoryId,
-            annotationId: persisted.recordId ?? null,
-            action: 'reject',
-            reviewerUserId,
-            reviewerUserName,
-            rejectReason: reason,
-        })
+        persisted.reviewStatus = 2
+        persisted.reviewerUserId = reviewerUserId
+        persisted.reviewerUserName = reviewerUserName
+        persisted.reviewTime = now
+        persisted.reviewComment = reason
+
         const reviewRecord: ReviewRecordSummary = {
             action: 'reject',
             reviewerUserId,
             reviewerUserName,
-            reviewTime: reviewRow.reviewTime,
+            reviewTime: now,
             rejectReason: reason,
         }
         return {
             ok: true,
             data: {
-                annotation: null,
-                reviewHistoryId: reviewRow.id,
-                submitHistoryId,
+                annotation: persistedToSaveResult(taskId, warnUuid, persisted),
+                reviewHistoryId: 0,
+                submitHistoryId: 0,
                 reviewRecord,
-                rejectedAnnotation: buildRejectedSnapshot(submitHistoryId, taskId, warnUuid),
+                rejectedAnnotation: null,
             },
         }
     }
 
-    const now = formatReviewTime()
     persisted.reviewStatus = 1
     persisted.reviewerUserId = reviewerUserId
     persisted.reviewerUserName = reviewerUserName
     persisted.reviewTime = now
-    persisted.annotationTime = now
-
-    const reviewRow = appendReviewHistory(taskId, warnUuid, {
-        submitHistoryId,
-        annotationId: persisted.recordId ?? null,
-        action: 'approve',
-        reviewerUserId,
-        reviewerUserName,
-        rejectReason: comment?.trim() ? comment.trim() : null,
-    })
+    persisted.reviewComment = comment?.trim() ? comment.trim() : null
+    if (finalIssueResult !== undefined && finalIssueResult !== null) {
+        persisted.finalIssueResult = finalIssueResult as IssueResult
+    }
 
     const reviewRecord: ReviewRecordSummary = {
         action: 'approve',
@@ -374,9 +368,9 @@ export function processReviewMock(
     return {
         ok: true,
         data: {
-            annotation: persistedToSaveResult(taskId, warnUuid, persisted, submitHistoryId),
-            reviewHistoryId: reviewRow.id,
-            submitHistoryId,
+            annotation: persistedToSaveResult(taskId, warnUuid, persisted),
+            reviewHistoryId: 0,
+            submitHistoryId: 0,
             reviewRecord,
             rejectedAnnotation: null,
         },
@@ -393,15 +387,14 @@ export function countReviewStats(
 } {
     let pendingReviewCount = 0
     let approvedReviewCount = 0
+    let rejectedReviewCount = 0
     for (const meta of Object.values(annotations)) {
         if (meta.issue_result == null) continue
-        if (meta.reviewStatus === 1) approvedReviewCount++
+        const rs = meta.reviewStatus ?? 0
+        if (rs === 1) approvedReviewCount++
+        else if (rs === 2) rejectedReviewCount++
         else pendingReviewCount++
     }
-    const rejectedReviewCount = (reviewHistoryStore[taskId]
-        ? Object.values(reviewHistoryStore[taskId]).flat()
-        : []
-    ).filter((r) => r.action === 'reject').length
 
     return { pendingReviewCount, approvedReviewCount, rejectedReviewCount }
 }
@@ -413,7 +406,9 @@ export function filterByReviewStatus(
 ): boolean {
     const raw = reviewStatus?.trim()
     if (!raw) return true
-    if (raw === '0') return hasAnnotation && annotationReviewStatus !== 1
-    if (raw === '1') return hasAnnotation && annotationReviewStatus === 1
+    const rs = annotationReviewStatus ?? 0
+    if (raw === '0') return hasAnnotation && rs === 0
+    if (raw === '1') return hasAnnotation && rs === 1
+    if (raw === '2') return hasAnnotation && rs === 2
     return true
 }

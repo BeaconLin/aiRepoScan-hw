@@ -24,8 +24,8 @@ export interface TaskDetailPaginationInfo {
     totalCount: number
 }
 
-/** 评审状态：0-待评审，1-已通过 */
-export type ReviewStatus = 0 | 1
+/** 评审状态：0-未评审，1-已通过，2-已驳回 */
+export type ReviewStatus = 0 | 1 | 2
 
 /** 保存标注成功时 `data` 字段（与接口文档 2.1 响应一致） */
 export interface SaveAnnotationResultData {
@@ -39,6 +39,8 @@ export interface SaveAnnotationResultData {
     reviewerUserId?: string | null
     reviewerUserName?: string | null
     reviewTime?: string | null
+    reviewComment?: string | null
+    finalIssueResult?: number | null
     createTime: string
     updateTime: string
     userName: string | null

@@ -24,6 +24,8 @@ export interface Annotation {
     reviewerUserId?: string | null
     reviewerUserName?: string | null
     reviewTime?: string | null
+    reviewComment?: string | null
+    finalIssueResult?: number | null
     createTime: string
     updateTime: string
     userName: string | null
@@ -83,6 +85,8 @@ export interface TaskDetail {
     hostUrl?: string
     /** 模型名称 */
     modelName?: string
+    /** 扫描进度，格式：已扫描文件数/全部文件数，如 "67/100" */
+    progress?: string
     scanResults: ScanResult[]
     /** 扫描结果分页信息（与接口文档「查询任务详情」一致；未完成或无明细时为 null） */
     paginationInfo?: TaskDetailPaginationInfo | null

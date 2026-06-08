@@ -204,11 +204,15 @@ const normalizeStoredTask = (raw: Record<string, unknown>): TaskDetail => {
     if (wo != null && Number.isFinite(Number(wo))) ext.warnCountOverride = Number(wo)
     base.hostUrl = String(raw.hostUrl ?? raw.host_url ?? '').trim()
     base.modelName = String(raw.modelName ?? raw.model_name ?? '').trim()
+    const progress = raw.progress
+    if (progress != null && String(progress).trim() !== '') {
+        base.progress = String(progress).trim()
+    }
     return base
 }
 
-// Mock 任务详情数据（基于 defaultTasks）
-const mockTaskDetails: Record<string, TaskDetail> = {
+// 内置 Mock 任务详情（基于 defaultTasks）；localStorage 恢复时会与内置字段合并
+const BUILTIN_MOCK_TASK_DETAILS: Record<string, TaskDetail> = {
     'T00112233-4455-6677-8899-aabbccddeeff': {
         taskId: 'T00112233-4455-6677-8899-aabbccddeeff',
         taskName: '前端代码扫描任务',
@@ -226,6 +230,7 @@ const mockTaskDetails: Record<string, TaskDetail> = {
         lineNum: 1.5,
         productName: 'ServiceComponent',
         s3Path: 'RepoScan/测试任务/aiMemorySafeCheckResult.json',
+        progress: '100/100',
         scanResults: []
     },
     'T11223344-5566-7788-99aa-bbccddeeff00': {
@@ -243,6 +248,7 @@ const mockTaskDetails: Record<string, TaskDetail> = {
         lineNum: 2.5,
         productName: 'UDM',
         s3Path: 's3://ai-repo-scan/results/T11223344-5566-7788-99aa-bbccddeeff00',
+        progress: '52/180',
         scanResults: []
     },
     'T22334455-6677-8899-aabb-ccddeeff0011': {
@@ -260,6 +266,7 @@ const mockTaskDetails: Record<string, TaskDetail> = {
         lineNum: 0.8,
         productName: '移动应用',
         s3Path: 's3://ai-repo-scan/results/T22334455-6677-8899-aabb-ccddeeff0011',
+        progress: '0/0',
         scanResults: []
     },
     'T01020304-0506-0708-090a-0b0c0d0e0f01': {
@@ -277,6 +284,7 @@ const mockTaskDetails: Record<string, TaskDetail> = {
         lineNum: 3.2,
         productName: 'NetService',
         s3Path: 's3://ai-repo-scan/results/T01020304-0506-0708-090a-0b0c0d0e0f01',
+        progress: '0/0',
         scanResults: []
     },
     'T01020304-0506-0708-090a-0b0c0d0e0f02': {
@@ -294,6 +302,7 @@ const mockTaskDetails: Record<string, TaskDetail> = {
         lineNum: 1.2,
         productName: 'UDM',
         s3Path: 's3://ai-repo-scan/results/T01020304-0506-0708-090a-0b0c0d0e0f02',
+        progress: '67/100',
         scanResults: []
     },
     'T01020304-0506-0708-090a-0b0c0d0e0f03': {
@@ -313,6 +322,7 @@ const mockTaskDetails: Record<string, TaskDetail> = {
         s3Path: 's3://ai-repo-scan/results/T01020304-0506-0708-090a-0b0c0d0e0f03',
         hostUrl: 'http://127.0.0.1:8765',
         modelName: 'repo-scan-mock-model',
+        progress: '31/95',
         scanResults: []
     },
     'T01020304-0506-0708-090a-0b0c0d0e0f04': {
@@ -330,23 +340,7 @@ const mockTaskDetails: Record<string, TaskDetail> = {
         lineNum: 2.1,
         productName: 'Messaging',
         s3Path: 's3://ai-repo-scan/results/T01020304-0506-0708-090a-0b0c0d0e0f04',
-        scanResults: []
-    },
-    'T01020304-0506-0708-090a-0b0c0d0e0f05': {
-        taskId: 'T01020304-0506-0708-090a-0b0c0d0e0f05',
-        taskName: '容器镜像构建脚本扫描',
-        repoUrl: 'https://codehub.huawei.com/CloudNative/buildkit.git',
-        branch: 'master',
-        pathList: 'docker,scripts',
-        assistantVersions: ['v2.1.0'],
-        creator: 'a00559878',
-        nameCn: '王五',
-        createTime: '2026-03-12 10:10:00',
-        taskStatus: TASK_STATUS.NOT_STARTED,
-        codeLanguage: 'Shell',
-        lineNum: 0.4,
-        productName: 'CloudNative',
-        s3Path: 's3://ai-repo-scan/results/T01020304-0506-0708-090a-0b0c0d0e0f05',
+        progress: '100/100',
         scanResults: []
     },
     'T01020304-0506-0708-090a-0b0c0d0e0f06': {
@@ -364,24 +358,26 @@ const mockTaskDetails: Record<string, TaskDetail> = {
         lineNum: 1.8,
         productName: 'Security',
         s3Path: 's3://ai-repo-scan/results/T01020304-0506-0708-090a-0b0c0d0e0f06',
+        progress: '0/0',
         scanResults: []
     },
-    'T01020304-0506-0708-090a-0b0c0d0e0f07': {
-        taskId: 'T01020304-0506-0708-090a-0b0c0d0e0f07',
-        taskName: '批处理作业调度扫描',
-        repoUrl: 'https://codehub.huawei.com/Batch/Scheduler/job-runner.git',
-        branch: 'develop',
-        pathList: 'jobs,scheduler',
-        assistantVersions: ['v1.1.0'],
-        creator: 'a00559876',
-        nameCn: '张三',
-        createTime: '2026-03-10 08:00:00',
-        taskStatus: TASK_STATUS.NOT_STARTED,
-        codeLanguage: 'Python',
-        lineNum: 0.9,
-        productName: 'Batch',
-        s3Path: 's3://ai-repo-scan/results/T01020304-0506-0708-090a-0b0c0d0e0f07',
-        scanResults: []
+}
+
+const mockTaskDetails: Record<string, TaskDetail> = Object.fromEntries(
+    Object.entries(BUILTIN_MOCK_TASK_DETAILS).map(([id, task]) => [id, { ...task }]),
+)
+
+/** localStorage 中缺少 progress 等字段时，用内置 mock 任务补全 */
+function reconcileMockTaskDetails(): void {
+    for (const [id, builtin] of Object.entries(BUILTIN_MOCK_TASK_DETAILS)) {
+        const stored = mockTaskDetails[id]
+        if (!stored) {
+            mockTaskDetails[id] = { ...builtin }
+            continue
+        }
+        if (!stored.progress?.trim() && builtin.progress) {
+            stored.progress = builtin.progress
+        }
     }
 }
 
@@ -392,13 +388,23 @@ const annotationsData: Record<string, Record<string, PersistedAnnotationMeta>> =
         'w00112233-4455-6677-8899-aabbccddeeff': {
             issue_result: 0,
             annotator: 'a00559876',
-            annotationTime: '2024-01-15 14:30:25'
+            annotationTime: '2024-01-15 14:30:25',
+            reviewStatus: 1,
+            reviewerUserId: 't00598420',
+            reviewerUserName: '田园',
+            reviewTime: '2024-01-16 10:00:00',
+            reviewComment: '结论合理',
         },
-        // 无需修改的问题 (1)
+        // 无需修改的问题 (1) — 已驳回
         'w11223344-5566-7788-99aa-bbccddeeff00': {
             issue_result: 1,
             annotator: 'a00559877',
-            annotationTime: '2024-01-15 15:20:10'
+            annotationTime: '2024-01-15 15:20:10',
+            reviewStatus: 2,
+            reviewerUserId: 't00598420',
+            reviewerUserName: '田园',
+            reviewTime: '2024-01-16 11:00:00',
+            reviewComment: '请补充误报依据后重新提交',
         },
         // 问题误报 (2)
         'w22334455-6677-8899-aabb-ccddeeff0011': {
@@ -534,6 +540,15 @@ function rowAnnToAnnotation(
         issueResult: Number.isFinite(issueResult) ? issueResult : 0,
         reason: a.reason != null ? String(a.reason) : null,
         annotationStatus: Number(a.annotationStatus) || 1,
+        reviewStatus: (a.reviewStatus ?? 0) as 0 | 1 | 2,
+        reviewerUserId: a.reviewerUserId != null ? String(a.reviewerUserId) : null,
+        reviewerUserName: a.reviewerUserName != null ? String(a.reviewerUserName) : null,
+        reviewTime: a.reviewTime != null ? String(a.reviewTime) : null,
+        reviewComment: a.reviewComment != null ? String(a.reviewComment) : null,
+        finalIssueResult:
+            a.finalIssueResult != null && Number.isFinite(Number(a.finalIssueResult))
+                ? Number(a.finalIssueResult)
+                : null,
         createTime: String(a.createTime ?? ''),
         updateTime: String(a.updateTime ?? a.createTime ?? ''),
         userName: a.userName != null ? String(a.userName) : null,
@@ -555,6 +570,9 @@ function annDataToAnnotation(warnUuid: string, taskId: string, ann: PersistedAnn
         reviewerUserId: ann.reviewerUserId ?? null,
         reviewerUserName: ann.reviewerUserName ?? null,
         reviewTime: ann.reviewTime ?? null,
+        reviewComment: ann.reviewComment ?? null,
+        finalIssueResult:
+            ann.finalIssueResult != null ? (ann.finalIssueResult as number) : null,
         createTime: time,
         updateTime: time,
         userName: null,
@@ -596,6 +614,9 @@ function buildMockScanResultAnnotation(
         reviewerUserId: p.reviewerUserId ?? null,
         reviewerUserName: p.reviewerUserName ?? null,
         reviewTime: p.reviewTime ?? null,
+        reviewComment: p.reviewComment ?? null,
+        finalIssueResult:
+            p.finalIssueResult != null ? (p.finalIssueResult as number) : null,
         updateTime: time,
         id: p.recordId ?? base.id,
     }
@@ -611,7 +632,10 @@ function scanAnnotationToApiDoc(a: Annotation): TaskScanResultAnnotationApiDoc {
         annotationStatus: a.annotationStatus,
         reviewStatus: a.reviewStatus ?? null,
         reviewerUserId: a.reviewerUserId ?? null,
+        reviewerUserName: a.reviewerUserName ?? null,
         reviewTime: a.reviewTime ?? null,
+        reviewComment: a.reviewComment ?? null,
+        finalIssueResult: a.finalIssueResult ?? null,
         createTime: a.createTime,
         updateTime: a.updateTime,
         userName: a.userName,
@@ -838,9 +862,7 @@ const mockScanResults: Record<string, MockScanResultRow[]> = {
     'T01020304-0506-0708-090a-0b0c0d0e0f02': [],
     'T01020304-0506-0708-090a-0b0c0d0e0f03': [],
     'T01020304-0506-0708-090a-0b0c0d0e0f04': [],
-    'T01020304-0506-0708-090a-0b0c0d0e0f05': [],
-    'T01020304-0506-0708-090a-0b0c0d0e0f06': [],
-    'T01020304-0506-0708-090a-0b0c0d0e0f07': []
+    'T01020304-0506-0708-090a-0b0c0d0e0f06': []
 }
 
 reconcileMockScanResults()
@@ -874,6 +896,10 @@ const hydrateTasksFromStorage = (): void => {
             const raw = item as Record<string, unknown>
             const id = String(raw.taskId)
             const detail = normalizeStoredTask(raw)
+            const builtin = BUILTIN_MOCK_TASK_DETAILS[id]
+            if (builtin && !detail.progress?.trim() && builtin.progress) {
+                detail.progress = builtin.progress
+            }
             mockTaskDetails[id] = detail
             const sr = raw.scanResults
             if (Array.isArray(sr) && sr.length > 0) {
@@ -888,6 +914,7 @@ const hydrateTasksFromStorage = (): void => {
 }
 
 hydrateTasksFromStorage()
+reconcileMockTaskDetails()
 reconcileMockScanResults()
 
 /** 演示任务「前端代码扫描」补充更多扫描结果行，便于详情页分页调试（本地 mock 且存在该任务时生效） */
@@ -1131,6 +1158,7 @@ export const createTaskApi = async (payload: CreateTaskPayload): Promise<ApiEnve
         lineNum: payload.lineNum ?? 0,
         productName: payload.productName,
         s3Path: `s3://ai-repo-scan/results/${taskId}`,
+        progress: '0/0',
         scanResults: []
     }
     mockTaskDetails[taskId] = task
@@ -1290,6 +1318,7 @@ export async function getTaskInfo(taskId: string): Promise<TaskInfoApiDocRespons
         pduName: ext.pduName ?? null,
         hostUrl: t.hostUrl ?? '',
         modelName: t.modelName ?? '',
+        progress: t.progress ?? '',
         scanResults: null,
         paginationInfo: null,
     }
@@ -1517,6 +1546,8 @@ export const saveAnnotationApi = async (
         reviewerUserId: null,
         reviewerUserName: null,
         reviewTime: null,
+        reviewComment: null,
+        finalIssueResult: undefined,
         recordId,
     }
 
@@ -1553,9 +1584,8 @@ export const saveAnnotationReviewApi = async (
     if (!result.ok) {
         return envelopeFail(null, result.number, result.message)
     }
-    if (reqBody.decision === 'reject') {
-        delete annotationsData[taskId][warnUuid]
-    } else if (persisted) {
+    if (persisted) {
+        if (!annotationsData[taskId]) annotationsData[taskId] = {}
         annotationsData[taskId][warnUuid] = persisted
     }
     return envelopeOk(result.data)

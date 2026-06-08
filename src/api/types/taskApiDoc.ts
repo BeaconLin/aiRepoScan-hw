@@ -9,7 +9,7 @@ import type { TaskDetailPaginationInfo } from '@/api/types/saveAnnotation'
 export type TaskDetailAnnotationStatusFilter = '' | 'unmarked' | '0' | '1' | '2'
 
 /** 扫描结果评审状态筛选（GET scan-results query reviewStatus） */
-export type TaskDetailReviewStatusFilter = '' | '0' | '1'
+export type TaskDetailReviewStatusFilter = '' | '0' | '1' | '2'
 
 // ---------------------------------------------------------------------------
 // 与接口文档 1.2.1 / 1.2.2 一致的 HTTP 响应形（meta.success + data），供本地模拟
@@ -45,6 +45,8 @@ export interface TaskInfoApiDocData {
     /** 可选；mock/部分环境返回 */
     deptName?: string | null
     pduName?: string | null
+    /** 扫描进度，格式：已扫描文件数/全部文件数，如 "67/100" */
+    progress?: string
     scanResults: null
     paginationInfo: null
 }
@@ -85,7 +87,10 @@ export interface TaskScanResultAnnotationApiDoc {
     annotationStatus: number
     reviewStatus?: number | null
     reviewerUserId?: string | null
+    reviewerUserName?: string | null
     reviewTime?: string | null
+    reviewComment?: string | null
+    finalIssueResult?: number | null
     createTime: string
     updateTime: string
     userName: string | null
