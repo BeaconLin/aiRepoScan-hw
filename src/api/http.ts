@@ -1,4 +1,4 @@
-import axios, {AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosError} from 'axios';
+import axios, {AxiosInstance, InternalAxiosRequestConfig, AxiosResponse, AxiosError} from 'axios';
 
 interface instanceObject {
     [key: string]: string;
@@ -37,11 +37,11 @@ const COREALM_TOKEN = 'CoreALMAuthorization';
 
 // 请求拦截器
 axiosInstance.interceptors.request.use(
-  (config: AxiosRequestConfig) => {
+  (config: InternalAxiosRequestConfig) => {
     // TODO 在这里可以加上想要在请求发送前处理的逻辑
     // TODO 比如 loading 等
-    if (config.url && Object.values(tokenApi).some(url => config.url.includes(url))) {
-      config.headers[COREALM_TOKEN] = localStorage.getItem(COREALM_TOKEN);
+    if (config.url && Object.values(tokenApi).some(url => config.url!.includes(url))) {
+      config.headers.set(COREALM_TOKEN, localStorage.getItem(COREALM_TOKEN) ?? '');
     }
 
     return config;

@@ -1,5 +1,5 @@
 <template>
-  <div class="layout">
+  <div class="layout" :style="layoutStyle">
     <!-- 顶部导航栏区域 -->
     <header class="header">
       <div class="brand">aiRepoScan - 产业代码仓扫描结果管理平台</div>
@@ -7,7 +7,9 @@
         <div class="user-info">用户信息区域</div>
       </nav>
     </header>
-    
+
+    <ScrollAnnouncement @height-change="onAnnouncementHeightChange" />
+
     <div class="main-container">
       <!-- 侧边栏导航区域 -->
       <aside class="sidebar">
@@ -23,7 +25,7 @@
           </RouterLink>
         </div>
       </aside>
-      
+
       <!-- 主内容区域 -->
       <main class="content">
         <router-view />
@@ -31,6 +33,26 @@
     </div>
   </div>
 </template>
+
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+import ScrollAnnouncement from '@/components/ScrollAnnouncement.vue'
+import { ANNOUNCEMENT_BAR_HEIGHT } from '@/constants/systemAnnouncement'
+
+const HEADER_HEIGHT = 64
+const announcementHeight = ref(ANNOUNCEMENT_BAR_HEIGHT)
+
+const layoutStyle = computed(() => {
+  const topOffset = HEADER_HEIGHT + announcementHeight.value
+  return {
+    '--top-offset': `${topOffset}px`,
+  }
+})
+
+function onAnnouncementHeightChange(height: number) {
+  announcementHeight.value = height
+}
+</script>
 
 <style scoped>
 .layout {
@@ -88,13 +110,13 @@
 
 .main-container {
   display: flex;
-  margin-top: 64px;
-  min-height: calc(100vh - 64px);
+  margin-top: var(--top-offset, 64px);
+  min-height: calc(100vh - var(--top-offset, 64px));
 }
 
 .sidebar {
   position: fixed;
-  top: 64px;
+  top: var(--top-offset, 64px);
   left: 0;
   bottom: 0;
   width: 240px;
@@ -103,7 +125,7 @@
   padding: 24px;
   box-shadow: 2px 0 4px rgba(0,0,0,0.05);
   overflow-y: auto;
-  z-index: 999;
+  z-index: 998;
 }
 
 .sidebar-content {
@@ -151,7 +173,7 @@
   margin-left: 240px;
   padding: 24px;
   overflow-y: auto;
-  min-height: calc(100vh - 64px);
+  min-height: calc(100vh - var(--top-offset, 64px));
   box-sizing: border-box;
 }
 </style>
