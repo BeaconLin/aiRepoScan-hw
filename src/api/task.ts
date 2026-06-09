@@ -691,6 +691,24 @@ const reconcileMockScanResults = (): void => {
     }
 }
 
+/** Mock 扫描规则名（与线上一致：CWD-编号 + 描述） */
+const MOCK_CWD_RULE_NAMES = [
+    'CWD-1040不正确的null结束符/缓冲区溢出',
+    'CWD-1026访问已释放内存（悬空指针）',
+    'CWD-1007不正确的逐位操作',
+    'CWD-1031空指针解引用（临时对象析构后访问）',
+    'CWD-1016内存操作函数的源缓冲区访问长度设置不正确',
+    'CWD-1022内存申请释放未配对',
+    'CWD-1001未初始化变量使用',
+    'CWD-1002数组越界访问',
+    'CWD-1003双重释放',
+    'CWD-1004整数溢出',
+    'CWD-1005格式化字符串漏洞',
+    'CWD-1008空指针解引用',
+    'CWD-1009资源泄露',
+    'CWD-1010竞态条件',
+] as const
+
 // Mock 扫描结果数据
 const mockScanResults: Record<string, MockScanResultRow[]> = {
     'T00112233-4455-6677-8899-aabbccddeeff': normalizeMockScanResultRows([{
@@ -704,7 +722,7 @@ const mockScanResults: Record<string, MockScanResultRow[]> = {
             self_increment_id: 1,
             check_function_id: 'func-001',
             index: null,
-            rule_name: '不安全函数使用',
+            rule_name: MOCK_CWD_RULE_NAMES[0],
             warn_line: 45,
             warn_code_block: 'const result = eval(userInput);',
             warn: '使用了不安全的eval函数，可能导致代码注入攻击。建议使用JSON.parse()或其他安全的解析方法。',
@@ -724,7 +742,7 @@ const mockScanResults: Record<string, MockScanResultRow[]> = {
             self_increment_id: 2,
             check_function_id: 'func-002',
             index: null,
-            rule_name: 'DOM操作性能问题',
+            rule_name: MOCK_CWD_RULE_NAMES[1],
             warn_line: 128,
             warn_code_block: 'document.getElementById("list").innerHTML += item;',
             warn: '在循环中进行了DOM操作，可能导致性能瓶颈。建议先构建完整的HTML字符串，然后一次性更新DOM。',
@@ -744,7 +762,7 @@ const mockScanResults: Record<string, MockScanResultRow[]> = {
             self_increment_id: 3,
             check_function_id: 'func-003',
             index: null,
-            rule_name: '命名规范问题',
+            rule_name: MOCK_CWD_RULE_NAMES[2],
             warn_line: 67,
             warn_code_block: 'let user_name = "test";',
             warn: '变量命名不符合规范，建议使用驼峰命名（camelCase）。应改为userName。',
@@ -756,7 +774,7 @@ const mockScanResults: Record<string, MockScanResultRow[]> = {
         {
             warn_uuid: 'w33445566-7788-99aa-bbcc-ccddeeff0011',
             file_name: 'HomePage.vue',
-            rule_name: 'XSS安全漏洞',
+            rule_name: MOCK_CWD_RULE_NAMES[3],
             warn_line: 203,
             warn_code_block: '<div v-html="userContent"></div>',
             code_snippet: '<div v-html="userContent"></div>',
@@ -774,7 +792,7 @@ const mockScanResults: Record<string, MockScanResultRow[]> = {
         {
             warn_uuid: 'w44556677-8899-aabb-bbcc-ccddeeff0011',
             file_name: 'request.js',
-            rule_name: '缺少错误处理',
+            rule_name: MOCK_CWD_RULE_NAMES[4],
             warn_line: 89,
             warn_code_block: 'return data.items[0].name;',
             code_snippet: 'return data.items[0].name;',
@@ -792,7 +810,7 @@ const mockScanResults: Record<string, MockScanResultRow[]> = {
         {
             warn_uuid: 'w55667788-99aa-aabb-bbcc-ccddeeff0011',
             file_name: 'DataTable.vue',
-            rule_name: '大数据渲染性能问题',
+            rule_name: MOCK_CWD_RULE_NAMES[5],
             warn_line: 156,
             warn_code_block: '<div v-for="item in largeList" :key="item.id">',
             code_snippet: '<div v-for="item in largeList" :key="item.id">',
@@ -810,7 +828,7 @@ const mockScanResults: Record<string, MockScanResultRow[]> = {
         {
             warn_uuid: 'w66778899-aabb-bbcc-ccdd-ccddeeff0011',
             file_name: 'validator.js',
-            rule_name: '函数过长',
+            rule_name: MOCK_CWD_RULE_NAMES[6],
             warn_line: 34,
             warn_code_block: 'function validateForm(form) {',
             code_snippet: 'function validateForm(form) {',
@@ -828,7 +846,7 @@ const mockScanResults: Record<string, MockScanResultRow[]> = {
         {
             warn_uuid: 'w5427cb40-aa79-4f99-aabd-f77da06222a9',
             file_name: 'sdc/domain/libcompiler/adr_compile.c',
-            rule_name: '内存安全',
+            rule_name: MOCK_CWD_RULE_NAMES[7],
             warn_line: 51,
             warn_code_block: ';',
             code_snippet: '',
@@ -925,22 +943,7 @@ reconcileMockScanResults()
     /** 与详情页展示上限一致，避免 mock 条数过多 */
     const targetMax = 20
     if (list.length >= targetMax) return
-    const rules = [
-        'SQL注入风险',
-        '硬编码密钥',
-        '弱随机数',
-        '资源未释放',
-        '并发竞态',
-        '日志敏感信息',
-        '明文传输',
-        'CORS配置不当',
-        '未校验重定向',
-        '依赖版本过旧',
-        '敏感数据落盘',
-        'HTTPS未启用',
-        '证书校验关闭',
-        '过于宽松的正则'
-    ]
+    const rules = [...MOCK_CWD_RULE_NAMES]
     const files = [
         'api/auth.ts',
         'utils/crypto.js',
@@ -1187,6 +1190,131 @@ export const createTaskApi = async (payload: CreateTaskPayload): Promise<ApiEnve
     mockScanResults[taskId] = []
     persistTasksToStorage()
     return envelopeOk(task)
+}
+
+const DEFAULT_BATCH_ASSISTANT = '内存安全v1.0.0'
+
+function validateBatchTaskItem(item: import('./types').BatchCreateTaskItem, rowIndex: number): string | null {
+    const name = (item.taskName || '').trim()
+    if (!name) return `第 ${rowIndex} 行：任务名称不能为空`
+    if (name.length < 2 || name.length > 50) return `第 ${rowIndex} 行：任务名称长度需在 2 到 50 个字符`
+    const repo = (item.repoUrl || '').trim()
+    if (!repo) return `第 ${rowIndex} 行：代码仓Git地址不能为空`
+    if (!/^https:\/\/[^\s/]+\/[^\s?]+\.git$/i.test(repo)) {
+        return `第 ${rowIndex} 行：代码仓Git地址格式无效`
+    }
+    if (!(item.branch || '').trim()) return `第 ${rowIndex} 行：扫描分支不能为空`
+    if (!(item.productName || '').trim()) return `第 ${rowIndex} 行：产品名称不能为空`
+    const hostUrl = (item.hostUrl || '').trim()
+    const modelName = (item.modelName || '').trim()
+    if ((hostUrl && !modelName) || (!hostUrl && modelName)) {
+        return `第 ${rowIndex} 行：本机启动URL与模型名称需同时填写或同时留空`
+    }
+    return null
+}
+
+function createTaskFromBatchItem(
+    item: import('./types').BatchCreateTaskItem,
+    creator: string,
+    nameCn?: string,
+): TaskDetail {
+    const taskId = generateTaskId()
+    const now = new Date().toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+    }).replace(/\//g, '-')
+
+    const avRaw = (item.assistantVersions || DEFAULT_BATCH_ASSISTANT).trim()
+    const avParts = avRaw.split(',').map((s) => s.trim()).filter(Boolean)
+    const assistantVersions = avParts.length > 0 ? avParts : [DEFAULT_BATCH_ASSISTANT]
+
+    const task: TaskDetail = {
+        taskId,
+        taskName: item.taskName.trim(),
+        repoUrl: item.repoUrl.trim(),
+        branch: item.branch.trim(),
+        pathList: item.pathList?.trim() ?? '',
+        assistantVersions,
+        creator,
+        nameCn: resolveTaskCreatorNameCn(creator, nameCn),
+        createTime: now,
+        taskStatus: TASK_STATUS.NOT_STARTED,
+        codeLanguage: item.codeLanguage?.trim() || 'Unknown',
+        lineNum: item.lineNum ?? 0,
+        productName: item.productName.trim(),
+        s3Path: `s3://ai-repo-scan/results/${taskId}`,
+        hostUrl: item.hostUrl?.trim() || '',
+        modelName: item.modelName?.trim() || '',
+        progress: '0/0',
+        scanResults: [],
+    }
+    mockTaskDetails[taskId] = task
+    mockScanResults[taskId] = []
+    return task
+}
+
+/** 批量创建任务（Mock：POST `/api/tasks/batch`） */
+export const batchCreateTasksApi = async (
+    payload: import('./types').BatchCreateTaskPayload,
+): Promise<ApiEnvelope<import('./types').BatchCreateTaskData>> => {
+    const tasks = payload.tasks ?? []
+    if (tasks.length === 0) {
+        return envelopeFail(
+            { totalCount: 0, successCount: 0, failureCount: 0, results: [] },
+            400,
+            '任务列表不能为空',
+        )
+    }
+    if (tasks.length > 100) {
+        return envelopeFail(
+            { totalCount: tasks.length, successCount: 0, failureCount: tasks.length, results: [] },
+            400,
+            '单次最多创建 100 条任务',
+        )
+    }
+
+    const creator = (payload.creator || '').trim()
+    const results: import('./types').BatchCreateTaskResultItem[] = []
+    let successCount = 0
+
+    for (let i = 0; i < tasks.length; i++) {
+        const rowIndex = i + 1
+        const item = tasks[i]
+        const err = validateBatchTaskItem(item, rowIndex)
+        if (err) {
+            results.push({
+                rowIndex,
+                success: false,
+                taskName: item.taskName,
+                message: err.replace(/^第 \d+ 行：/, ''),
+            })
+            continue
+        }
+        const task = createTaskFromBatchItem(item, creator, payload.nameCn)
+        successCount++
+        results.push({
+            rowIndex,
+            success: true,
+            taskId: task.taskId,
+            taskName: task.taskName,
+        })
+    }
+
+    if (successCount > 0) {
+        persistTasksToStorage()
+    }
+
+    const failureCount = tasks.length - successCount
+    return envelopeOk({
+        totalCount: tasks.length,
+        successCount,
+        failureCount,
+        results,
+    })
 }
 
 /**
@@ -1603,7 +1731,7 @@ export const saveAnnotationReviewApi = async (
     const { taskId, warnUuid } = reqBody
     const persisted = annotationsData[taskId]?.[warnUuid]
     const result = processReviewMock(reqBody, persisted, reviewerUserId, reviewerUserName)
-    if (!result.ok) {
+    if (result.ok === false) {
         return envelopeFail(null, result.number, result.message)
     }
     if (persisted) {
@@ -1683,40 +1811,19 @@ export const getAnnotationStatistics = async (taskId: string): Promise<ApiEnvelo
 
     // 构建状态分布数组
     const statusDistribution = []
-    const statusDescriptions: Record<number, string> = {
-        0: '需要修改',
-        1: '无需修改的问题',
-        2: '问题误报'
-    }
 
     // 统计已标注的总数（用于计算百分比）
     const totalAnnotated = annotatedCount
 
-    // 添加已标注状态（汇总所有标注结果）
+    // 与接口文档一致：statusDistribution 仅汇总「已标注」状态
     if (totalAnnotated > 0) {
         statusDistribution.push({
-            statusCode: 1, // 1 表示已标注
+            statusCode: 1,
             statusDescription: '已标注',
             warnCount: totalAnnotated,
             percentage: 100.0
         })
     }
-
-    // 添加各个标注结果的状态分布
-    Object.entries(statusCountMap).forEach(([code, count]) => {
-        if (count > 0) {
-            const statusCode = parseInt(code, 10)
-            const percentage = totalAnnotated > 0 
-                ? Number(((count / totalAnnotated) * 100).toFixed(2))
-                : 0
-            statusDistribution.push({
-                statusCode: statusCode,
-                statusDescription: statusDescriptions[statusCode] || '未知状态',
-                warnCount: count,
-                percentage: percentage
-            })
-        }
-    })
 
     // 与接口文档附录 A 一致：issue_result 0/1/2 → resultCode 2/1/0
     const annotationDistribution = []

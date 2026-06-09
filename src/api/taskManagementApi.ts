@@ -8,6 +8,7 @@ import {
     deleteTaskById as mockDeleteTaskById,
     updateTaskInfo as mockUpdateTaskInfo,
     createTaskApi as mockCreateTaskApi,
+    batchCreateTasksApi as mockBatchCreateTasksApi,
     getTaskInfo as mockGetTaskInfo,
     getTaskScanResults as mockGetTaskScanResults,
     uploadScanResultFile as mockUploadScanResultFile,
@@ -25,6 +26,8 @@ import type {
     AnnotationStatistics,
     ApiEnvelope,
     CreateTaskPayload,
+    BatchCreateTaskPayload,
+    BatchCreateTaskData,
     TaskDetail,
     UpdateTaskInfoPayload,
     StartTaskScanData,
@@ -78,6 +81,15 @@ export async function createTaskApi(payload: CreateTaskPayload): Promise<ApiEnve
     return apiMode === 'live'
         ? taskManagementService.createTaskApi(payload)
         : mockCreateTaskApi(payload)
+}
+
+/** 批量创建任务（POST `/api/tasks/batch`） */
+export async function batchCreateTasksApi(
+    payload: BatchCreateTaskPayload,
+): Promise<ApiEnvelope<BatchCreateTaskData>> {
+    return apiMode === 'live'
+        ? taskManagementService.batchCreateTasksApi(payload)
+        : mockBatchCreateTasksApi(payload)
 }
 
 export async function getTaskInfo(taskId: string): Promise<TaskInfoApiDocResponse> {

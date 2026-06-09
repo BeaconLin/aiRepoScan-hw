@@ -1,6 +1,6 @@
 import axios from 'axios';
-import service from '@/api/http.ts';
-import type { UpdateTaskInfoPayload } from '@/api/types';
+import service from '@/api/http';
+import type { CreateTaskPayload, UpdateTaskInfoPayload } from '@/api/types';
 
 // const VITE_API_REPO_SCAN = import.meta.env.VITE_API_REPO_SCAN
 const VITE_API_REPO_SCAN = 'http://localhost:8662'
@@ -38,21 +38,28 @@ const taskManagementService = {
    * @param taskData 任务数据
    * @returns Promise 返回创建结果，包含taskId等信息
    */
-  createTaskApi: (taskData: {
-    taskName: string;
-    productName: string;
-    repoUrl: string;
-    branch: string;
-    pathList: string;
-    creator: string;
-    assistantVersions: string;
-    codeLanguage?: string;
-    deptName?: string;
-    pduName?: string;
-    lineNum?: number;
-  }): any => {
+  createTaskApi: (taskData: CreateTaskPayload): any => {
     return service.post(`${REPO_SCAN_URL}/api/tasks`, taskData);
   },
+  /** 批量创建代码仓扫描任务 */
+  batchCreateTasksApi: (payload: {
+    creator: string;
+    nameCn?: string;
+    tasks: Array<{
+      taskName: string;
+      productName: string;
+      repoUrl: string;
+      branch: string;
+      pathList?: string;
+      assistantVersions?: string;
+      codeLanguage?: string;
+      lineNum?: number;
+      deptName?: string;
+      pduName?: string;
+      hostUrl?: string;
+      modelName?: string;
+    }>;
+  }): any => service.post(`${REPO_SCAN_URL}/api/tasks/batch`, payload),
   // 上传代码仓扫描结果文件到S3存储
   uploadScanResultFile: (taskId: string, file: File, userId: string): any => {
     const formData = new FormData()

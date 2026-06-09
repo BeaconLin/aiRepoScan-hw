@@ -140,6 +140,50 @@ export interface CreateTaskPayload {
     pduName?: string
 }
 
+/** 批量创建单条任务（在 CreateTaskPayload 基础上增加 hostUrl / modelName） */
+export interface BatchCreateTaskItem {
+    taskName: string
+    productName: string
+    repoUrl: string
+    branch: string
+    pathList?: string
+    /** 逗号分隔的助手版本；未填时后端使用默认值 */
+    assistantVersions?: string
+    codeLanguage?: string
+    lineNum?: number
+    deptName?: string
+    pduName?: string
+    /** 本机启动 URL（可选，启动扫描前必填） */
+    hostUrl?: string
+    /** 模型名称（可选，启动扫描前必填） */
+    modelName?: string
+}
+
+/** 批量创建任务请求体（POST `/api/tasks/batch`） */
+export interface BatchCreateTaskPayload {
+    creator: string
+    nameCn?: string
+    tasks: BatchCreateTaskItem[]
+}
+
+/** 批量创建单条结果 */
+export interface BatchCreateTaskResultItem {
+    /** 对应请求 tasks 数组下标，从 1 开始（与 Excel 行号一致，含表头则 +1） */
+    rowIndex: number
+    success: boolean
+    taskId?: string
+    taskName?: string
+    message?: string
+}
+
+/** 批量创建任务响应 data */
+export interface BatchCreateTaskData {
+    totalCount: number
+    successCount: number
+    failureCount: number
+    results: BatchCreateTaskResultItem[]
+}
+
 /** 接口文档 1.5：annotationDistribution 单条 */
 export interface AnnotationResultDistributionItem {
     resultCode: number
@@ -171,9 +215,9 @@ export interface AnnotationStatistics {
         percentage: number
     }>
     /** 标注结果统计（与接口文档一致：resultCode 0 非问题 / 1 无需修改的问题 / 2 需要修改） */
-    annotationDistribution?: AnnotationResultDistributionItem[]
+    annotationDistribution: AnnotationResultDistributionItem[]
     /** 扫描告警规则统计 */
-    ruleStatistics?: RuleStatisticItem[]
+    ruleStatistics: RuleStatisticItem[]
     /** 待评审条数 */
     pendingReviewCount?: number
     /** 已通过条数 */

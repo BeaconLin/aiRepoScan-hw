@@ -2,18 +2,20 @@
   <el-dialog
       v-model="dialogVisible"
       title="创建代码仓扫描任务"
-      width="800px"
+      :width="createMode === 'batch' ? '960px' : '800px'"
       :close-on-click-modal="false"
       @close="handleClose"
   >
-    <div class="dialog-body-scroll">
-      <el-form
-          ref="formRef"
-          :model="formData"
-          :rules="rules"
-          label-width="136px"
-          label-position="right"
-      >
+    <el-tabs v-model="createMode" class="create-mode-tabs">
+      <el-tab-pane label="单个创建" name="single">
+        <div class="dialog-body-scroll">
+          <el-form
+              ref="formRef"
+              :model="formData"
+              :rules="rules"
+              label-width="136px"
+              label-position="right"
+          >
         <el-form-item label="任务名称" prop="taskName">
           <el-input
               v-model="formData.taskName"
@@ -140,26 +142,40 @@
               clearable
           />
         </el-form-item>
-      </el-form>
-    </div>
+          </el-form>
+        </div>
+      </el-tab-pane>
+
+      <el-tab-pane label="批量导入" name="batch">
+        <BatchCreateTaskPanel ref="batchPanelRef" @success="handleBatchSuccess"/>
+      </el-tab-pane>
+    </el-tabs>
 
     <template #footer>
       <div class="dialog-footer">
         <el-button @click="handleClose">取消</el-button>
-        <el-button @click="handleReset">重置</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitting">
-          提交创建
-        </el-button>
+        <template v-if="createMode === 'single'">
+          <el-button @click="handleReset">重置</el-button>
+          <el-button type="primary" @click="handleSubmit" :loading="submitting">
+            提交创建
+          </el-button>
+        </template>
+        <template v-else>
+          <el-button type="primary" :loading="batchSubmitting" :disabled="!batchCanSubmit" @click="handleBatchSubmit">
+            确认创建{{ batchRowCount > 0 ? `（${batchRowCount} 条）` : '' }}
+          </el-button>
+        </template>
       </div>
     </template>
   </el-dialog>
 </template>
 
 <script setup>
-import { onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useProfileStore } from '@/stores/userProfile'
 import { createTaskApi } from '@/api/taskManagementApi'
+import BatchCreateTaskPanel from '@/views/taskManagement/components/BatchCreateTaskPanel.vue'
 
 const props = defineProps({
   modelValue: {
@@ -172,7 +188,13 @@ const emit = defineEmits(['update:modelValue', 'success'])
 const profileStore = useProfileStore()
 const dialogVisible = ref(false)
 const formRef = ref(null)
+const batchPanelRef = ref(null)
 const submitting = ref(false)
+const createMode = ref('single')
+
+const batchCanSubmit = computed(() => batchPanelRef.value?.canSubmit?.value ?? false)
+const batchSubmitting = computed(() => batchPanelRef.value?.submitting?.value ?? false)
+const batchRowCount = computed(() => batchPanelRef.value?.parsedRows?.value?.length ?? 0)
 
 const DEFAULT_CODE_LANGUAGE = 'C/C++'
 const DEFAULT_ASSISTANT_VERSION = '内存安全v1.0.0'
@@ -261,7 +283,9 @@ watch(
     (newVal) => {
       dialogVisible.value = newVal
       if (newVal) {
+        createMode.value = 'single'
         initForm()
+        batchPanelRef.value?.resetState?.()
       }
     }
 )
@@ -313,8 +337,21 @@ const handleReset = () => {
 // 关闭弹窗
 const handleClose = () => {
   dialogVisible.value = false
+  createMode.value = 'single'
   if (formRef.value) {
     formRef.value.clearValidate()
+  }
+  batchPanelRef.value?.resetState?.()
+}
+
+const handleBatchSuccess = () => {
+  emit('success')
+}
+
+const handleBatchSubmit = async () => {
+  const ok = await batchPanelRef.value?.submit?.()
+  if (ok) {
+    handleClose()
   }
 }
 
@@ -416,6 +453,14 @@ const handleSubmit = async () => {
 </script>
 
 <style scoped>
+.create-mode-tabs {
+  margin-top: -8px;
+}
+
+.create-mode-tabs :deep(.el-tabs__header) {
+  margin-bottom: 16px;
+}
+
 .dialog-body-scroll {
   max-height: calc(100vh - 200px);
   overflow-y: auto;

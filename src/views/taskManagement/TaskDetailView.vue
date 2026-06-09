@@ -2534,28 +2534,56 @@ const annotationStatusDisplay = computed(() => {
   const map = new Map((api.annotationDistribution ?? []).map(d => [d.resultCode, d]))
   const unPct = total > 0 ? Number(((api.unannotatedCount / total) * 100).toFixed(2)) : 0
   return {
-    needModify: map.get(0)?.annotationCount ?? 0,
+    needModify: map.get(2)?.annotationCount ?? 0,
     noNeedModify: map.get(1)?.annotationCount ?? 0,
-    falsePositive: map.get(2)?.annotationCount ?? 0,
+    falsePositive: map.get(0)?.annotationCount ?? 0,
     unmarked: api.unannotatedCount,
     pct: {
-      needModify: formatPercentText(map.get(0)?.percentage ?? 0),
+      needModify: formatPercentText(map.get(2)?.percentage ?? 0),
       noNeedModify: formatPercentText(map.get(1)?.percentage ?? 0),
-      falsePositive: formatPercentText(map.get(2)?.percentage ?? 0),
+      falsePositive: formatPercentText(map.get(0)?.percentage ?? 0),
       unmarked: formatPercentText(unPct),
     },
   }
 })
 
 // 构建规则名称树形结构
+/** CWD 规则名为扁平结构，不应按 `-`/`/` 等字符拆成层级 */
+const CWD_RULE_NAME_PATTERN = /^CWD-\d+/
+
+function appendFlatRuleTreeLeaf(
+    ruleName: string,
+    count: number,
+    nodeMap: Map<string, RuleTreeNode>,
+    rootNodes: RuleTreeNode[],
+): void {
+  const nodeId = `leaf-${ruleName}`
+  if (!nodeMap.has(nodeId)) {
+    const node: RuleTreeNode = {
+      id: nodeId,
+      label: ruleName,
+      ruleName,
+      count: 0,
+    }
+    nodeMap.set(nodeId, node)
+    rootNodes.push(node)
+  }
+  nodeMap.get(nodeId)!.count += count
+}
+
 const buildRuleTree = (typeDistribution: Record<string, number>): RuleTreeNode[] => {
   const nodeMap = new Map<string, RuleTreeNode>()
   const rootNodes: RuleTreeNode[] = []
 
   // 遍历所有规则名称，构建树形结构
   Object.entries(typeDistribution).forEach(([ruleName, count]) => {
-    // 尝试多种分隔符来解析层级结构
-    const separators = ['/', '::', '.', '-', '_']
+    if (CWD_RULE_NAME_PATTERN.test(ruleName)) {
+      appendFlatRuleTreeLeaf(ruleName, count, nodeMap, rootNodes)
+      return
+    }
+
+    // 尝试多种分隔符来解析层级结构（不含 `-`/`_`，避免误拆 CWD 编号）
+    const separators = ['/', '::', '.']
     let parts: string[] = []
     let separator = ''
 
