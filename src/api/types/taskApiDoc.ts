@@ -42,6 +42,8 @@ export interface TaskInfoApiDocData {
     hostUrl?: string
     /** 模型名称；可选，部分环境返回 */
     modelName?: string
+    /** 中止后重启是否从头扫描：true 从头开始，false 从中止处继续 */
+    rescan?: boolean
     /** 可选；mock/部分环境返回 */
     deptName?: string | null
     pduName?: string | null

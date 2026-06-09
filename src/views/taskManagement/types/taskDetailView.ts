@@ -24,6 +24,8 @@ export interface Task {
   s3Path?: string
   hostUrl?: string
   modelName?: string
+  /** 中止后重启是否从头扫描：true 从头开始，false 从中止处继续 */
+  rescan?: boolean
   warnCount?: number | null
   scanResults: unknown[]
   // 兼容旧数据格式

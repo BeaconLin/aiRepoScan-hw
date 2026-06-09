@@ -85,6 +85,8 @@ export interface TaskDetail {
     hostUrl?: string
     /** 模型名称 */
     modelName?: string
+    /** 中止后重启是否从头扫描：true 从头开始，false 从中止处继续 */
+    rescan?: boolean
     /** 扫描进度，格式：已扫描文件数/全部文件数，如 "67/100" */
     progress?: string
     scanResults: ScanResult[]
@@ -113,6 +115,8 @@ export interface UpdateTaskInfoPayload {
     warnCount: number | null
     hostUrl: string | null
     modelName: string | null
+    /** 中止后重启是否从头扫描：true 从头开始，false 从中止处继续 */
+    rescan: boolean
 }
 
 /** 启动扫描接口响应 data（POST `/api/tasks/{taskId}/start`） */

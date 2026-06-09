@@ -37,8 +37,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import ScrollAnnouncement from '@/components/ScrollAnnouncement.vue'
-import { ANNOUNCEMENT_BAR_HEIGHT } from '@/constants/systemAnnouncement'
 
+const ANNOUNCEMENT_BAR_HEIGHT = 44
 const HEADER_HEIGHT = 64
 const announcementHeight = ref(ANNOUNCEMENT_BAR_HEIGHT)
 

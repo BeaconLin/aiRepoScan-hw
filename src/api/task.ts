@@ -204,6 +204,7 @@ const normalizeStoredTask = (raw: Record<string, unknown>): TaskDetail => {
     if (wo != null && Number.isFinite(Number(wo))) ext.warnCountOverride = Number(wo)
     base.hostUrl = String(raw.hostUrl ?? raw.host_url ?? '').trim()
     base.modelName = String(raw.modelName ?? raw.model_name ?? '').trim()
+    base.rescan = raw.rescan === true || raw.rescan === 'true'
     const progress = raw.progress
     if (progress != null && String(progress).trim() !== '') {
         base.progress = String(progress).trim()
@@ -1108,6 +1109,7 @@ export const updateTaskInfo = async (
     ext.pduName = payload.pduName == null ? null : String(payload.pduName).trim() || null
     t.hostUrl = payload.hostUrl == null ? '' : String(payload.hostUrl).trim()
     t.modelName = payload.modelName == null ? '' : String(payload.modelName).trim()
+    t.rescan = payload.rescan === true
     if (payload.warnCount == null) {
         delete ext.warnCountOverride
     } else {
@@ -1468,6 +1470,7 @@ export async function getTaskInfo(taskId: string): Promise<TaskInfoApiDocRespons
         pduName: ext.pduName ?? null,
         hostUrl: t.hostUrl ?? '',
         modelName: t.modelName ?? '',
+        rescan: t.rescan === true,
         progress: t.progress ?? '',
         scanResults: null,
         paginationInfo: null,
@@ -1491,23 +1494,6 @@ export async function getTaskScanResults(
     const taskDetail = mockTaskDetails[taskId]
     if (!taskDetail) {
         return { meta: metaDocFail(404, '未找到任务'), data: null }
-    }
-    if (taskDetail.taskStatus !== TASK_STATUS.COMPLETED) {
-        const ps = Math.max(1, pageSize || 10)
-        return {
-            meta: metaDocOk(),
-            data: {
-                scanResults: [],
-                paginationInfo: {
-                    totalPages: 1,
-                    pageSize: ps,
-                    hasPrevious: false,
-                    hasNext: false,
-                    currentPage: 1,
-                    totalCount: 0,
-                },
-            },
-        }
     }
 
     const results = mockScanResults[taskId] || []

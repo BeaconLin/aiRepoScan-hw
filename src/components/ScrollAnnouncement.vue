@@ -11,7 +11,7 @@
       <span class="announcement-label">系统公告</span>
       <div class="announcement-content">
         <p
-          v-for="(message, index) in messages"
+          v-for="(message, index) in displayMessages"
           :key="index"
           class="announcement-text"
         >
@@ -32,7 +32,18 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { SYSTEM_ANNOUNCEMENT } from '@/constants/systemAnnouncement'
+
+interface SystemAnnouncementConfig {
+  enabled: boolean
+  messages: string[]
+}
+
+const SYSTEM_ANNOUNCEMENT: SystemAnnouncementConfig = {
+  enabled: true,
+  messages: [
+    '【系统升级通知】平台将于 2026年6月11日（周四） 22:00 - 24:00 进行系统升级维护。正在执行的扫描任务会出现中断重扫的情况，请保持本地服务启动。如有疑问请联系平台管理员',
+  ],
+}
 
 const emit = defineEmits<{
   visibleChange: [visible: boolean]
@@ -46,10 +57,15 @@ const props = withDefaults(
     closable?: boolean
   }>(),
   {
-    messages: () => SYSTEM_ANNOUNCEMENT.messages,
-    enabled: () => SYSTEM_ANNOUNCEMENT.enabled,
     closable: true,
   },
+)
+
+const displayMessages = computed(
+  () => props.messages ?? SYSTEM_ANNOUNCEMENT.messages,
+)
+const isEnabled = computed(
+  () => props.enabled ?? SYSTEM_ANNOUNCEMENT.enabled,
 )
 
 const STORAGE_KEY = 'system-announcement-dismissed'
@@ -62,7 +78,7 @@ const dismissed = ref(
 let resizeObserver: ResizeObserver | null = null
 
 const visible = computed(() => {
-  return props.enabled && props.messages.length > 0 && !dismissed.value
+  return isEnabled.value && displayMessages.value.length > 0 && !dismissed.value
 })
 
 function reportHeight() {

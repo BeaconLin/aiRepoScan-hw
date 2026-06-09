@@ -389,6 +389,22 @@
                             <span>{{ modelNameDisplay }}</span>
                           </template>
                         </div>
+                        <div
+                            class="task-detail-field-line"
+                            :class="{ 'task-detail-field-line--edit': isEditing }"
+                        >
+                          <span>重启扫描策略：</span>
+                          <template v-if="isEditing">
+                            <el-switch
+                                v-model="editForm.rescan"
+                                active-text="从头开始"
+                                inactive-text="从中止处继续"
+                            />
+                          </template>
+                          <template v-else>
+                            <span>{{ rescanDisplay }}</span>
+                          </template>
+                        </div>
                         <div class="task-detail-field-line task-detail-field-line--start-scan">
                           <span>扫描启动：</span>
                           <el-button
@@ -635,7 +651,6 @@
                 !loading &&
                 !error &&
                 task &&
-                task.taskStatus === TASK_STATUS.COMPLETED &&
                 pagination.total > 0
             }"
           >
@@ -698,9 +713,9 @@
                   </template>
                 </el-result>
               </div>
-              <!-- 扫描结果列表和规则树区域 - 仅当任务状态为已完成时显示 -->
+              <!-- 扫描结果列表和规则树区域 - 有扫描结果即展示（不限任务状态） -->
               <div
-                  v-else-if="task && task.taskStatus === TASK_STATUS.COMPLETED && scanResultsList"
+                  v-else-if="hasScanResultsForAnnotation"
                   class="result-list-container"
               >
                 <!-- 左侧：扫描结果列表 -->
@@ -744,6 +759,16 @@
                           </el-select>
                         </div>
                       </template>
+                      <el-button
+                          type="primary"
+                          plain
+                          :loading="exportingScanResults"
+                          :disabled="exportingScanResults"
+                          class="export-scan-results-btn"
+                          @click="handleExportScanResults"
+                      >
+                        导出 Excel
+                      </el-button>
                     </div>
                   </div>
                   <div ref="scanResultListContentRef" class="list-content">
@@ -1047,9 +1072,9 @@
                 </div>
               </div>
 
-              <!-- 分页区域 - 仅当任务状态为已完成时显示；固定底部悬浮 -->
+              <!-- 分页区域 - 有扫描结果即展示；固定底部悬浮 -->
               <div
-                  v-if="task && task.taskStatus === TASK_STATUS.COMPLETED && pagination.total > 0"
+                  v-if="hasScanResultsForAnnotation"
                   class="pagination-section pagination-bar-fixed"
               >
                 <el-pagination
@@ -1063,8 +1088,11 @@
                 />
               </div>
 
-              <!-- 任务未完成提示 -->
-              <div v-if="task && task.taskStatus !== TASK_STATUS.COMPLETED" class="status-tip-section">
+              <!-- 任务未完成且无扫描结果时提示 -->
+              <div
+                  v-if="task && task.taskStatus !== TASK_STATUS.COMPLETED && !hasScanResultsForAnnotation"
+                  class="status-tip-section"
+              >
                 <el-alert
                     :title="getStatusTipTitle()"
                     :description="getStatusTipDescription()"
@@ -1207,6 +1235,7 @@ import {
 } from '@/constants/scanTaskConst'
 import { useProfileStore } from '@/stores/userProfile'
 
+import { exportScanResultsToExcel } from '@/views/taskManagement/utils/scanResultExport'
 import {
   getTaskInfo,
   getTaskScanResults,
@@ -1260,6 +1289,8 @@ interface Task {
   s3Path?: string
   hostUrl?: string
   modelName?: string
+  /** 中止后重启是否从头扫描：true 从头开始，false 从中止处继续 */
+  rescan?: boolean
   warnCount?: number | null
   scanResults: any[]
   commitId?: string
@@ -1365,6 +1396,7 @@ const savingTask = ref(false)
 const startingTaskScan = ref(false)
 const pausingTask = ref(false)
 const rerunningRuleStatistics = ref(false)
+const exportingScanResults = ref(false)
 const taskEditFormRef = ref<FormInstance | null>(null)
 
 /** 仅允许 HTTPS Git 克隆地址，与创建任务弹窗一致 */
@@ -1444,6 +1476,7 @@ const editForm = reactive({
   warnCount: null as number | null,
   hostUrl: '',
   modelName: '',
+  rescan: false,
 })
 
 function syncEditFormFromTask(t: Task): void {
@@ -1462,6 +1495,7 @@ function syncEditFormFromTask(t: Task): void {
   editForm.warnCount = t.warnCount != null && true ? t.warnCount : null
   editForm.hostUrl = (t.hostUrl || '').trim()
   editForm.modelName = (t.modelName || '').trim()
+  editForm.rescan = t.rescan === true
 }
 
 function handleStartEdit(): void {
@@ -1509,6 +1543,7 @@ async function handleSaveTask(): Promise<void> {
       warnCount: editForm.warnCount,
       hostUrl: editForm.hostUrl.trim() || null,
       modelName: editForm.modelName.trim() || null,
+      rescan: editForm.rescan === true,
     }
     const res = await updateTaskInfo(tid, payload)
     if (!res.meta.isSuccess) {
@@ -1534,6 +1569,7 @@ async function handleSaveTask(): Promise<void> {
       task.value.warnCount = payload.warnCount != null ? payload.warnCount : null
       task.value.hostUrl = payload.hostUrl ?? ''
       task.value.modelName = payload.modelName ?? ''
+      task.value.rescan = payload.rescan === true
       syncEditFormFromTask(task.value)
     }
     ElMessage.success('任务信息已保存')
@@ -1587,6 +1623,10 @@ const hostUrlDisplay = computed(() => {
 const modelNameDisplay = computed(() => {
   const s = (task.value?.modelName || '').trim()
   return s || '未设置'
+})
+
+const rescanDisplay = computed(() => {
+  return task.value?.rescan === true ? '从头开始' : '从中止处继续'
 })
 
 /** 解析进度字符串，返回 { scanned, total, percent } */
@@ -1690,6 +1730,7 @@ function buildUpdateTaskPayloadFromTask(
     warnCount: t.warnCount != null ? t.warnCount : null,
     hostUrl: (t.hostUrl || '').trim() || null,
     modelName: (t.modelName || '').trim() || null,
+    rescan: t.rescan === true,
   }
 }
 
@@ -2084,6 +2125,62 @@ function augmentScanResultsWithRepeatedRules(results: ScanResult[]): ScanResult[
   return out
 }
 
+/** 将接口原始扫描行映射为标注视图可用的 ScanResult 列表 */
+function mapRawScanResultsToList(rawScanResults: any[], offset: number): ScanResult[] {
+  let mapped = rawScanResults.map((item: any, idx: number) => {
+    const result: ScanResult = {
+      ...item,
+      self_increment_id: item.self_increment_id ?? item.index ?? offset + idx + 1,
+      warn_uuid: item.warn_uuid || item.warnUuid || item.id,
+      file_name: item.file_name || item.fileName,
+      warn_line: item.warn_line || item.warnLine || item.line,
+      warn_code_block: item.warn_code_block || item.warnCodeBlock || item.code_block || item.codeBlock,
+      issue_result: item.issue_result ?? item.issueResult ?? null,
+      reason: item.reason ?? null,
+      annotation: (() => {
+        if (item.annotation) {
+          return {
+            id: item.annotation.id,
+            warnUuid: item.annotation.warnUuid || item.annotation.warn_uuid || item.warn_uuid,
+            userId: item.annotation.userId || item.annotation.user_id || item.annotator || '',
+            issueResult: item.annotation.issueResult ?? item.annotation.issue_result ?? item.issue_result ?? null,
+            reason: item.annotation.reason ?? null,
+            annotationStatus: item.annotation.annotationStatus ?? item.annotation.annotation_status ??
+                (item.issue_result !== null && item.issue_result !== undefined ? 1 : undefined),
+            reviewStatus: item.annotation.reviewStatus ?? item.annotation.review_status ?? 0,
+            reviewerUserId: item.annotation.reviewerUserId ?? item.annotation.reviewer_user_id ?? null,
+            reviewerUserName: item.annotation.reviewerUserName ?? item.annotation.reviewer_user_name ?? null,
+            reviewTime: item.annotation.reviewTime ?? item.annotation.review_time ?? null,
+            reviewComment: item.annotation.reviewComment ?? item.annotation.review_comment ?? null,
+            finalIssueResult: item.annotation.finalIssueResult ?? item.annotation.final_issue_result ?? null,
+            createTime: item.annotation.createTime || item.annotation.create_time || item.annotationTime,
+            updateTime: item.annotation.updateTime || item.annotation.update_time || item.annotationTime,
+            userName: item.annotation.userName || item.annotation.user_name || null,
+            userDepartment: item.annotation.userDepartment || item.annotation.user_department || null,
+            taskId: item.annotation.taskId || item.annotation.task_id || null,
+          }
+        }
+        if (item.issue_result !== null && item.issue_result !== undefined) {
+          return {
+            warnUuid: item.warn_uuid || item.warnUuid || item.id || '',
+            userId: item.annotator || item.annotation?.userId || '',
+            issueResult: item.issue_result ?? item.issueResult ?? null,
+            reason: item.annotation?.reason ?? null,
+            annotationStatus: 1,
+            createTime: item.annotationTime || item.annotation?.createTime,
+            updateTime: item.annotationTime || item.annotation?.updateTime,
+          }
+        }
+        return null
+      })(),
+    }
+    return result
+  }) as ScanResult[]
+
+  mapped = renumberScanResultIncrementIds(mapped, offset + 1)
+  return mapped
+}
+
 /**
  * 拉取任务详情某一页扫描结果
  */
@@ -2172,72 +2269,23 @@ const fetchTaskDetailPage = async (
         ?? resTask.model_name
         ?? '',
     ).trim(),
+    rescan: (d as { rescan?: boolean }).rescan === true
+        || resTask.rescan === true,
     scanResults: rawScanResults,
     paginationInfo: pi ?? null,
   } as Task
 
   syncEditFormFromTask(task.value)
 
+  const mapped = mapRawScanResultsToList(rawScanResults, offset)
+  scanResultsList.value = mapped
+  task.value = {...task.value, scanResults: mapped as any}
+
+  if (options.fetchAnnotationStats) {
+    fullScanResultsList.value = [...mapped]
+  }
+
   if (task.value.taskStatus === TASK_STATUS.COMPLETED) {
-    let mapped = rawScanResults.map((item: any, idx: number) => {
-      const result: ScanResult = {
-        ...item,
-        self_increment_id: item.self_increment_id ?? item.index ?? offset + idx + 1,
-        warn_uuid: item.warn_uuid || item.warnUuid || item.id,
-        file_name: item.file_name || item.fileName,
-        warn_line: item.warn_line || item.warnLine || item.line,
-        warn_code_block: item.warn_code_block || item.warnCodeBlock || item.code_block || item.codeBlock,
-        issue_result: item.issue_result ?? item.issueResult ?? null,
-        reason: item.reason ?? null,
-        annotation: (() => {
-          if (item.annotation) {
-            return {
-              id: item.annotation.id,
-              warnUuid: item.annotation.warnUuid || item.annotation.warn_uuid || item.warn_uuid,
-              userId: item.annotation.userId || item.annotation.user_id || item.annotator || '',
-              issueResult: item.annotation.issueResult ?? item.annotation.issue_result ?? item.issue_result ?? null,
-              reason: item.annotation.reason ?? null,
-              annotationStatus: item.annotation.annotationStatus ?? item.annotation.annotation_status ??
-                  (item.issue_result !== null && item.issue_result !== undefined ? 1 : undefined),
-              reviewStatus: item.annotation.reviewStatus ?? item.annotation.review_status ?? 0,
-              reviewerUserId: item.annotation.reviewerUserId ?? item.annotation.reviewer_user_id ?? null,
-              reviewerUserName: item.annotation.reviewerUserName ?? item.annotation.reviewer_user_name ?? null,
-              reviewTime: item.annotation.reviewTime ?? item.annotation.review_time ?? null,
-              reviewComment: item.annotation.reviewComment ?? item.annotation.review_comment ?? null,
-              finalIssueResult: item.annotation.finalIssueResult ?? item.annotation.final_issue_result ?? null,
-              createTime: item.annotation.createTime || item.annotation.create_time || item.annotationTime,
-              updateTime: item.annotation.updateTime || item.annotation.update_time || item.annotationTime,
-              userName: item.annotation.userName || item.annotation.user_name || null,
-              userDepartment: item.annotation.userDepartment || item.annotation.user_department || null,
-              taskId: item.annotation.taskId || item.annotation.task_id || null,
-            }
-          }
-          if (item.issue_result !== null && item.issue_result !== undefined) {
-            return {
-              warnUuid: item.warn_uuid || item.warnUuid || item.id || '',
-              userId: item.annotator || item.annotation?.userId || '',
-              issueResult: item.issue_result ?? item.issueResult ?? null,
-              reason: item.annotation?.reason ?? null,
-              annotationStatus: 1,
-              createTime: item.annotationTime || item.annotation?.createTime,
-              updateTime: item.annotationTime || item.annotation?.updateTime,
-            }
-          }
-          return null
-        })(),
-      }
-      return result
-    }) as ScanResult[]
-
-    // 注释掉重复规则填充功能，使页面显示数量与接口返回一致
-    mapped = renumberScanResultIncrementIds(mapped, offset + 1)
-    scanResultsList.value = mapped
-    task.value = {...task.value, scanResults: mapped as any}
-
-    if (options.fetchAnnotationStats) {
-      fullScanResultsList.value = [...mapped]
-    }
-
     setTimeout(() => {
       updateAllCharts()
     }, 300)
@@ -2252,8 +2300,6 @@ const fetchTaskDetailPage = async (
         console.warn('获取标注统计信息失败:', err)
       }
     }
-  } else {
-    scanResultsList.value = rawScanResults
   }
 }
 
@@ -2443,6 +2489,11 @@ const hasActiveFilter = computed(() => {
       || (EXPERT_REVIEW_ENABLED && f.reviewStatus?.trim())
   )
 })
+
+/** 扫描结果接口已成功且存在可展示的告警（不依赖任务是否已完成） */
+const hasScanResultsForAnnotation = computed(
+    () => scanResultsQuerySucceeded.value && pagination.value.total > 0,
+)
 
 /** 任务已完成且接口确认扫描结果总数为 0（非筛选、非请求失败） */
 const isCompletedScanWithZeroIssues = computed(
@@ -2820,6 +2871,60 @@ function getReviewStatusTagType(status: 0 | 1 | 2 | null): TagType {
   if (status === 2) return 'warning'
   if (status === 0) return 'info'
   return 'info'
+}
+
+async function handleExportScanResults(): Promise<void> {
+  const taskId = route.params.id as string
+  if (!task.value || !taskId) {
+    ElMessage.warning('任务信息未加载，请稍后重试')
+    return
+  }
+  if (task.value.taskStatus !== TASK_STATUS.COMPLETED) {
+    ElMessage.warning('任务未完成，暂无法导出扫描结果')
+    return
+  }
+
+  exportingScanResults.value = true
+  const loadingMsg = ElMessage({
+    type: 'info',
+    message: '正在拉取扫描结果并生成 Excel，请稍候…',
+    duration: 0,
+    showClose: false,
+  })
+
+  try {
+    const f = filterForm.value
+    const count = await exportScanResultsToExcel({
+      taskId,
+      taskInfo: {
+        taskId: task.value.taskId || taskId,
+        taskName: task.value.taskName,
+        repoUrl: task.value.repoUrl,
+        branch: task.value.branch,
+        pathList: task.value.pathList,
+        creator: task.value.creator,
+        nameCn: (task.value as { nameCn?: string }).nameCn ?? '',
+        createTime: task.value.createTime,
+        productName: task.value.productName,
+        codeLanguage: task.value.codeLanguage,
+        lineNum: task.value.lineNum,
+      },
+      filter: {
+        ruleName: f.ruleName?.trim() || undefined,
+        annotation: f.issueResult?.trim() || undefined,
+        reviewStatus: EXPERT_REVIEW_ENABLED ? f.reviewStatus?.trim() || undefined : undefined,
+        keyword: f.keyword?.trim() || undefined,
+      },
+      includeReviewColumns: EXPERT_REVIEW_ENABLED,
+    })
+    ElMessage.success(`已导出 ${count} 条扫描结果`)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '导出失败，请稍后重试'
+    ElMessage.error(msg)
+  } finally {
+    loadingMsg.close()
+    exportingScanResults.value = false
+  }
 }
 
 function isReviewable(result: ScanResult): boolean {
@@ -3253,9 +3358,9 @@ const getStatusTipDescription = (): string => {
   }
   const descMap: Record<string, string> = {
     [TASK_STATUS.NOT_STARTED]: '该任务待处理，请等待任务启动后查看扫描结果。',
-    [TASK_STATUS.QUEUED]: '该任务已启动并在排队等待执行，请稍候查看扫描结果。',
-    [TASK_STATUS.RUNNING]: '该任务正在扫描中，请稍候查看扫描结果。',
-    [TASK_STATUS.FAILED]: '该任务扫描失败，无法查看扫描结果。'
+    [TASK_STATUS.QUEUED]: '该任务已启动并在排队等待执行，若已有扫描结果将在此展示，否则请稍候。',
+    [TASK_STATUS.RUNNING]: '该任务正在扫描中，若已有部分结果上传将在此展示，否则请稍候。',
+    [TASK_STATUS.FAILED]: '该任务扫描失败，若已有扫描结果将在此展示，否则无法查看。'
   }
   return descMap[status] || '无法查看扫描结果。'
 }
@@ -4056,6 +4161,7 @@ onUnmounted(() => {
   gap: 24px;
   margin-bottom: 24px;
   flex-direction: column;
+  align-items: stretch;
 }
 
 .result-list-section {
@@ -4065,23 +4171,35 @@ onUnmounted(() => {
   padding: 24px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   min-width: 0; /* 允许flex子元素收缩 */
-  margin-right: 344px; /* 规则树宽度320px + 间距24px */
 }
 
 .rule-tree-section {
-  width: 320px;
+  width: 100%;
   flex-shrink: 0;
   background: #ffffff;
   border-radius: 8px;
   padding: 24px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  position: fixed;
-  right: 24px; /* 距离右侧24px */
-  top: 198px; /* header高度64px + 24px间距 */
-  max-height: calc(100vh - 216px); /* 视口高度减去header和间距 */
+  position: relative;
   display: flex;
   flex-direction: column;
-  z-index: 100;
+}
+
+/* 宽屏：左右并排，规则树 sticky 与左侧列表顶部对齐 */
+@media (min-width: 1201px) {
+  .result-list-container {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .rule-tree-section {
+    width: 320px;
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    max-height: calc(100vh - var(--top-offset, 64px) - 48px);
+    z-index: 10;
+  }
 }
 
 .rule-tree-section .section-label {
@@ -4568,6 +4686,11 @@ onUnmounted(() => {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
+.export-scan-results-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
 .annotation-filter-group {
   display: flex;
   align-items: center;
@@ -4624,7 +4747,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-height: calc(100vh - 360px);
+  max-height: calc(100vh - var(--top-offset, 64px) - 296px);
   overflow-y: auto;
   padding-right: 8px;
 }
@@ -5113,16 +5236,11 @@ onUnmounted(() => {
   }
 
   .list-content {
-    max-height: calc(100vh - 280px);
+    max-height: calc(100vh - var(--top-offset, 64px) - 216px);
   }
 
   .rule-tree-section {
-    width: 100%;
-    position: relative;
-    right: auto;
-    top: 0;
     max-height: none;
-    z-index: auto;
   }
 
   .tree-container {
