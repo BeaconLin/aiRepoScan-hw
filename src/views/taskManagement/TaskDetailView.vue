@@ -4174,7 +4174,7 @@ onUnmounted(() => {
     position: sticky;
     top: 0;
     align-self: flex-start;
-    max-height: calc(100vh - var(--top-offset, 64px) - 48px);
+    max-height: calc(100vh - 64px - 48px);
     z-index: 10;
   }
 }
@@ -4724,7 +4724,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-height: calc(100vh - var(--top-offset, 64px) - 296px);
+  max-height: calc(100vh - 64px - 296px);
   overflow-y: auto;
   padding-right: 8px;
 }
@@ -5213,7 +5213,7 @@ onUnmounted(() => {
   }
 
   .list-content {
-    max-height: calc(100vh - var(--top-offset, 64px) - 216px);
+    max-height: calc(100vh - 64px - 216px);
   }
 
   .rule-tree-section {
