@@ -1875,3 +1875,48 @@ export const rerunStatistics = async (
     }
     return envelopeOk(null)
 }
+
+/** 模拟 GET `/api/tasks/{taskId}/export-excel` — 本地生成单 Sheet Excel */
+export async function exportTaskScanResultsExcel(
+    taskId: string,
+): Promise<{ blob: Blob; fileName?: string }> {
+    await new Promise((resolve) => setTimeout(resolve, 400))
+
+    const taskDetail = mockTaskDetails[taskId]
+    if (!taskDetail) {
+        throw new Error('未找到任务')
+    }
+    if (taskDetail.taskStatus !== TASK_STATUS.COMPLETED) {
+        throw new Error('任务未完成，暂无法导出扫描结果')
+    }
+
+    const allRows: TaskScanResultApiDocRow[] = []
+    let pageNum = 1
+    while (true) {
+        const res = await getTaskScanResults(taskId, pageNum, 200)
+        if (!res.meta.isSuccess || !res.data) {
+            throw new Error(res.meta.message || '获取扫描结果失败')
+        }
+        const rows = res.data.scanResults ?? []
+        allRows.push(...rows)
+        const hasNext = res.data.paginationInfo?.hasNext === true
+        if (!hasNext || rows.length === 0) {
+            break
+        }
+        pageNum += 1
+    }
+
+    if (allRows.length === 0) {
+        throw new Error('当前任务没有可导出的扫描结果')
+    }
+
+    const {
+        generateScanResultsExcelBlob,
+        sanitizeFileNameSegment,
+        formatTimestampForFileName,
+    } = await import('@/views/taskManagement/utils/scanResultExport')
+
+    const blob = generateScanResultsExcelBlob(allRows, false)
+    const fileName = `${sanitizeFileNameSegment(taskDetail.taskName)}_扫描结果_${formatTimestampForFileName()}.xlsx`
+    return { blob, fileName }
+}

@@ -1,43 +1,9 @@
 import * as XLSX from 'xlsx'
-import { getTaskScanResults } from '@/api/taskManagementApi'
+import { exportTaskScanResultsExcel } from '@/api/taskManagementApi'
 import type { TaskScanResultApiDocRow } from '@/api/types/taskApiDoc'
-import type { TaskDetail } from '@/api/types/taskModel'
 
-/** 单次分页拉取条数（导出专用，减少请求次数） */
+/** 单次分页拉取条数（mock 导出专用） */
 export const SCAN_RESULT_EXPORT_PAGE_SIZE = 200
-
-/** 导出筛选条件（与任务详情页 filterForm 对齐） */
-export interface ScanResultExportFilter {
-    ruleName?: string
-    /** `unmarked` / `0` / `1` / `2` */
-    annotation?: string
-    /** `0` / `1` / `2` */
-    reviewStatus?: string
-    /** 客户端关键词（文件路径、规则名、问题说明等） */
-    keyword?: string
-}
-
-export interface ScanResultExportOptions {
-    taskId: string
-    taskInfo: Pick<
-        TaskDetail,
-        | 'taskId'
-        | 'taskName'
-        | 'repoUrl'
-        | 'branch'
-        | 'pathList'
-        | 'creator'
-        | 'nameCn'
-        | 'createTime'
-        | 'productName'
-        | 'codeLanguage'
-        | 'lineNum'
-    >
-    filter?: ScanResultExportFilter
-    /** 是否在 Excel 中包含评审相关列 */
-    includeReviewColumns?: boolean
-    onProgress?: (loaded: number, total: number) => void
-}
 
 interface ExportColumn {
     header: string
@@ -77,29 +43,13 @@ function cellString(value: unknown): string {
     return String(value)
 }
 
-function sanitizeFileNameSegment(name: string): string {
+export function sanitizeFileNameSegment(name: string): string {
     return name.replace(/[\\/:*?"<>|]/g, '_').trim().slice(0, 80) || '任务'
 }
 
-function formatTimestampForFileName(date = new Date()): string {
+export function formatTimestampForFileName(date = new Date()): string {
     const pad = (n: number) => String(n).padStart(2, '0')
     return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}_${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`
-}
-
-function matchesKeyword(row: TaskScanResultApiDocRow, keyword: string): boolean {
-    const kw = keyword.toLowerCase()
-    const fields = [
-        row.file_name,
-        row.rule_name,
-        row.warn,
-        row.function_name,
-        row.warn_code_block,
-        row.code_snippet,
-        row.context,
-        row.reason,
-        row.warn_uuid,
-    ]
-    return fields.some((f) => cellString(f).toLowerCase().includes(kw))
 }
 
 function buildExportColumns(includeReviewColumns: boolean): ExportColumn[] {
@@ -163,109 +113,11 @@ function buildExportColumns(includeReviewColumns: boolean): ExportColumn[] {
     ]
 }
 
-function buildTaskInfoSheetRows(
-    taskInfo: ScanResultExportOptions['taskInfo'],
-    filter: ScanResultExportFilter | undefined,
-    exportedCount: number,
-): string[][] {
-    const creatorDisplay = [taskInfo.creator, taskInfo.nameCn].filter(Boolean).join(' ')
-    const filterDesc: string[] = []
-    if (filter?.ruleName?.trim()) {
-        filterDesc.push(`规则=${filter.ruleName.trim()}`)
-    }
-    if (filter?.annotation?.trim()) {
-        const map: Record<string, string> = {
-            unmarked: '未标注',
-            '0': '需要修改',
-            '1': '无需修改的问题',
-            '2': '问题误报',
-        }
-        filterDesc.push(`标注=${map[filter.annotation.trim()] ?? filter.annotation}`)
-    }
-    if (filter?.reviewStatus?.trim()) {
-        filterDesc.push(`评审=${formatReviewStatusLabel(Number(filter.reviewStatus))}`)
-    }
-    if (filter?.keyword?.trim()) {
-        filterDesc.push(`关键词=${filter.keyword.trim()}`)
-    }
-
-    return [
-        ['字段', '值'],
-        ['任务ID', taskInfo.taskId],
-        ['任务名称', taskInfo.taskName],
-        ['代码仓地址', taskInfo.repoUrl],
-        ['扫描分支', taskInfo.branch],
-        ['扫描路径', taskInfo.pathList || ''],
-        ['产品名称', taskInfo.productName],
-        ['代码语言', taskInfo.codeLanguage],
-        ['代码量(k)', String(taskInfo.lineNum ?? '')],
-        ['创建人', creatorDisplay],
-        ['创建时间', taskInfo.createTime],
-        ['导出条数', String(exportedCount)],
-        ['导出筛选', filterDesc.length > 0 ? filterDesc.join('；') : '全部'],
-        ['导出时间', new Date().toLocaleString('zh-CN', { hour12: false })],
-    ]
-}
-
-/** 分页拉取任务下全部扫描结果（可带服务端筛选） */
-export async function fetchAllScanResultsForExport(
-    taskId: string,
-    filter: ScanResultExportFilter = {},
-    onProgress?: (loaded: number, total: number) => void,
-): Promise<TaskScanResultApiDocRow[]> {
-    const all: TaskScanResultApiDocRow[] = []
-    let pageNum = 1
-    let totalCount = 0
-
-    const ruleName = filter.ruleName?.trim() || undefined
-    const annotation = filter.annotation?.trim() || undefined
-    const reviewStatus = filter.reviewStatus?.trim() || undefined
-
-    while (true) {
-        const res = await getTaskScanResults(
-            taskId,
-            pageNum,
-            SCAN_RESULT_EXPORT_PAGE_SIZE,
-            ruleName,
-            annotation,
-            reviewStatus,
-        )
-        if (!res.meta.isSuccess || !res.data) {
-            throw new Error(res.meta.message || '获取扫描结果失败')
-        }
-
-        const rows = res.data.scanResults ?? []
-        const pi = res.data.paginationInfo
-        if (pageNum === 1) {
-            totalCount = pi?.totalCount ?? rows.length
-        }
-
-        all.push(...rows)
-        onProgress?.(all.length, totalCount)
-
-        const hasNext = pi?.hasNext === true
-        if (!hasNext || rows.length === 0) {
-            break
-        }
-        pageNum += 1
-    }
-
-    const keyword = filter.keyword?.trim()
-    if (keyword) {
-        return all.filter((row) => matchesKeyword(row, keyword))
-    }
-    return all
-}
-
-/** 将扫描结果导出为 Excel 文件（客户端生成） */
-export async function exportScanResultsToExcel(options: ScanResultExportOptions): Promise<number> {
-    const { taskId, taskInfo, filter, includeReviewColumns = false, onProgress } = options
-
-    const rows = await fetchAllScanResultsForExport(taskId, filter, onProgress)
-    if (rows.length === 0) {
-        throw new Error('当前筛选条件下没有可导出的扫描结果')
-    }
-
+/** mock 模式下本地生成单 Sheet Excel Blob */
+export function generateScanResultsExcelBlob(
+    rows: TaskScanResultApiDocRow[],
+    includeReviewColumns = false,
+): Blob {
     const columns = buildExportColumns(includeReviewColumns)
     const headers = columns.map((c) => c.header)
     const dataRows = rows.map((row) => columns.map((col) => col.getValue(row)))
@@ -275,16 +127,55 @@ export async function exportScanResultsToExcel(options: ScanResultExportOptions)
         wch: Math.min(Math.max(header.length + 4, 14), 48),
     }))
 
-    const infoWs = XLSX.utils.aoa_to_sheet(
-        buildTaskInfoSheetRows(taskInfo, filter, rows.length),
-    )
-    infoWs['!cols'] = [{ wch: 18 }, { wch: 56 }]
-
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, resultWs, '扫描结果')
-    XLSX.utils.book_append_sheet(wb, infoWs, '任务信息')
 
-    const fileName = `${sanitizeFileNameSegment(taskInfo.taskName)}_扫描结果_${formatTimestampForFileName()}.xlsx`
-    XLSX.writeFile(wb, fileName)
-    return rows.length
+    const arrayBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+    return new Blob([arrayBuffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+}
+
+export function parseContentDispositionFilename(
+    contentDisposition: string | undefined,
+    fallback: string,
+): string {
+    if (!contentDisposition) {
+        return fallback
+    }
+
+    const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;\n]+)/i)
+    if (utf8Match?.[1]) {
+        try {
+            return decodeURIComponent(utf8Match[1].trim())
+        } catch {
+            return utf8Match[1].trim()
+        }
+    }
+
+    const plainMatch = contentDisposition.match(/filename="?([^";\n]+)"?/i)
+    if (plainMatch?.[1]) {
+        return plainMatch[1].trim()
+    }
+
+    return fallback
+}
+
+export function downloadBlobAsFile(blob: Blob, fileName: string): void {
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = fileName
+    anchor.style.display = 'none'
+    document.body.appendChild(anchor)
+    anchor.click()
+    document.body.removeChild(anchor)
+    URL.revokeObjectURL(url)
+}
+
+/** 调用服务端 export-excel 接口并触发浏览器下载 */
+export async function downloadScanResultsExcel(taskId: string, taskName: string): Promise<void> {
+    const fallbackFileName = `${sanitizeFileNameSegment(taskName)}_扫描结果_${formatTimestampForFileName()}.xlsx`
+    const { blob, fileName } = await exportTaskScanResultsExcel(taskId)
+    downloadBlobAsFile(blob, fileName || fallbackFileName)
 }

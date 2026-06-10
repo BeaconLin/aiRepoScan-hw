@@ -20,6 +20,7 @@ import {
     getAnnotationStatistics as mockGetAnnotationStatistics,
     rerunStatistics as mockRerunStatistics,
     startTaskScan as mockStartTaskScan,
+    exportTaskScanResultsExcel as mockExportTaskScanResultsExcel,
 } from '@/api/task'
 import taskManagementService from '@/api/services/taskManagementService'
 import type {
@@ -46,6 +47,11 @@ import type { UploadScanResultFileResponse } from '@/api/types/upload'
 
 export { apiMode } from '@/api/taskManagementApiConfig'
 export type { TaskManagementApiMode } from '@/api/taskManagementApiConfig'
+
+export interface ExportScanResultsExcelResult {
+    blob: Blob
+    fileName?: string
+}
 
 export async function queryTaskList(
     pageNum: number,
@@ -192,4 +198,13 @@ export async function getAnnotationTimeline(
     return apiMode === 'live'
         ? taskManagementService.getAnnotationTimeline(taskId, warnUuid)
         : mockGetAnnotationTimeline(taskId, warnUuid)
+}
+
+/** 导出任务扫描结果 Excel（GET `/api/tasks/{taskId}/export-excel`） */
+export async function exportTaskScanResultsExcel(
+    taskId: string,
+): Promise<ExportScanResultsExcelResult> {
+    return apiMode === 'live'
+        ? taskManagementService.exportTaskScanResultsExcel(taskId)
+        : mockExportTaskScanResultsExcel(taskId)
 }

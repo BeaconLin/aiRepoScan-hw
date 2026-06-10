@@ -1,11 +1,38 @@
-import axios from 'axios';
+import axios, { AxiosResponse } from 'axios';
 import service from '@/api/http';
+import { getRepoScanServiceBaseUrl } from '@/api/taskManagementApiConfig';
 import type { CreateTaskPayload, UpdateTaskInfoPayload } from '@/api/types';
 
-// const VITE_API_REPO_SCAN = import.meta.env.VITE_API_REPO_SCAN
-const VITE_API_REPO_SCAN = 'http://localhost:8662'
+const REPO_SCAN_URL = getRepoScanServiceBaseUrl();
 
-const REPO_SCAN_URL = VITE_API_REPO_SCAN + '/ai_repo_scan_service';
+function parseContentDispositionFilename(contentDisposition: string | undefined): string | undefined {
+  if (!contentDisposition) {
+    return undefined;
+  }
+  const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;\n]+)/i);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1].trim());
+    } catch {
+      return utf8Match[1].trim();
+    }
+  }
+  const plainMatch = contentDisposition.match(/filename="?([^";\n]+)"?/i);
+  if (plainMatch?.[1]) {
+    return plainMatch[1].trim();
+  }
+  return undefined;
+}
+
+async function readBlobErrorMessage(blob: Blob): Promise<string> {
+  try {
+    const text = await blob.text();
+    const json = JSON.parse(text) as { meta?: { message?: string }; message?: string };
+    return json.meta?.message || json.message || '导出失败，请稍后重试';
+  } catch {
+    return '导出失败，请稍后重试';
+  }
+}
 const taskManagementService = {
   queryTaskList: (pageNum: number, pageSize: number, creator?: string, taskStatus?: string, taskName?: string, deptName?: string, pduName?: string): any => service.get(`${REPO_SCAN_URL}/api/tasks`, {
     pageNum,
@@ -96,6 +123,29 @@ const taskManagementService = {
     service.get(`${REPO_SCAN_URL}/api/tasks/${taskId}/annotations/${warnUuid}/review-history`),
   getAnnotationTimeline: (taskId: string, warnUuid: string): any =>
     service.get(`${REPO_SCAN_URL}/api/tasks/${taskId}/annotations/${warnUuid}/timeline`),
+  /** 导出任务扫描结果 Excel（GET `/api/tasks/{taskId}/export-excel`） */
+  exportTaskScanResultsExcel: async (taskId: string): Promise<{ blob: Blob; fileName?: string }> => {
+    let response: AxiosResponse<Blob>;
+    try {
+      response = await axios.get(`${REPO_SCAN_URL}/api/tasks/${taskId}/export-excel`, {
+        responseType: 'blob',
+      });
+    } catch (error: unknown) {
+      const axiosErr = error as { response?: { data?: Blob } };
+      if (axiosErr.response?.data instanceof Blob) {
+        throw new Error(await readBlobErrorMessage(axiosErr.response.data));
+      }
+      throw error;
+    }
+
+    const blob = response.data;
+    if (blob.type.includes('application/json')) {
+      throw new Error(await readBlobErrorMessage(blob));
+    }
+
+    const fileName = parseContentDispositionFilename(response.headers['content-disposition']);
+    return { blob, fileName };
+  },
 };
 
 export default taskManagementService;

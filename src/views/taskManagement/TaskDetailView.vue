@@ -1235,7 +1235,7 @@ import {
 } from '@/constants/scanTaskConst'
 import { useProfileStore } from '@/stores/userProfile'
 
-import { exportScanResultsToExcel } from '@/views/taskManagement/utils/scanResultExport'
+import { downloadScanResultsExcel } from '@/views/taskManagement/utils/scanResultExport'
 import {
   getTaskInfo,
   getTaskScanResults,
@@ -2887,37 +2887,14 @@ async function handleExportScanResults(): Promise<void> {
   exportingScanResults.value = true
   const loadingMsg = ElMessage({
     type: 'info',
-    message: '正在拉取扫描结果并生成 Excel，请稍候…',
+    message: '正在导出扫描结果，请稍候…',
     duration: 0,
     showClose: false,
   })
 
   try {
-    const f = filterForm.value
-    const count = await exportScanResultsToExcel({
-      taskId,
-      taskInfo: {
-        taskId: task.value.taskId || taskId,
-        taskName: task.value.taskName,
-        repoUrl: task.value.repoUrl,
-        branch: task.value.branch,
-        pathList: task.value.pathList,
-        creator: task.value.creator,
-        nameCn: (task.value as { nameCn?: string }).nameCn ?? '',
-        createTime: task.value.createTime,
-        productName: task.value.productName,
-        codeLanguage: task.value.codeLanguage,
-        lineNum: task.value.lineNum,
-      },
-      filter: {
-        ruleName: f.ruleName?.trim() || undefined,
-        annotation: f.issueResult?.trim() || undefined,
-        reviewStatus: EXPERT_REVIEW_ENABLED ? f.reviewStatus?.trim() || undefined : undefined,
-        keyword: f.keyword?.trim() || undefined,
-      },
-      includeReviewColumns: EXPERT_REVIEW_ENABLED,
-    })
-    ElMessage.success(`已导出 ${count} 条扫描结果`)
+    await downloadScanResultsExcel(taskId, task.value.taskName)
+    ElMessage.success('扫描结果已导出')
   } catch (e) {
     const msg = e instanceof Error ? e.message : '导出失败，请稍后重试'
     ElMessage.error(msg)
