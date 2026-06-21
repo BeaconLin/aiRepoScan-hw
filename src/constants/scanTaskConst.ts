@@ -3,6 +3,7 @@ export const TASK_STATUS = {
     NOT_STARTED: '未开始', // 未开始
     QUEUED: '排队中', // 已启动，排队等待执行
     RUNNING: '进行中', // 进行中
+    PAUSED: '已暂停', // 已暂停（可继续扫描）
     COMPLETED: '已完成', // 已完成
     FAILED: '失败' // 失败
 }
@@ -15,6 +16,7 @@ export const TASK_STATUS_MAP: Record<string, TaskStatusElTagType> = {
     [TASK_STATUS.NOT_STARTED]: 'info',
     [TASK_STATUS.QUEUED]: 'info',
     [TASK_STATUS.RUNNING]: 'warning',
+    [TASK_STATUS.PAUSED]: 'warning',
     [TASK_STATUS.COMPLETED]: 'success',
     [TASK_STATUS.FAILED]: 'danger',
 }

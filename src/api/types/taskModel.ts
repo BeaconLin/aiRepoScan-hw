@@ -126,6 +126,13 @@ export interface StartTaskScanData {
     taskStatus: string
 }
 
+/** 暂停任务接口响应 data（POST `/api/tasks/{taskId}/pause`） */
+export interface PauseTaskData {
+    message: string
+    taskId: string
+    taskStatus: string
+}
+
 /** 创建任务入参（与创建表单 / 接口字段对齐） */
 export interface CreateTaskPayload {
     taskName: string

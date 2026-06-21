@@ -16,136 +16,151 @@
               label-width="136px"
               label-position="right"
           >
-        <el-form-item label="任务名称" prop="taskName">
-          <el-input
-              v-model="formData.taskName"
-              placeholder="请输入任务名称"
-              clearable
-          />
-        </el-form-item>
+            <el-form-item label="任务名称" prop="taskName">
+              <el-input
+                  v-model="formData.taskName"
+                  placeholder="请输入任务名称"
+                  clearable
+              />
+            </el-form-item>
 
-        <el-form-item prop="repoUrl" class="form-item-with-help-label">
-          <template #label>
-            <span class="form-item-label-with-help">
-              <span class="form-label-text">代码仓Git地址</span>
-              <el-tooltip
-                  effect="light"
-                  placement="right"
-                  :show-after="200"
-                  popper-class="create-task-repo-url-tooltip"
+            <el-form-item prop="repoUrl" class="form-item-with-help-label">
+              <template #label>
+                <span class="form-item-label-with-help">
+                  <span class="form-label-text">代码仓Git地址</span>
+                  <el-tooltip
+                      effect="light"
+                      placement="right"
+                      :show-after="200"
+                      popper-class="create-task-repo-url-tooltip"
+                  >
+                    <template #content>
+                      <div class="repo-url-help-content">
+                        <p class="repo-url-help-intro">仅支持 HTTPS 形式的 Git 克隆地址。</p>
+                        <div class="repo-url-help-diagram">
+                          <img
+                              src="@/../public/assets/image/gitImg.png"
+                              alt="代码仓 Git 地址获取示意图"
+                              class="repo-url-help-diagram__img"
+                          />
+                        </div>
+                      </div>
+                    </template>
+                    <span
+                        class="form-help-icon"
+                        role="button"
+                        tabindex="0"
+                        aria-label="代码仓 Git 地址填写说明"
+                    >?</span>
+                  </el-tooltip>
+                </span>
+              </template>
+              <el-input
+                  v-model="formData.repoUrl"
+                  placeholder="请输入 HTTPS 形式的代码仓 Git 克隆地址"
+                  clearable
+              />
+            </el-form-item>
+
+            <el-form-item label="扫描分支" prop="branch">
+              <el-input
+                  v-model="formData.branch"
+                  placeholder="请输入扫描分支，例如：main、master"
+                  clearable
+              />
+            </el-form-item>
+
+            <el-form-item prop="scanPaths">
+              <template #label>
+                <span class="form-item-label-with-help">
+                  <span class="form-label-text">扫描路径</span>
+                  <el-tooltip
+                      effect="light"
+                      placement="right"
+                      :show-after="200"
+                      popper-class="create-task-form-help-tooltip"
+                  >
+                    <template #content>
+                      <p class="form-help-tooltip-text">
+                        可选参数，填写相对项目根目录的路径，多个路径用英文逗号拼接，例如：src,view,utils，不填则默认全部扫描
+                      </p>
+                    </template>
+                    <span
+                        class="form-help-icon"
+                        role="button"
+                        tabindex="0"
+                        aria-label="扫描路径填写说明"
+                    >?</span>
+                  </el-tooltip>
+                </span>
+              </template>
+              <el-input
+                  v-model="formData.scanPaths"
+                  placeholder="可选，多个路径使用英文逗号分隔，例如：src,view/taskManage"
+                  clearable
+              />
+            </el-form-item>
+
+            <el-form-item label="代码语言" prop="codeLanguage">
+              <el-select
+                  v-model="formData.codeLanguage"
+                  placeholder="C/C++"
+                  style="width: 100%"
               >
-                <template #content>
-                  <div class="repo-url-help-content">
-                    <p class="repo-url-help-intro">仅支持 HTTPS 形式的 Git 克隆地址。</p>
-                    <div class="repo-url-help-diagram">
-                      <img
-                          src="@/../public/assets/image/gitImg.png"
-                          alt="代码仓 Git 地址获取示意图"
-                          class="repo-url-help-diagram__img"
-                      />
-                    </div>
-                  </div>
-                </template>
-                <span
-                    class="form-help-icon"
-                    role="button"
-                    tabindex="0"
-                    aria-label="代码仓 Git 地址填写说明"
-                >?</span>
-              </el-tooltip>
-            </span>
-          </template>
-          <el-input
-              v-model="formData.repoUrl"
-              placeholder="请输入 HTTPS 形式的代码仓 Git 克隆地址"
-              clearable
-          />
-        </el-form-item>
+                <el-option label="C/C++" value="C++"/>
+              </el-select>
+            </el-form-item>
 
-        <el-form-item label="扫描分支" prop="branch">
-          <el-input
-              v-model="formData.branch"
-              placeholder="请输入扫描分支，例如：main、master"
-              clearable
-          />
-        </el-form-item>
+            <el-form-item label="创建人">
+              <el-input
+                  v-model="formData.creator"
+                  disabled
+                  placeholder="自动填充当前登录用户"
+              />
+            </el-form-item>
 
-        <el-form-item prop="scanPaths">
-          <template #label>
-            <span class="form-item-label-with-help">
-              <span class="form-label-text">扫描路径</span>
-              <el-tooltip
-                  effect="light"
-                  placement="right"
-                  :show-after="200"
-                  popper-class="create-task-form-help-tooltip"
-              >
-                <template #content>
-                  <p class="form-help-tooltip-text">
-                    可选参数，填写相对项目根目录的路径，多个路径用英文逗号拼接，例如：src,view,utils，不填则默认全部扫描
-                  </p>
-                </template>
-                <span
-                    class="form-help-icon"
-                    role="button"
-                    tabindex="0"
-                    aria-label="扫描路径填写说明"
-                >?</span>
-              </el-tooltip>
-            </span>
-          </template>
-          <el-input
-              v-model="formData.scanPaths"
-              placeholder="可选，多个路径使用英文逗号分隔，例如：src,view,utils"
-              clearable
-          />
-        </el-form-item>
+            <el-form-item label="产品名称" prop="productName">
+              <el-input
+                  v-model="formData.productName"
+                  placeholder="请输入产品名称"
+                  clearable
+              />
+            </el-form-item>
 
-        <el-form-item label="代码语言" prop="codeLanguage">
-          <el-select
-              v-model="formData.codeLanguage"
-              placeholder="C/C++"
-              style="width: 100%"
-          >
-            <el-option label="C/C++" value="C++"/>
-          </el-select>
-        </el-form-item>
+            <el-form-item label="部门名称">
+              <el-input
+                  v-model="formData.deptName"
+                  placeholder="请输入部门名称（可选）"
+                  clearable
+              />
+            </el-form-item>
 
-        <el-form-item label="创建人">
-          <el-input
-              v-model="formData.creator"
-              disabled
-              placeholder="自动填充当前登录用户"
-          />
-        </el-form-item>
+            <el-form-item label="PDU名称">
+              <el-input
+                  v-model="formData.pduName"
+                  placeholder="请输入PDU名称（可选）"
+                  clearable
+              />
+            </el-form-item>
 
-        <el-form-item label="产品名称" prop="productName">
-          <el-input
-              v-model="formData.productName"
-              placeholder="请输入产品名称"
-              clearable
-          />
-        </el-form-item>
+            <el-form-item label="本机启动URL" prop="hostUrl">
+              <el-input
+                  v-model="formData.hostUrl"
+                  placeholder="请输入本机启动URL（可选）"
+                  clearable
+              />
+            </el-form-item>
 
-        <el-form-item label="部门名称">
-          <el-input
-              v-model="formData.deptName"
-              placeholder="请输入部门名称（可选）"
-              clearable
-          />
-        </el-form-item>
-
-        <el-form-item label="PDU名称">
-          <el-input
-              v-model="formData.pduName"
-              placeholder="请输入PDU名称（可选）"
-              clearable
-          />
-        </el-form-item>
+            <el-form-item label="模型名称" prop="modelName">
+              <el-input
+                  v-model="formData.modelName"
+                  placeholder="请输入模型名称（可选）"
+                  clearable
+              />
+            </el-form-item>
           </el-form>
         </div>
       </el-tab-pane>
-
       <el-tab-pane label="批量导入" name="batch">
         <BatchCreateTaskPanel ref="batchPanelRef" @success="handleBatchSuccess"/>
       </el-tab-pane>
@@ -192,7 +207,7 @@ const batchPanelRef = ref(null)
 const submitting = ref(false)
 const createMode = ref('single')
 
-const batchCanSubmit = computed(() => batchPanelRef.value?.canSubmit?.value ?? false)
+const batchCanSubmit = computed(() => batchPanelRef.value?.canSubmit?.value ?? true)
 const batchSubmitting = computed(() => batchPanelRef.value?.submitting?.value ?? false)
 const batchRowCount = computed(() => batchPanelRef.value?.parsedRows?.value?.length ?? 0)
 
@@ -212,7 +227,9 @@ const formData = reactive({
   pduName: '', // 可选
   codeLanguage: DEFAULT_CODE_LANGUAGE,
   lineNum: '',
-  createTime: '' // 实际应该自动填充当前时间
+  createTime: '', // 实际应该自动填充当前时间
+  hostUrl: '', // 本机启动URL
+  modelName: '' // 模型名称
 })
 
 /** 仅允许 HTTPS Git 克隆地址：https://主机/路径.git */
@@ -308,11 +325,17 @@ const initForm = () => {
   formData.pduName = ''
   formData.codeLanguage = DEFAULT_CODE_LANGUAGE
   formData.lineNum = ''
+  formData.hostUrl = ''
+  formData.modelName = ''
 
   // 从用户信息获取创建人
   const userInfo = profileStore.userInfo
   formData.creator = userInfo.w3Id || ''
   formData.createTime = '' // 提交时再获取
+
+  // 默认取 hwDepartName6，如果为空取 hwDepartName5，都为空则为空
+  const deptName = userInfo.hwDepartName6 || userInfo.hwDepartName5 || ''
+  formData.deptName = deptName
 
   // 清除验证状态
   if (formRef.value) {
@@ -393,6 +416,8 @@ const handleSubmit = async () => {
       deptName: formData.deptName?.trim() || undefined,
       pduName: formData.pduName?.trim() || undefined,
       nameCn: userInfo.nameCn || undefined,
+      hostUrl: formData.hostUrl?.trim() || undefined,
+      modelName: formData.modelName?.trim() || undefined,
     }
 
     let createResponse
@@ -429,6 +454,8 @@ const handleSubmit = async () => {
       productName: data.productName,
       deptName: formData.deptName,
       pduName: formData.pduName,
+      hostUrl: formData.hostUrl,
+      modelName: formData.modelName,
       taskStatus: data.taskStatus || '待处理',
       scanResults: [],
       s3Path: null,

@@ -29,7 +29,7 @@
         </el-tag>
       </div>
       <div v-if="showProgressBar && task" class="header-progress">
-        <span class="header-progress-files">{{ progressInfo.scanned }} / {{ progressInfo.total }}</span>
+        <span class="header-progress-files">扫描进度：{{ progressInfo.scanned }} / {{ progressInfo.total }}</span>
         <div
             class="header-progress-bar"
             role="progressbar"
@@ -101,48 +101,85 @@
                     label-position="left"
                     @submit.prevent
                 >
-                <div class="task-info-cards-row">
-                  <el-card class="task-detail-field-card" shadow="never">
-                    <template #header>
-                      <span class="task-detail-card-title">任务基本信息</span>
-                    </template>
-                    <div class="task-detail-fields">
-                      <div
-                          class="task-detail-field-line"
-                          :class="{ 'task-detail-field-line--edit': isEditing }"
-                      >
-                        <template v-if="isEditing">
-                          <el-form-item label="任务名称：" prop="taskName" class="task-detail-inline-form-item">
-                            <el-input
-                                v-model="editForm.taskName"
-                                placeholder="请输入任务名称"
-                                clearable
-                                class="task-detail-field-input"
-                            />
-                          </el-form-item>
-                        </template>
-                        <template v-else>
-                          <span>任务名称：</span>
-                          <span>{{ task.taskName || '—' }}</span>
-                        </template>
-                      </div>
-                      <div
-                          class="task-detail-field-line"
-                          :class="{ 'task-detail-field-line--edit': isEditing }"
-                      >
-                        <template v-if="isEditing">
-                          <el-form-item label="代码仓Git地址：" prop="repoUrl" class="task-detail-inline-form-item">
-                            <el-input
-                                v-model="editForm.repoUrl"
-                                placeholder="请输入 HTTPS 形式的代码仓 Git 克隆地址"
-                                clearable
-                                class="task-detail-field-input"
-                            />
-                          </el-form-item>
-                        </template>
-                        <template v-else>
-                          <span>代码仓Git地址：</span>
-                          <span v-if="task.repoUrl" class="task-detail-repo-url-inline">
+                  <div class="task-info-cards-row">
+                    <el-card class="task-detail-field-card" shadow="never">
+                      <template #header>
+                        <span class="task-detail-card-title">任务基本信息</span>
+                      </template>
+                      <div class="task-detail-fields">
+                        <div
+                            class="task-detail-field-line"
+                            :class="{ 'task-detail-field-line--edit': isEditing }"
+                        >
+                          <template v-if="isEditing">
+                            <el-form-item label="任务名称：" prop="taskName" class="task-detail-inline-form-item">
+                              <el-input
+                                  v-model="editForm.taskName"
+                                  placeholder="请输入任务名称"
+                                  clearable
+                                  class="task-detail-field-input"
+                              />
+                            </el-form-item>
+                          </template>
+                          <template v-else>
+                            <span>任务名称：</span>
+                            <span>{{ task.taskName || '—' }}</span>
+                          </template>
+                        </div>
+                        <div class="task-detail-field-line">
+                          <span>任务ID：</span>
+                          <span v-if="task.taskId" class="task-detail-repo-url-inline">
+                            <span
+                                class="task-detail-repo-url-text"
+                                :title="task.taskId"
+                            >{{ task.taskId }}</span>
+                            <el-tooltip
+                                content="复制"
+                                placement="top"
+                                :show-after="200"
+                            >
+                              <el-button
+                                  type="primary"
+                                  link
+                                  size="small"
+                                  class="task-detail-repo-url-copy"
+                                  aria-label="复制任务ID"
+                                  @click="handleCopyTaskId"
+                              >
+                                <svg
+                                    class="task-detail-repo-url-copy-icon"
+                                    viewBox="0 0 24 24"
+                                    width="14"
+                                    height="14"
+                                    aria-hidden="true"
+                                >
+                                  <path
+                                      fill="currentColor"
+                                      d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"
+                                  />
+                                </svg>
+                              </el-button>
+                            </el-tooltip>
+                          </span>
+                          <span v-else class="task-detail-muted">—</span>
+                        </div>
+                        <div
+                            class="task-detail-field-line"
+                            :class="{ 'task-detail-field-line--edit': isEditing }"
+                        >
+                          <template v-if="isEditing">
+                            <el-form-item label="代码仓Git地址：" prop="repoUrl" class="task-detail-inline-form-item">
+                              <el-input
+                                  v-model="editForm.repoUrl"
+                                  placeholder="请输入 HTTPS 形式的代码仓 Git 克隆地址"
+                                  clearable
+                                  class="task-detail-field-input"
+                              />
+                            </el-form-item>
+                          </template>
+                          <template v-else>
+                            <span>代码仓Git地址：</span>
+                            <span v-if="task.repoUrl" class="task-detail-repo-url-inline">
                             <span
                                 class="task-detail-repo-url-text"
                                 :title="task.repoUrl"
@@ -174,89 +211,89 @@
                               </el-button>
                             </el-tooltip>
                           </span>
-                          <span v-else class="task-detail-muted">未提供地址</span>
-                        </template>
-                      </div>
-                      <div
-                          class="task-detail-field-line"
-                          :class="{ 'task-detail-field-line--edit': isEditing }"
-                      >
-                        <span>代码语言：</span>
-                        <template v-if="isEditing">
-                          <el-select
-                              v-model="editForm.codeLanguage"
-                              placeholder="C/C++"
-                              clearable
-                              class="task-detail-field-input"
-                          >
-                            <el-option label="C/C++" value="C/C++"/>
-                          </el-select>
-                        </template>
-                        <template v-else>
-                          <span>{{ task.codeLanguage || '未知' }}</span>
-                        </template>
-                      </div>
-                      <div class="task-detail-field-line">
-                        <span>创建人：</span><span>{{ formatTaskCreatorDisplay(task) }}</span>
-                      </div>
-                      <div
-                          class="task-detail-field-line"
-                          :class="{ 'task-detail-field-line--edit': isEditing }"
-                      >
-                        <template v-if="isEditing">
-                          <el-form-item label="产品名称：" prop="productName" class="task-detail-inline-form-item">
+                            <span v-else class="task-detail-muted">未提供地址</span>
+                          </template>
+                        </div>
+                        <div
+                            class="task-detail-field-line"
+                            :class="{ 'task-detail-field-line--edit': isEditing }"
+                        >
+                          <span>代码语言：</span>
+                          <template v-if="isEditing">
+                            <el-select
+                                v-model="editForm.codeLanguage"
+                                placeholder="C/C++"
+                                clearable
+                                class="task-detail-field-input"
+                            >
+                              <el-option label="C/C++" value="C/C++"/>
+                            </el-select>
+                          </template>
+                          <template v-else>
+                            <span>{{ task.codeLanguage || '未知' }}</span>
+                          </template>
+                        </div>
+                        <div class="task-detail-field-line">
+                          <span>创建人：</span><span>{{ formatTaskCreatorDisplay(task) }}</span>
+                        </div>
+                        <div
+                            class="task-detail-field-line"
+                            :class="{ 'task-detail-field-line--edit': isEditing }"
+                        >
+                          <template v-if="isEditing">
+                            <el-form-item label="产品名称：" prop="productName" class="task-detail-inline-form-item">
+                              <el-input
+                                  v-model="editForm.productName"
+                                  placeholder="请输入产品名称"
+                                  clearable
+                                  class="task-detail-field-input"
+                              />
+                            </el-form-item>
+                          </template>
+                          <template v-else>
+                            <span>产品名称：</span>
+                            <span>{{ task.productName || '-' }}</span>
+                          </template>
+                        </div>
+                        <div
+                            class="task-detail-field-line"
+                            :class="{ 'task-detail-field-line--edit': isEditing }"
+                        >
+                          <span>部门名称：</span>
+                          <template v-if="isEditing">
                             <el-input
-                                v-model="editForm.productName"
-                                placeholder="请输入产品名称"
+                                v-model="editForm.deptName"
+                                placeholder="请输入部门名称（可选）"
                                 clearable
                                 class="task-detail-field-input"
                             />
-                          </el-form-item>
-                        </template>
-                        <template v-else>
-                          <span>产品名称：</span>
-                          <span>{{ task.productName || '-' }}</span>
-                        </template>
+                          </template>
+                          <template v-else>
+                            <span>{{ task.dept_name || '-' }}</span>
+                          </template>
+                        </div>
+                        <div
+                            class="task-detail-field-line"
+                            :class="{ 'task-detail-field-line--edit': isEditing }"
+                        >
+                          <span>PDU名称：</span>
+                          <template v-if="isEditing">
+                            <el-input
+                                v-model="editForm.pduName"
+                                placeholder="请输入PDU名称（可选）"
+                                clearable
+                                class="task-detail-field-input"
+                            />
+                          </template>
+                          <template v-else>
+                            <span>{{ task.pdu_name || '-' }}</span>
+                          </template>
+                        </div>
+                        <div class="task-detail-field-line">
+                          <span>创建时间：</span><span>{{ task.createTime || '未知' }}</span>
+                        </div>
                       </div>
-                      <div
-                          class="task-detail-field-line"
-                          :class="{ 'task-detail-field-line--edit': isEditing }"
-                      >
-                        <span>部门名称：</span>
-                        <template v-if="isEditing">
-                          <el-input
-                              v-model="editForm.deptName"
-                              placeholder="请输入部门名称（可选）"
-                              clearable
-                              class="task-detail-field-input"
-                          />
-                        </template>
-                        <template v-else>
-                          <span>{{ task.dept_name || '-' }}</span>
-                        </template>
-                      </div>
-                      <div
-                          class="task-detail-field-line"
-                          :class="{ 'task-detail-field-line--edit': isEditing }"
-                      >
-                        <span>PDU名称：</span>
-                        <template v-if="isEditing">
-                          <el-input
-                              v-model="editForm.pduName"
-                              placeholder="请输入PDU名称（可选）"
-                              clearable
-                              class="task-detail-field-input"
-                          />
-                        </template>
-                        <template v-else>
-                          <span>{{ task.pdu_name || '-' }}</span>
-                        </template>
-                      </div>
-                      <div class="task-detail-field-line">
-                        <span>创建时间：</span><span>{{ task.createTime || '未知' }}</span>
-                      </div>
-                    </div>
-                  </el-card>
+                    </el-card>
 
                     <el-card class="task-detail-field-card" shadow="never">
                       <template #header>
@@ -307,7 +344,7 @@
                             <el-form-item label="扫描路径：" prop="pathList" class="task-detail-inline-form-item">
                               <el-input
                                   v-model="editForm.pathList"
-                                  placeholder="可选，多个路径使用英文逗号分隔，例如：src,view,utils"
+                                  placeholder="可选，多个路径使用英文逗号分隔，例如：src,view/taskManage"
                                   clearable
                                   class="task-detail-field-input"
                               />
@@ -397,8 +434,8 @@
                           <template v-if="isEditing">
                             <el-switch
                                 v-model="editForm.rescan"
-                                active-text="从头开始"
-                                inactive-text="从中止处继续"
+                                active-text="重新扫描"
+                                inactive-text="继续扫描"
                             />
                           </template>
                           <template v-else>
@@ -414,7 +451,8 @@
                               :loading="startingTaskScan"
                               :disabled="startScanButtonDisabled"
                               @click="handleStartTaskScan"
-                          >启动扫描</el-button>
+                          >启动扫描
+                          </el-button>
                           <el-button
                               v-else-if="showPauseTaskButton"
                               type="warning"
@@ -422,7 +460,17 @@
                               :loading="pausingTask"
                               :disabled="pauseTaskButtonDisabled"
                               @click="handlePauseTask"
-                          >暂停任务</el-button>
+                          >暂停任务
+                          </el-button>
+                          <el-button
+                              v-else-if="showResumeScanButton"
+                              type="success"
+                              size="small"
+                              :loading="startingTaskScan"
+                              :disabled="resumeScanButtonDisabled"
+                              @click="handleStartTaskScan"
+                          >继续扫描
+                          </el-button>
                           <span
                               v-if="showStartScanButton && startScanDisabledHint"
                               class="task-detail-muted task-detail-start-scan-hint"
@@ -599,8 +647,7 @@
               <!-- 扫描完成且未发现缺陷（任务信息页） -->
               <div
                   v-if="isCompletedScanWithZeroIssues"
-                  class="scan-zero-issues-section"
-              >
+                  class="scan-zero-issues-section">
                 <div class="section-label">扫描结果</div>
                 <div class="scan-zero-issues-card">
                   <div class="scan-zero-issues-icon" aria-hidden="true">
@@ -714,15 +761,12 @@
                 </el-result>
               </div>
               <!-- 扫描结果列表和规则树区域 - 有扫描结果即展示（不限任务状态） -->
-              <div
-                  v-else-if="hasScanResultsForAnnotation"
-                  class="result-list-container"
-              >
+              <div class="result-list-container">
                 <!-- 左侧：扫描结果列表 -->
                 <div class="result-list-section">
                   <div class="list-header-with-filter">
                     <div class="section-label">扫描结果列表</div>
-                    <!-- 标注结果筛选 -->
+                    <!-- 标注结果筛选 - 始终显示，过滤结果为空时保持可见 -->
                     <div class="annotation-filter">
                       <div class="filter-label">标注结果筛选：</div>
                       <div class="filter-options">
@@ -763,11 +807,11 @@
                           type="primary"
                           plain
                           :loading="exportingScanResults"
-                          :disabled="exportingScanResults"
+                          :disabled="exportingScanResults || !scanResultsList || scanResultsList.length === 0"
                           class="export-scan-results-btn"
                           @click="handleExportScanResults"
                       >
-                        导出 Excel
+                        导出报告
                       </el-button>
                     </div>
                   </div>
@@ -897,71 +941,73 @@
                             class="annotation-section"
                             :class="{ 'annotation-section--readonly': !canModifyAnnotation(result) }"
                         >
-                          <div class="annotation-label annotation-label--emphasis">缺陷标注</div>
-                          <el-radio-group
-                              :model-value="getAnnotationIssueResult(result)"
-                              :disabled="!canModifyAnnotation(result)"
-                              @update:model-value="(v) => setAnnotationIssueResult(result, v)"
-                          >
-                            <el-radio :key="0" :value="0" class="option-item">
-                              需要修改
-                            </el-radio>
-                            <el-radio :key="1" :value="1" class="option-item">
-                              无需修改的问题
-                            </el-radio>
-                            <el-radio :key="2" :value="2" class="option-item">
-                              问题误报
-                            </el-radio>
-                          </el-radio-group>
-                          <!-- 原因说明输入框 -->
-                          <div class="reason-section">
-                            <el-input
-                                :model-value="getAnnotationReason(result)"
+                          <div class="annotation-section">
+                            <div class="annotation-label annotation-label--emphasis">缺陷标注</div>
+                            <div v-if="result.annotation?.annotationStatus" class="annotation-info">
+                            <span class="annotation-info-text">
+                              <span class="annotation-user">{{ result.annotation?.userId }}</span>
+                              <span
+                                  class="annotation-time">{{
+                                  result.annotation?.createTime || result.annotation?.updateTime
+                                }}</span>
+                            </span>
+                            </div>
+                            <el-radio-group
+                                :model-value="getAnnotationIssueResult(result)"
                                 :disabled="!canModifyAnnotation(result)"
-                                @update:model-value="(v) => setAnnotationReason(result, v)"
-                                type="textarea"
-                                :rows="2"
-                                placeholder="选择选项将自动保存标注（不含原因）；填写原因后请点击「提交」保存"
-                                resize="none"
-                            />
+                                @update:model-value="(v) => setAnnotationIssueResult(result, v)"
+                            >
+                              <el-radio :key="0" :value="0" class="option-item">
+                                需要修改
+                              </el-radio>
+                              <el-radio :key="1" :value="1" class="option-item">
+                                无需修改的问题
+                              </el-radio>
+                              <el-radio :key="2" :value="2" class="option-item">
+                                问题误报
+                              </el-radio>
+                            </el-radio-group>
+                            <!-- 原因说明输入框 -->
+                            <div class="reason-section">
+                              <el-input
+                                  :model-value="getAnnotationReason(result)"
+                                  :disabled="!canModifyAnnotation(result)"
+                                  @update:model-value="(v) => setAnnotationReason(result, v)"
+                                  type="textarea"
+                                  :rows="2"
+                                  placeholder="选择选项将自动保存标注（不含原因）；填写原因后请点击「提交」保存"
+                                  resize="none"
+                              />
 
-                          </div>
-                          <div class="annotation-actions">
-                            <el-button
-                                :disabled="!canModifyAnnotation(result) || annotationSubmittingKey === getResultReviewKey(result)"
-                                :loading="annotationSubmittingKey === getResultReviewKey(result)"
-                                @click="submitAnnotation(result)"
+                            </div>
+                            <div class="annotation-actions">
+                              <el-button
+                                  :disabled="!canModifyAnnotation(result) || annotationSubmittingKey === getResultReviewKey(result)"
+                                  :loading="annotationSubmittingKey === getResultReviewKey(result)"
+                                  @click="submitAnnotation(result)"
+                              >
+                                提交
+                              </el-button>
+                              <el-button
+                                  v-if="canCancelAnnotation(result)"
+                                  type="danger"
+                                  plain
+                                  :loading="annotationSubmittingKey === getResultReviewKey(result)"
+                                  @click="cancelAnnotation(result)"
+                              >
+                                取消标注
+                              </el-button>
+                            </div>
+                            <p
+                                v-if="!canModifyAnnotation(result)"
+                                class="annotation-readonly-tip"
                             >
-                              提交
-                            </el-button>
-                            <el-button
-                                v-if="canCancelAnnotation(result)"
-                                type="danger"
-                                plain
-                                :loading="annotationSubmittingKey === getResultReviewKey(result)"
-                                @click="cancelAnnotation(result)"
-                            >
-                              取消标注
-                            </el-button>
+                              该告警已由
+                              <span class="annotation-readonly-tip__user">{{ getAnnotationOwnerDisplay(result) }}</span>
+                              标注，仅标注人可修改
+                            </p>
                           </div>
-                          <p
-                              v-if="!canModifyAnnotation(result)"
-                              class="annotation-readonly-tip"
-                          >
-                            该告警已由
-                            <span class="annotation-readonly-tip__user">{{ getAnnotationOwnerDisplay(result) }}</span>
-                            标注，仅标注人可修改
-                          </p>
-                          <!-- 标注信息显示 -->
-                          <div v-if="result.annotation?.annotationStatus" class="annotation-info">
-                          <span class="annotation-info-text">
-                            <span class="annotation-user">{{ result.annotation?.userId }}</span>
-                            <span
-                                class="annotation-time">{{
-                                result.annotation?.createTime || result.annotation?.updateTime
-                              }}</span>
-                          </span>
-                          </div>
+
                           <!-- 专家评审（暂未上线，EXPERT_REVIEW_ENABLED 改为 true 即可恢复） -->
                           <div
                               v-if="EXPERT_REVIEW_ENABLED && result.annotation?.annotationStatus"
@@ -1195,62 +1241,56 @@
   </div>
 </template>
 
-
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import * as echarts from 'echarts'
-import {
-  ElButton,
-  ElTag,
-  ElInput,
-  ElSelect,
-  ElOption,
-  ElEmpty,
-  ElPagination,
-  ElAlert,
-  ElMessage,
-  ElMessageBox,
-  ElSkeleton,
-  ElRadioGroup,
-  ElRadio,
-  ElTree,
-  ElTabs,
-  ElTabPane,
-  ElCard,
-  ElUpload,
-  ElInputNumber,
-  ElTooltip,
-  ElCollapse,
-  ElCollapseItem,
-  ElResult,
-  ElForm,
-  ElFormItem,
-} from 'element-plus'
 import type { FormInstance, FormRules, UploadFile, UploadFiles } from 'element-plus'
 import {
-  TASK_STATUS,
-  getTaskStatusElTagType,
-  getTaskStatusTagClass,
-} from '@/constants/scanTaskConst'
+  ElAlert,
+  ElButton,
+  ElCard,
+  ElCollapse,
+  ElCollapseItem,
+  ElEmpty,
+  ElForm,
+  ElFormItem,
+  ElInput,
+  ElMessage,
+  ElMessageBox,
+  ElOption,
+  ElPagination,
+  ElRadio,
+  ElRadioGroup,
+  ElResult,
+  ElSelect,
+  ElSkeleton,
+  ElTabPane,
+  ElTabs,
+  ElTag,
+  ElTooltip,
+  ElTree,
+  ElUpload,
+} from 'element-plus'
+import { getTaskStatusElTagType, getTaskStatusTagClass, TASK_STATUS, } from '@/constants/scanTaskConst'
 import { useProfileStore } from '@/stores/userProfile'
 
 import { downloadScanResultsExcel } from '@/views/taskManagement/utils/scanResultExport'
 import {
+  getAnnotationStatistics,
   getTaskInfo,
   getTaskScanResults,
-  uploadScanResultFile,
+  pauseTask,
+  rerunStatistics,
   saveAnnotationApi,
   saveAnnotationReviewApi,
-  getAnnotationStatistics,
-  rerunStatistics,
-  updateTaskInfo,
   startTaskScan,
+  updateTaskInfo,
+  uploadScanResultFile,
 } from '@/api/taskManagementApi'
 import type { SaveAnnotationReviewReqBody } from '@/api/types/annotationReview'
-import type { UpdateTaskInfoPayload } from '@/api/types'
+import type { AnnotationStatistics, UpdateTaskInfoPayload } from '@/api/types'
 import type { TaskScanResultApiDocRow } from '@/api/types/taskApiDoc'
-import type { AnnotationStatistics } from '@/api/types'
 import type { SaveAnnotationReqBody, TaskDetailPaginationInfo } from '@/api/types/saveAnnotation'
 import CodeBlock from '@/views/taskManagement/components/CodeBlock.vue'
 import { copyText } from '@/utils/utils'
@@ -1289,7 +1329,6 @@ interface Task {
   s3Path?: string
   hostUrl?: string
   modelName?: string
-  /** 中止后重启是否从头扫描：true 从头开始，false 从中止处继续 */
   rescan?: boolean
   warnCount?: number | null
   scanResults: any[]
@@ -1359,7 +1398,7 @@ interface FilterForm {
   keyword: string
   ruleName: string
   issueResult: string // '0' | '1' | '2' | 'unmarked' | '' (空字符串表示未选择)
-  reviewStatus: string // '0' | '1' | '2' | '' 
+  reviewStatus: string // '0' | '1' | '2' | ''
 }
 
 interface RuleTreeNode {
@@ -1373,13 +1412,13 @@ interface RuleTreeNode {
 type TagType = 'success' | 'info' | 'warning' | 'danger'
 
 /** 专家评审功能开关（暂未上线，改为 true 即可恢复全部评审 UI 与交互） */
-const EXPERT_REVIEW_ENABLED = false
+const EXPERT_REVIEW_ENABLED = computed(() => true)
 
 const router = useRouter()
 const route = useRoute()
 const profileStore = useProfileStore()
 const userInfo = profileStore.userInfo
-const canExpertReview = computed(() => EXPERT_REVIEW_ENABLED && profileStore.isExpert())
+const canExpertReview = ref(true)
 const reviewSubmittingKey = ref<string | null>(null)
 const annotationSubmittingKey = ref<string | null>(null)
 
@@ -1409,11 +1448,11 @@ function isValidRepoGitUrl(raw: unknown): boolean {
 /** 任务信息编辑校验规则（与 CreateTaskDialog 一致） */
 const taskEditFormRules: FormRules = {
   taskName: [
-    { required: true, message: '请输入任务名称', trigger: 'blur' },
-    { min: 2, max: 50, message: '任务名称长度在 2 到 50 个字符', trigger: 'blur' },
+    {required: true, message: '请输入任务名称', trigger: 'blur'},
+    {min: 2, max: 50, message: '任务名称长度在 2 到 50 个字符', trigger: 'blur'},
   ],
   repoUrl: [
-    { required: true, message: '请输入代码仓Git地址', trigger: 'blur' },
+    {required: true, message: '请输入代码仓Git地址', trigger: 'blur'},
     {
       validator: (_rule, value, callback) => {
         if (!value || String(value).trim() === '') {
@@ -1433,7 +1472,7 @@ const taskEditFormRules: FormRules = {
       trigger: 'blur',
     },
   ],
-  branch: [{ required: true, message: '请输入扫描分支', trigger: 'blur' }],
+  branch: [{required: true, message: '请输入扫描分支', trigger: 'blur'}],
   pathList: [
     {
       validator: (_rule, value, callback) => {
@@ -1454,7 +1493,7 @@ const taskEditFormRules: FormRules = {
       trigger: 'blur',
     },
   ],
-  productName: [{ required: true, message: '请输入产品名称', trigger: 'blur' }],
+  productName: [{required: true, message: '请输入产品名称', trigger: 'blur'}],
 }
 
 /** 用户点击「编辑」后为 true；保存或取消后恢复为 false（默认查看模式） */
@@ -1626,30 +1665,30 @@ const modelNameDisplay = computed(() => {
 })
 
 const rescanDisplay = computed(() => {
-  return task.value?.rescan === true ? '从头开始' : '从中止处继续'
+  return task.value?.rescan === true ? '重新扫描' : '继续扫描'
 })
 
 /** 解析进度字符串，返回 { scanned, total, percent } */
 const progressInfo = computed(() => {
   const raw = (task.value?.progress || '').trim()
   if (!raw) {
-    return { scanned: 0, total: 0, percent: 0, text: '' }
+    return {scanned: 0, total: 0, percent: 0, text: ''}
   }
   const parts = raw.split('/')
   if (parts.length !== 2) {
-    return { scanned: 0, total: 0, percent: 0, text: raw }
+    return {scanned: 0, total: 0, percent: 0, text: raw}
   }
   const scanned = parseInt(parts[0], 10) || 0
   const total = parseInt(parts[1], 10) || 0
   const percent = total > 0 ? Math.min(100, Math.round((scanned / total) * 100)) : 0
-  return { scanned, total, percent, text: raw }
+  return {scanned, total, percent, text: raw}
 })
 
-/** 是否显示进度条：排队中/进行中始终显示；已完成且有文件总数时也显示 */
+/** 是否显示进度条：排队中/进行中/已暂停始终显示；已完成且有文件总数时也显示 */
 const showProgressBar = computed(() => {
   if (!task.value) return false
   const st = task.value.taskStatus
-  if (st === TASK_STATUS.QUEUED || st === TASK_STATUS.RUNNING) return true
+  if (st === TASK_STATUS.QUEUED || st === TASK_STATUS.RUNNING || st === TASK_STATUS.PAUSED) return true
   if (st === TASK_STATUS.COMPLETED) return progressInfo.value.total > 0
   return false
 })
@@ -1661,12 +1700,12 @@ const persistedScanParamsReady = computed(() => {
   return (t.hostUrl || '').trim() !== '' && (t.modelName || '').trim() !== ''
 })
 
-/** 启动扫描：待处理/失败/已完成且参数齐全可点；排队中/进行中不可点 */
+/** 启动扫描：待处理/失败/已完成且参数齐全可点；排队中/进行中/已暂停不可点 */
 const startScanButtonDisabled = computed(() => {
   if (!task.value || startingTaskScan.value) return true
   if (isEditing.value) return true
   const st = task.value.taskStatus
-  if (st === TASK_STATUS.RUNNING || st === TASK_STATUS.QUEUED) return true
+  if (st === TASK_STATUS.RUNNING || st === TASK_STATUS.QUEUED || st === TASK_STATUS.PAUSED) return true
   if (
       st !== TASK_STATUS.NOT_STARTED &&
       st !== TASK_STATUS.FAILED &&
@@ -1681,7 +1720,7 @@ const startScanDisabledHint = computed(() => {
   if (!task.value || startingTaskScan.value) return ''
   if (isEditing.value) return '请先保存任务信息后再启动扫描'
   const st = task.value.taskStatus
-  if (st !== TASK_STATUS.NOT_STARTED && st !== TASK_STATUS.FAILED && st !== TASK_STATUS.COMPLETED) {
+  if (st !== TASK_STATUS.NOT_STARTED && st !== TASK_STATUS.FAILED && st !== TASK_STATUS.COMPLETED && st !== TASK_STATUS.PAUSED) {
     return '当前状态不允许启动扫描'
   }
   if (!persistedScanParamsReady.value) return '请先填写并保存本机启动URL与模型名称'
@@ -1696,11 +1735,27 @@ const showPauseTaskButton = computed(() => {
   return st === TASK_STATUS.QUEUED || st === TASK_STATUS.RUNNING
 })
 
+/** 已暂停状态时显示继续扫描 */
+const showResumeScanButton = computed(() => {
+  if (!task.value) return false
+  if (startingTaskScan.value) return true
+  const st = task.value.taskStatus
+  return st === TASK_STATUS.PAUSED && !showPauseTaskButton.value
+})
+
+const resumeScanButtonDisabled = computed(() => {
+  if (!task.value || startingTaskScan.value || pausingTask.value) return true
+  if (isEditing.value) return true
+  const st = task.value.taskStatus
+  if (st !== TASK_STATUS.PAUSED) return true
+  return !persistedScanParamsReady.value
+})
+
 /** 与暂停按钮互斥：非排队/进行中时显示启动 */
 const showStartScanButton = computed(() => {
   if (!task.value) return false
   if (startingTaskScan.value) return true
-  return !showPauseTaskButton.value
+  return !showPauseTaskButton.value && !showResumeScanButton.value
 })
 
 const pauseTaskButtonDisabled = computed(() => {
@@ -2010,19 +2065,20 @@ const assembleFileName = (result) => {
     return '#'
   }
 
-  let repoHost = task.value.repoUrl.split('?')[0]
-  let subProductPathList = repoHost.split('/');
-  let subProductPath = subProductPathList[subProductPathList.length - 2]
-
-  if (!subProductPath || !result.file_name) {
+  const repoUrl = task.value.repoUrl
+  const dotGitIndex = repoUrl.indexOf('.git')
+  if (dotGitIndex === -1) {
     return '#'
   }
 
-  try {
-    return repoHost + '?ref=' + task.value.branch + '&filePath=' + result.file_name.split(subProductPath)[1].substring(1) + '&isFile=true#L' + result.warn_line
-  } catch (error) {
+  const repoHost = repoUrl.substring(0, dotGitIndex)
+  if (!result.file_name) {
     return '#'
   }
+
+  const filePath = encodeURIComponent(result.file_name.replace(/\\/g, '/'))
+  const warnLine = result.warn_line
+  return repoHost + '?ref=' + task.value.branch + '&filePath=' + filePath + '&isFile=true#L' + warnLine
 }
 
 const assembleFileNameShow = (result) => {
@@ -2292,6 +2348,10 @@ const fetchTaskDetailPage = async (
 
     if (options.fetchAnnotationStats) {
       try {
+        const uid = (userInfo?.w3Id || '').trim()
+        if (uid) {
+          await rerunStatistics(taskId, uid)
+        }
         const statisticsResponse = await getAnnotationStatistics(taskId)
         if (statisticsResponse.meta.isSuccess && statisticsResponse.data) {
           annotationStatistics.value = statisticsResponse.data
@@ -2330,15 +2390,15 @@ async function handlePauseTask(): Promise<void> {
 
   pausingTask.value = true
   try {
-    const payload = buildUpdateTaskPayloadFromTask(task.value, TASK_STATUS.FAILED)
-    const res = await updateTaskInfo(tid, payload)
+    const res = await pauseTask(tid)
     if (!res.meta.isSuccess) {
       ElMessage.error(res.meta.message || '暂停失败')
       return
     }
-    task.value.taskStatus = TASK_STATUS.FAILED
-    syncEditFormFromTask(task.value)
     ElMessage.success('任务已暂停')
+    await fetchTaskDetailPage(tid, pagination.value.currentPage, pagination.value.pageSize, {
+      fetchAnnotationStats: true,
+    })
   } catch {
     ElMessage.error('暂停失败')
   } finally {
@@ -2363,7 +2423,8 @@ async function handleStartTaskScan(): Promise<void> {
   if (
       st !== TASK_STATUS.NOT_STARTED &&
       st !== TASK_STATUS.FAILED &&
-      st !== TASK_STATUS.COMPLETED
+      st !== TASK_STATUS.COMPLETED &&
+      st !== TASK_STATUS.PAUSED
   ) {
     return
   }
@@ -2879,8 +2940,9 @@ async function handleExportScanResults(): Promise<void> {
     ElMessage.warning('任务信息未加载，请稍后重试')
     return
   }
-  if (task.value.taskStatus !== TASK_STATUS.COMPLETED) {
-    ElMessage.warning('任务未完成，暂无法导出扫描结果')
+
+  if (!scanResultsList.value || scanResultsList.value.length === 0) {
+    ElMessage.warning('暂无扫描结果')
     return
   }
 
@@ -2933,11 +2995,9 @@ async function handleApproveReview(result: ScanResult): Promise<void> {
       taskId,
       warnUuid,
       decision: 'approve',
+      reviewerUserId: userInfo.w3Id,
     }
-    const res = await saveAnnotationReviewApi(req, {
-      userId: userInfo.w3Id,
-      userName: userInfo.nameCn,
-    })
+    const res = await saveAnnotationReviewApi(req)
     if (!res.meta.isSuccess) {
       ElMessage.error(res.meta.message || '评审失败')
       return
@@ -2958,7 +3018,7 @@ async function handleRejectReview(result: ScanResult): Promise<void> {
 
   let comment = ''
   try {
-    const { value } = await ElMessageBox.prompt('请填写驳回理由', '评审驳回', {
+    const {value} = await ElMessageBox.prompt('请填写驳回理由', '评审驳回', {
       confirmButtonText: '驳回',
       cancelButtonText: '取消',
       inputType: 'textarea',
@@ -2980,11 +3040,9 @@ async function handleRejectReview(result: ScanResult): Promise<void> {
       warnUuid,
       decision: 'reject',
       comment,
+      reviewerUserId: userInfo.w3Id,
     }
-    const res = await saveAnnotationReviewApi(req, {
-      userId: userInfo.w3Id,
-      userName: userInfo.nameCn,
-    })
+    const res = await saveAnnotationReviewApi(req)
     if (!res.meta.isSuccess) {
       ElMessage.error(res.meta.message || '评审失败')
       return
@@ -3381,7 +3439,7 @@ const handleBack = (): void => {
       savedQuery && typeof savedQuery === 'object' && !Array.isArray(savedQuery)
           ? (savedQuery as Record<string, string>)
           : {}
-  router.push({ path: '/tasks', query })
+  router.push({path: '/tasks', query})
 }
 
 const handleCopyRepoUrl = (): void => {
@@ -3401,6 +3459,16 @@ const handleCopyCommitId = (): void => {
     return
   }
   copyText(commitId)
+  ElMessage.success('复制成功')
+}
+
+const handleCopyTaskId = (): void => {
+  const taskId = task.value?.taskId?.trim()
+  if (!taskId) {
+    ElMessage.warning('暂无任务ID可复制')
+    return
+  }
+  copyText(taskId)
   ElMessage.success('复制成功')
 }
 
@@ -4157,7 +4225,10 @@ onUnmounted(() => {
   border-radius: 8px;
   padding: 24px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  position: relative;
+  position: fixed;
+  right: 24px; /* 距离右侧24px */
+  top: 198px; /* header高度64px + 24px间距 */
+  max-height: calc(100vh - 216px); /* 视口高度减去header和间距 */
   display: flex;
   flex-direction: column;
 }
@@ -4174,7 +4245,7 @@ onUnmounted(() => {
     position: sticky;
     top: 0;
     align-self: flex-start;
-    max-height: calc(100vh - 64px - 48px);
+    max-height: calc(100vh - var(--top-offset, 64px) - 48px);
     z-index: 10;
   }
 }
@@ -4724,7 +4795,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-height: calc(100vh - 64px - 296px);
+  max-height: calc(100vh - var(--top-offset, 64px) - 296px);
   overflow-y: auto;
   padding-right: 8px;
 }
@@ -5198,7 +5269,7 @@ onUnmounted(() => {
 .reason-section {
   display: flex;
   gap: 8px;
-  width: 600px;
+  width: 400px;
   margin-top: 8px;
 }
 
@@ -5213,7 +5284,7 @@ onUnmounted(() => {
   }
 
   .list-content {
-    max-height: calc(100vh - 64px - 216px);
+    max-height: calc(100vh - var(--top-offset, 64px) - 216px);
   }
 
   .rule-tree-section {

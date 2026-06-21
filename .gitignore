@@ -3,3 +3,4 @@ package-lock.json
 .cursorrules
 dist
 .cursor/rules/
+.cursor/skills

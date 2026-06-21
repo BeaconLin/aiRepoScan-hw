@@ -21,8 +21,6 @@ export const BATCH_TASK_TEMPLATE_COLUMNS: ReadonlyArray<{
     { key: 'productName', header: '产品名称', required: true },
     { key: 'deptName', header: '部门名称' },
     { key: 'pduName', header: 'PDU名称' },
-    { key: 'lineNum', header: '代码量(k)', hint: '可选，数字' },
-    { key: 'assistantVersions', header: '助手版本', hint: `默认 ${DEFAULT_BATCH_ASSISTANT_VERSION}` },
     { key: 'hostUrl', header: '本机启动URL', hint: '可选，启动扫描前必填' },
     { key: 'modelName', header: '模型名称', hint: '可选，启动扫描前必填' },
 ]
@@ -69,7 +67,7 @@ function normalizeRow(raw: Record<string, unknown>, rowIndex: number): ParsedBat
                 }
             }
         } else {
-            ;(data as Record<string, unknown>)[col.key] = str
+            ;(data as unknown as Record<string, unknown>)[col.key] = str
         }
     }
 
@@ -83,53 +81,91 @@ function normalizeRow(raw: Record<string, unknown>, rowIndex: number): ParsedBat
     }
 }
 
-/** 校验单行批量任务数据 */
-export function validateBatchTaskRow(row: BatchCreateTaskItem): string[] {
+function validateTaskName(name: string | null | undefined): string[] {
     const errors: string[] = []
-    const taskName = (row.taskName || '').trim()
+    const taskName = (name || '').trim()
     if (!taskName) {
         errors.push('任务名称不能为空')
     } else if (taskName.length < 2 || taskName.length > 50) {
         errors.push('任务名称长度需在 2 到 50 个字符')
     }
+    return errors
+}
 
-    const repoUrl = (row.repoUrl || '').trim()
+function validateRepoUrl(url: string | null | undefined): string[] {
+    const errors: string[] = []
+    const repoUrl = (url || '').trim()
     if (!repoUrl) {
         errors.push('代码仓Git地址不能为空')
     } else if (!isValidRepoGitUrl(repoUrl)) {
         errors.push('代码仓Git地址格式无效')
     }
+    return errors
+}
 
-    if (!(row.branch || '').trim()) {
+function validateBranch(branch: string | null | undefined): string[] {
+    const errors: string[] = []
+    if (!(branch || '').trim()) {
         errors.push('扫描分支不能为空')
     }
+    return errors
+}
 
-    const pathList = (row.pathList || '').trim()
-    if (pathList) {
-        const paths = pathList.split(',').map((p) => p.trim()).filter(Boolean)
+function validatePathList(pathList: string | null | undefined): string[] {
+    const errors: string[] = []
+    const pathListStr = (pathList || '').trim()
+    if (pathListStr) {
+        const paths = pathListStr.split(',').map((p) => p.trim()).filter(Boolean)
         if (paths.length === 0) {
             errors.push('扫描路径格式无效')
         }
     }
+    return errors
+}
 
-    if (!(row.productName || '').trim()) {
+function validateProductName(productName: string | null | undefined): string[] {
+    const errors: string[] = []
+    if (!(productName || '').trim()) {
         errors.push('产品名称不能为空')
     }
+    return errors
+}
 
-    const lineStr = row.lineNum != null ? String(row.lineNum) : ''
-    if (lineStr !== '' && (row.lineNum == null || !Number.isFinite(row.lineNum) || row.lineNum < 0)) {
+function validateLineNum(lineNum: number | null | undefined): string[] {
+    const errors: string[] = []
+    const lineStr = lineNum != null ? String(lineNum) : ''
+    if (lineStr !== '' && (lineNum == null || !Number.isFinite(lineNum) || lineNum < 0)) {
         errors.push('代码量(k)须为非负数字')
     }
+    return errors
+}
 
-    const hostUrl = (row.hostUrl || '').trim()
-    const modelName = (row.modelName || '').trim()
-    if (hostUrl && !/^https?:\/\/.+/i.test(hostUrl)) {
+function validateHostUrlAndModelName(
+    hostUrl: string | null | undefined,
+    modelName: string | null | undefined,
+): string[] {
+    const errors: string[] = []
+    const hostUrlStr = (hostUrl || '').trim()
+    const modelNameStr = (modelName || '').trim()
+    if (hostUrlStr && !/^https?:\/\/.+/i.test(hostUrlStr)) {
         errors.push('本机启动URL格式无效')
     }
-    if ((hostUrl && !modelName) || (!hostUrl && modelName)) {
-        errors.push('本机启动URL与模型名称需同时填写或同时留空')
-    }
+    return errors
+}
 
+function concatErrors(errors: string[], newErrors: string[]): string[] {
+    return errors.concat(newErrors)
+}
+
+export function validateBatchTaskRow(row: BatchCreateTaskItem): string[] {
+    let errors: string[] = []
+    errors = concatErrors(errors, validateTaskName(row.taskName))
+    errors = concatErrors(errors, validateRepoUrl(row.repoUrl))
+    errors = concatErrors(errors, validateBranch(row.branch))
+    errors = concatErrors(errors, validatePathList(row.pathList))
+    errors = concatErrors(errors, validateProductName(row.productName))
+    errors = concatErrors(errors, validateLineNum(row.lineNum))
+    errors = concatErrors(errors, validateHostUrlAndModelName(row.hostUrl, row.modelName))
     return errors
 }
 
@@ -150,39 +186,50 @@ function mapHeaderRow(headers: string[]): Record<number, keyof BatchCreateTaskIt
     return map
 }
 
-/** 解析上传的 Excel / CSV 文件 */
-export async function parseBatchTaskFile(file: File): Promise<ParsedBatchTaskRow[]> {
-    const buffer = await file.arrayBuffer()
-    const workbook = XLSX.read(buffer, { type: 'array' })
-    const sheetName = workbook.SheetNames[0]
-    if (!sheetName) {
-        throw new Error('文件中没有可用的工作表')
-    }
-    const sheet = workbook.Sheets[sheetName]
-    const matrix = XLSX.utils.sheet_to_json<(string | number | null)[]>(sheet, {
+function parseSheetToMatrix(sheet: XLSX.WorkSheet): (string | number | null)[][] {
+    return XLSX.utils.sheet_to_json<(string | number | null)[]>(sheet, {
         header: 1,
         defval: '',
         raw: false,
     })
-    if (matrix.length < 2) {
+}
+
+function validateHeaderRow(
+    headerRow: (string | number | null)[] | undefined,
+): asserts headerRow is (string | number | null)[] {
+    if (!headerRow) {
         throw new Error('文件中没有数据行，请至少填写一行任务')
     }
+}
 
-    const headerRow = matrix[0].map((c) => cellToString(c))
-    const colMap = mapHeaderRow(headerRow)
-    const mappedCount = Object.keys(colMap).length
-    if (mappedCount === 0) {
+function validateColMap(colMap: Record<string, string>): void {
+    if (Object.keys(colMap).length === 0) {
         throw new Error('未识别到有效表头，请使用系统提供的导入模板')
     }
+}
 
-    const requiredHeaders = BATCH_TASK_TEMPLATE_COLUMNS.filter((c) => c.required).map((c) => c.header)
+function validateRequiredColumns(headerCells: string[]): void {
+    const requiredHeaders = BATCH_TASK_TEMPLATE_COLUMNS
+        .filter((c) => c.required)
+        .map((c) => c.header)
     const missing = requiredHeaders.filter(
-        (h) => !headerRow.some((cell) => cellToString(cell) === h),
+        (h) => !headerCells.some((cell) => cell === h),
     )
     if (missing.length > 0) {
         throw new Error(`缺少必填列：${missing.join('、')}`)
     }
+}
 
+function validateRowCount(rows: ParsedBatchTaskRow[]): void {
+    if (rows.length === 0) {
+        throw new Error('未解析到有效任务行')
+    }
+    if (rows.length > BATCH_TASK_MAX_ROWS) {
+        throw new Error(`单次最多导入 ${BATCH_TASK_MAX_ROWS} 条任务，当前 ${rows.length} 条`)
+    }
+}
+
+function buildColMap(matrix: (string | number | null)[][], colMap: Record<string, string>): ParsedBatchTaskRow[] {
     const rows: ParsedBatchTaskRow[] = []
     for (let i = 1; i < matrix.length; i++) {
         const line = matrix[i]
@@ -192,24 +239,61 @@ export async function parseBatchTaskFile(file: File): Promise<ParsedBatchTaskRow
         for (const [colIdx, key] of Object.entries(colMap)) {
             raw[key] = line[Number(colIdx)] ?? ''
         }
-        const parsed = normalizeRow(raw, i + 1)
+        const parsed = normalizeRow(raw, i)
         if (isEmptyDataRow(parsed.data)) continue
         rows.push(parsed)
     }
+    return rows
+}
 
-    if (rows.length === 0) {
-        throw new Error('未解析到有效任务行')
+/** 解析上传的 Excel / CSV 文件 */
+export async function parseBatchTaskFile(file: File): Promise<ParsedBatchTaskRow[]> {
+    const buffer = await file.arrayBuffer()
+    const workbook = XLSX.read(buffer, { type: 'array' })
+    const sheetName = workbook.SheetNames[0]
+    if (!sheetName) {
+        throw new Error('文件中没有可用的工作表')
     }
-    if (rows.length > BATCH_TASK_MAX_ROWS) {
-        throw new Error(`单次最多导入 ${BATCH_TASK_MAX_ROWS} 条任务，当前 ${rows.length} 条`)
+    const sheet = workbook.Sheets[sheetName]
+    if (!sheet) {
+        throw new Error('文件中没有可用的工作表')
     }
+
+    const matrix = parseSheetToMatrix(sheet)
+    if (matrix.length < 2) {
+        throw new Error('文件中没有数据行，请至少填写一行任务')
+    }
+
+    const headerRow = matrix[0]
+    validateHeaderRow(headerRow)
+
+    const headerCells = headerRow.map((c) => cellToString(c))
+    const colMap = mapHeaderRow(headerCells)
+    validateColMap(colMap)
+    validateRequiredColumns(headerCells)
+
+    const rows = buildColMap(matrix, colMap)
+    validateRowCount(rows)
+
     return rows
 }
 
 /** 下载批量创建 Excel 模板 */
 export function downloadBatchTaskTemplate(): void {
     const headers = BATCH_TASK_TEMPLATE_COLUMNS.map((c) => c.header)
-    const ws = XLSX.utils.aoa_to_sheet([headers])
+    const exampleRow = [
+        '示例任务',
+        'https://gitee.com/example/repo.git',
+        'main',
+        'src,utils',
+        DEFAULT_BATCH_CODE_LANGUAGE,
+        '示例产品',
+        '示例部门',
+        '示例PDU',
+        '',
+        '',
+    ]
+    const ws = XLSX.utils.aoa_to_sheet([headers, exampleRow])
     ws['!cols'] = BATCH_TASK_TEMPLATE_COLUMNS.map((col) => ({
         wch: Math.max(col.header.length + 4, 18),
     }))

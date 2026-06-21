@@ -22,6 +22,7 @@ export type {
     BatchCreateTaskData,
     UpdateTaskInfoPayload,
     StartTaskScanData,
+    PauseTaskData,
     AnnotationStatistics,
 } from './taskModel'
 export type { TaskListApiRow, TaskListPageData } from './taskList'

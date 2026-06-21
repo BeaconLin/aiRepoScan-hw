@@ -109,6 +109,9 @@ const taskManagementService = {
   /** 启动代码仓扫描任务 */
   startTaskScan: (taskId: string): any =>
     service.post(`${REPO_SCAN_URL}/api/tasks/${taskId}/start`, {}),
+  /** 暂停代码仓扫描任务 */
+  pauseTask: (taskId: string): any =>
+    service.post(`${REPO_SCAN_URL}/api/tasks/${taskId}/pause`, {}),
   /** 保存缺陷标注评审结果 */
   saveAnnotationReviewApi: (reqBody: {
     taskId: string

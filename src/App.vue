@@ -2,7 +2,10 @@
   <div class="layout">
     <!-- 顶部导航栏区域 -->
     <header class="header">
-      <div class="brand">aiRepoScan - 产业代码仓扫描结果管理平台</div>
+      <div class="header-left">
+        <div class="brand">aiRepoScan - 产业代码仓扫描结果管理平台</div>
+      </div>
+      <SystemAnnouncement />
       <nav class="nav">
         <div class="user-info">用户信息区域</div>
       </nav>
@@ -32,6 +35,10 @@
   </div>
 </template>
 
+<script setup>
+import SystemAnnouncement from './components/SystemAnnouncement.vue'
+</script>
+
 <style scoped>
 .layout {
   min-height: 100vh;
@@ -45,24 +52,35 @@
   left: 0;
   right: 0;
   z-index: 1000;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
-  padding: 16px 24px;
+  gap: 16px;
+  padding: 0 24px;
   background: #1f2937;
   color: #f9fafb;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  height: 64px;
+  min-height: 64px;
   box-sizing: border-box;
+}
+
+.header-left {
+  justify-self: start;
+  min-width: 0;
 }
 
 .brand {
   font-weight: 700;
   letter-spacing: 0.4px;
   font-size: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .nav {
+  justify-self: end;
+  grid-column: 3;
   display: flex;
   gap: 24px;
 }

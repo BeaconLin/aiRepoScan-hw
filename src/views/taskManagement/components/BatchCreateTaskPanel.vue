@@ -24,7 +24,7 @@
         class="batch-create-tip"
     >
       <template #title>
-        请下载模板填写后导入。除单次创建所需字段外，可一并填写「本机启动URL」与「模型名称」（须同时填写或留空）。
+        请下载模板填写后导入。「本机启动URL」与「模型名称」为可选字段。
         单次最多导入 {{ BATCH_TASK_MAX_ROWS }} 条，创建人自动取当前登录用户。
       </template>
     </el-alert>

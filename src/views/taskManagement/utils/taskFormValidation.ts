@@ -7,9 +7,14 @@ export function isValidRepoGitUrl(raw: unknown): boolean {
   return /^https:\/\/[^\s/]+\/[^\s?]+\.git$/i.test(url)
 }
 
-function createPathListValidator() {
+interface PathListValidatorRule {
+  validator: (_rule: unknown, value: unknown, callback: (err?: Error) => void) => void
+  trigger: 'blur'
+}
+
+function createPathListValidator(): PathListValidatorRule {
   return {
-    validator: (_rule: unknown, value: unknown, callback: (err?: Error) => void) => {
+    validator: (_rule: unknown, value: unknown, callback: (err?: Error) => void): void => {
       if (!value || String(value).trim() === '') {
         callback()
         return
@@ -29,9 +34,9 @@ function createPathListValidator() {
 }
 
 const repoUrlRules = [
-  { required: true, message: '请输入代码仓Git地址', trigger: 'blur' },
+  {required: true, message: '请输入代码仓Git地址', trigger: 'blur'},
   {
-    validator: (_rule: unknown, value: unknown, callback: (err?: Error) => void) => {
+    validator: (_rule: unknown, value: unknown, callback: (err?: Error) => void): void => {
       if (!value || String(value).trim() === '') {
         callback()
         return
@@ -50,12 +55,12 @@ const repoUrlRules = [
 
 const sharedTaskFormRules = {
   taskName: [
-    { required: true, message: '请输入任务名称', trigger: 'blur' },
-    { min: 2, max: 50, message: '任务名称长度在 2 到 50 个字符', trigger: 'blur' },
+    {required: true, message: '请输入任务名称', trigger: 'blur'},
+    {min: 2, max: 50, message: '任务名称长度在 2 到 50 个字符', trigger: 'blur'},
   ],
   repoUrl: repoUrlRules,
-  branch: [{ required: true, message: '请输入扫描分支', trigger: 'blur' }],
-  productName: [{ required: true, message: '请输入产品名称', trigger: 'blur' }],
+  branch: [{required: true, message: '请输入扫描分支', trigger: 'blur'}],
+  productName: [{required: true, message: '请输入产品名称', trigger: 'blur'}],
 }
 
 /** 任务详情页编辑表单校验 */

@@ -29,6 +29,7 @@ import type {
     UploadScanResultFileResponse,
     UpdateTaskInfoPayload,
     StartTaskScanData,
+    PauseTaskData,
     SaveAnnotationReviewReqBody,
     SaveAnnotationReviewResultData,
     SubmitHistoryListData,
@@ -1136,7 +1137,7 @@ export const startTaskScan = async (taskId: string): Promise<ApiEnvelope<StartTa
     if (st === TASK_STATUS.RUNNING) {
         return envelopeFail(null, 400, '任务进行中，无法再次启动扫描')
     }
-    if (st !== TASK_STATUS.NOT_STARTED && st !== TASK_STATUS.FAILED && st !== TASK_STATUS.COMPLETED) {
+    if (st !== TASK_STATUS.NOT_STARTED && st !== TASK_STATUS.FAILED && st !== TASK_STATUS.COMPLETED && st !== TASK_STATUS.PAUSED) {
         return envelopeFail(null, 400, '当前任务状态不允许启动扫描')
     }
     const host = (t.hostUrl || '').trim()
@@ -1148,6 +1149,28 @@ export const startTaskScan = async (taskId: string): Promise<ApiEnvelope<StartTa
     persistTasksToStorage()
     return envelopeOk({
         message: '扫描任务已启动',
+        taskId,
+        taskStatus: t.taskStatus,
+    })
+}
+
+/**
+ * 暂停任务（Mock：仅「排队中」「进行中」可暂停；成功后置为「已暂停」）
+ */
+export const pauseTask = async (taskId: string): Promise<ApiEnvelope<PauseTaskData>> => {
+    await new Promise((r) => setTimeout(r, 0))
+    const t = mockTaskDetails[taskId]
+    if (!t) {
+        return envelopeFail(null, 404, '未找到任务')
+    }
+    const st = t.taskStatus
+    if (st !== TASK_STATUS.QUEUED && st !== TASK_STATUS.RUNNING) {
+        return envelopeFail(null, 400, '当前任务状态不允许暂停')
+    }
+    t.taskStatus = TASK_STATUS.PAUSED
+    persistTasksToStorage()
+    return envelopeOk({
+        message: '任务已暂停',
         taskId,
         taskStatus: t.taskStatus,
     })

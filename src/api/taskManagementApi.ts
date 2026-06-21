@@ -20,6 +20,7 @@ import {
     getAnnotationStatistics as mockGetAnnotationStatistics,
     rerunStatistics as mockRerunStatistics,
     startTaskScan as mockStartTaskScan,
+    pauseTask as mockPauseTask,
     exportTaskScanResultsExcel as mockExportTaskScanResultsExcel,
 } from '@/api/task'
 import taskManagementService from '@/api/services/taskManagementService'
@@ -32,6 +33,7 @@ import type {
     TaskDetail,
     UpdateTaskInfoPayload,
     StartTaskScanData,
+    PauseTaskData,
 } from '@/api/types'
 import type { SaveAnnotationReqBody, SaveAnnotationResultData } from '@/api/types/saveAnnotation'
 import type {
@@ -156,6 +158,13 @@ export async function startTaskScan(taskId: string): Promise<ApiEnvelope<StartTa
     return apiMode === 'live'
         ? taskManagementService.startTaskScan(taskId)
         : mockStartTaskScan(taskId)
+}
+
+/** 暂停任务（POST `/api/tasks/{taskId}/pause`） */
+export async function pauseTask(taskId: string): Promise<ApiEnvelope<PauseTaskData>> {
+    return apiMode === 'live'
+        ? taskManagementService.pauseTask(taskId)
+        : mockPauseTask(taskId)
 }
 
 /** 保存缺陷标注评审（POST `/api/annotations/review`） */
